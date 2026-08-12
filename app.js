@@ -1,7 +1,8 @@
 (() => {
   const banks = window.POLITICS_BANKS || [];
   const labels = {all: '全部', single: '单选题', multi: '多选题', theory: '基本理论观点', short: '简答题', essay: '论述题', material: '材料分析题'};
-  const PAPER_VERSION = 1;
+  // Bump whenever the source data is corrected so saved mock papers rebuild.
+  const PAPER_VERSION = 2;
   const storeKey = 'politics-h5-state-v1';
   const paymentQr = window.PAYMENT_QR_DATA_URL || 'payment-qr.jpg';
   const welcomeCat = window.WELCOME_CAT_DATA_URL || 'welcome-cat.jpg';
@@ -26,6 +27,22 @@
   ensure();
   persist();
   const escape = text => String(text || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  // Remove source-document answer blanks such as "（ ）" only when they
+  // appear at the very end of an option; normal brackets in the text remain.
+  const optionText = text => String(text || '').replace(/\s*[（(]\s*[）)]\s*$/, '');
+  const answerMarker = /([（(]\s*[一二三四五六七八九十\d]+\s*[）)]|[一二三四五六七八九十]+、|[①②③④⑤⑥⑦⑧⑨⑩])/g;
+  const answerLine = text => escape(text).replace(/([（(]\s*\d+\s*分\s*[）)])/g, '<span class="score">$1</span>');
+  function formatAnswer(answer) {
+    const source = String(answer || '').replace(/\r/g, '').trim();
+    if (!source) return '<p class="answer-lead">原文未提供标准答案，请结合教材复习。</p>';
+    return source.replace(answerMarker, '\n$1').split('\n').map(part => part.trim()).filter(Boolean).map(part => {
+      const matched = part.match(/^([（(]\s*[一二三四五六七八九十\d]+\s*[）)]|[一二三四五六七八九十]+、|[①②③④⑤⑥⑦⑧⑨⑩])/);
+      if (!matched) return `<p class="answer-lead">${answerLine(part)}</p>`;
+      const marker = matched[1]; const body = part.slice(marker.length).trim();
+      const level = /^[①②③④⑤⑥⑦⑧⑨⑩]/.test(marker) ? 'level-two' : 'level-one';
+      return `<div class="answer-item ${level}"><span class="answer-marker">${escape(marker)}</span><span class="answer-content">${answerLine(body)}</span></div>`;
+    }).join('');
+  }
   const shuffle = list => { const copy = [...list]; for (let i = copy.length - 1; i; i--) { const j = Math.floor(Math.random() * (i + 1)); [copy[i], copy[j]] = [copy[j], copy[i]]; } return copy; };
   function accessOverlay() {
     if (accessDialog === 'welcome') return `<div class="modal-mask" role="dialog" aria-modal="true"><section class="access-modal welcome-modal"><button class="modal-x" data-action="modal-close" aria-label="关闭">×</button><p class="access-kicker">WELCOME</p><h2>个人制作不易，老大如果觉得有帮助的话可以划到底部赞助一下吗喵 QAQ</h2><img class="welcome-cat" src="${escape(welcomeCat)}" alt="可爱猫咪"><button class="access-main" data-action="modal-close">开始刷题</button></section></div>`;
@@ -70,7 +87,7 @@
     const options = choices.map((option, index) => {
       const feedback = state.feedback?.[index] || '';
       const selected = state.selected?.includes(index) ? 'selected' : '';
-      return `<button class="option ${feedback} ${selected}" data-action="choose" data-id="${token}" data-index="${index}"><span class="${question.type === 'multi' ? 'check' : 'radio'} ${selected}"></span><span>${String.fromCharCode(65 + index)}．${escape(option)}</span></button>`;
+      return `<button class="option ${feedback} ${selected}" data-action="choose" data-id="${token}" data-index="${index}"><span class="${question.type === 'multi' ? 'check' : 'radio'} ${selected}"></span><span>${String.fromCharCode(65 + index)}．${escape(optionText(option))}</span></button>`;
     }).join('');
     return `<article class="card" id="q-${token}">
       <div class="qrow"><span class="qindex">${question.id}</span><div><h2>${escape(question.title)}</h2><span class="tag">${labels[question.type] || question.type}</span>${question.hint ? `<span class="hint">记忆 · ${escape(question.hint)}</span>` : ''}</div></div>
@@ -109,7 +126,7 @@
       ${visible.length ? visible.map(card).join('') : '<p class="empty">本题库暂无错题，继续保持。</p>'}<button class="to-top" data-action="top">↑<small>顶部</small></button>`;
   }
 
-  function render() { if (screen === 'home') renderHome(); else if (screen === 'papers') renderPapers(); else if (screen === 'mistakes') renderMistakes(); else renderQuestions(); app.insertAdjacentHTML('beforeend', accessOverlay()); }
+  function render() { if (screen === 'home') renderHome(); else if (screen === 'papers') renderPapers(); else if (screen === 'mistakes') renderMistakes(); else renderQuestions(); document.querySelectorAll('.answer').forEach(node => { node.innerHTML = formatAnswer(node.textContent); }); app.insertAdjacentHTML('beforeend', accessOverlay()); }
   function findQuestion(id) { return bankQuestions().find(question => questionToken(question) === String(id)); }
   function judge(question) { const key = questionKey(question); const item = saved.progress[key] || {}; const right = String(question.answer).match(/^[A-E]+/i)?.[0].toUpperCase().split('').map(letter => letter.charCodeAt(0) - 65) || []; const picked = item.selected || []; item.feedback = question.options.map((_, index) => right.includes(index) ? 'correct' : picked.includes(index) ? 'wrong' : ''); item.ok = right.length === picked.length && right.every(index => picked.includes(index)); item.wrong = !item.ok; saved.progress[key] = item; persist(); }
 
