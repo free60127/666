@@ -32,17 +32,25 @@
   const optionText = text => String(text || '').replace(/\s*[（(]\s*[）)]\s*$/, '');
   const answerMarker = /([（(]\s*[一二三四五六七八九十\d]+\s*[）)]|[一二三四五六七八九十]+、|[①②③④⑤⑥⑦⑧⑨⑩])/g;
   const answerLine = text => escape(text).replace(/([（(]\s*\d+\s*分\s*[）)])/g, '<span class="score">$1</span>');
-  const wordAnswerMarker = /(\u7b2c[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341]+|[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341]+\u662f)/g;
+  // First/second and one-is/two-is are genuine outline titles.  Their
+  // punctuation is part of the marker so the following text starts cleanly.
+  const wordAnswerMarker = /(第[一二三四五六七八九十]+[、，,:：]?|[一二三四五六七八九十]+是[、，,:：]?)/g;
+  const repeatedLead = '(?:意味着|表明|说明|体现|要求|有利于|必须|需要|坚持|促进|推动|反映|标志着|关键是|核心是|根本是)';
   const allAnswerMarkers = new RegExp(`${answerMarker.source}|${wordAnswerMarker.source}`, 'g');
   const answerStartMarker = new RegExp(`^(?:${answerMarker.source}|${wordAnswerMarker.source})`);
+  const repeatedStartMarker = new RegExp(`^(${repeatedLead})`);
+  const repeatedAfterSemicolon = new RegExp(`([；;])\\s*(?=${repeatedLead})`, 'g');
   function formatAnswer(answer) {
     const source = String(answer || '').replace(/\r/g, '').trim();
     if (!source) return '<p class="answer-lead">原文未提供标准答案，请结合教材复习。</p>';
-    return source.replace(allAnswerMarkers, match => `\n${match}`).split('\n').map(part => part.trim()).filter(Boolean).map(part => {
+    const hasRepeatedLead = (source.match(new RegExp(repeatedLead, 'g')) || []).length > 1;
+    const prepared = source.replace(allAnswerMarkers, match => `\n${match}`).replace(hasRepeatedLead ? repeatedAfterSemicolon : /$^/, '$1\n');
+    return prepared.split('\n').map(part => part.trim()).filter(Boolean).map(part => {
       const matched = part.match(answerStartMarker);
-      if (!matched) return `<p class="answer-lead">${answerLine(part)}</p>`;
-      const marker = matched[0]; const body = part.slice(marker.length).trim();
-      const level = /^[①②③④⑤⑥⑦⑧⑨⑩]/.test(marker) ? 'level-two' : 'level-one';
+      const repeated = !matched && hasRepeatedLead ? part.match(repeatedStartMarker) : null;
+      if (!matched && !repeated) return `<p class="answer-lead">${answerLine(part)}</p>`;
+      const marker = (matched || repeated)[0]; const body = part.slice(marker.length).trim();
+      const level = matched && /^[①②③④⑤⑥⑦⑧⑨⑩]/.test(marker) ? 'level-two' : 'level-one';
       return `<div class="answer-item ${level}"><span class="answer-marker">${escape(marker)}</span><span class="answer-content">${answerLine(body)}</span></div>`;
     }).join('');
   }
