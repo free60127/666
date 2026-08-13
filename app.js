@@ -2,7 +2,7 @@
   const banks = window.POLITICS_BANKS || [];
   const labels = {all: '全部', single: '单选题', multi: '多选题', theory: '基本理论观点', short: '简答题', essay: '论述题', material: '材料分析题'};
   // Bump whenever the source data is corrected so saved mock papers rebuild.
-  const PAPER_VERSION = 2;
+  const PAPER_VERSION = 3;
   const storeKey = 'politics-h5-state-v1';
   const paymentQr = window.PAYMENT_QR_DATA_URL || 'payment-qr.jpg';
   const welcomeCat = window.WELCOME_CAT_DATA_URL || 'welcome-cat.jpg';
@@ -48,6 +48,18 @@
     const leads = source.split(/[；;]/).map(part => part.trim().replace(scorePrefix, '')).map(part => part.match(parallelLead)?.[1]).filter(Boolean);
     return [...new Set(leads)].find(lead => leads.filter(item => item === lead).length >= 2) || '';
   }
+  // Detect repeated sentence-openers such as “马克思主义是…” or
+  // “法治思维以…”.  A prefix must occur at least twice after a sentence
+  // boundary, preventing ordinary long prose from being split.
+  function findRepeatedPhraseLead(source) {
+    const clauses = source.split(/[。；;]/).map(part => part.trim().replace(scorePrefix, '')).filter(Boolean);
+    const candidates = clauses.map(part => {
+      const matched = part.match(/^([\u4e00-\u9fff]{2,10}(?:是|以|要|应当|必须|需要|具有|坚持|通过|反映|体现|表明|意味着))/);
+      return matched?.[1] || '';
+    }).filter(Boolean);
+    return [...new Set(candidates)].find(lead => candidates.filter(item => item === lead).length >= 2) || '';
+  }
+  const regexEscape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const hasParallelWordOutline = source => {
     const first = /第[一二三四五六七八九十]+(?:、|，|,|：|:)/.test(source) && /第[二三四五六七八九十]+(?:、|，|,|：|:)/.test(source);
     const second = /[一二三四五六七八九十]是(?:、|，|,|：|:)/.test(source) && /[二三四五六七八九十]是(?:、|，|,|：|:)/.test(source);
@@ -60,18 +72,28 @@
     const markerPattern = hasParallelWordOutline(source) ? allAnswerMarkers : answerMarker;
     const startPattern = hasParallelWordOutline(source) ? answerStartMarker : new RegExp(`^(?:${answerMarker.source})`);
     const semicolonLead = findParallelSemicolonLead(source);
+    const phraseLead = findRepeatedPhraseLead(source);
     const semicolonSeparator = semicolonLead ? new RegExp(`([；;])\\s*(([（(]\\s*\\d+\\s*分\\s*[）)])\\s*)?(?=${semicolonLead})`, 'g') : /$^/;
-    const prepared = source.replace(markerPattern, match => `\n${match}`).replace(hasRepeatedLead ? repeatedAfterSemicolon : /$^/, '$1\n').replace(semicolonSeparator, '$2\n');
+    const phraseSeparator = phraseLead ? new RegExp(`([。；;])\\s*(([（(]\\s*\\d+\\s*分\\s*[）)])\\s*)?(?=${phraseLead})`, 'g') : /$^/;
+    const phraseStart = phraseLead ? new RegExp(regexEscape(phraseLead), 'g') : /$^/;
+    const prepared = source.replace(markerPattern, match => `\n${match}`).replace(hasRepeatedLead ? repeatedAfterSemicolon : /$^/, '$1\n').replace(semicolonSeparator, '$2\n').replace(phraseSeparator, '$2\n').replace(phraseStart, match => `\n${match}`);
     return prepared.split('\n').map(part => part.trim()).filter(Boolean).map(part => {
       const matched = part.match(startPattern);
       const repeated = !matched && hasRepeatedLead ? part.match(repeatedStartMarker) : null;
       const parallel = !matched && !repeated && semicolonLead && part.replace(scorePrefix, '').startsWith(semicolonLead);
-      if (!matched && !repeated && !parallel) return `<p class="answer-lead">${answerLine(part)}</p>`;
+      const phrase = !matched && !repeated && !parallel && phraseLead && part.replace(scorePrefix, '').startsWith(phraseLead);
+      if (!matched && !repeated && !parallel && !phrase) return `<p class="answer-lead">${answerLine(part)}</p>`;
       if (parallel) {
         const prefix = part.match(scorePrefix)?.[0] || '';
         const text = part.slice(prefix.length);
         const content = (prefix + text.slice(semicolonLead.length).trim()).replace(/[；;](?=\s*(?:[（(]\s*\d+\s*分|$))/, '');
         return `<div class="answer-item level-one parallel-item"><span class="answer-marker">${escape(semicolonLead)}</span><span class="answer-content">${answerLine(content)}</span></div>`;
+      }
+      if (phrase) {
+        const prefix = part.match(scorePrefix)?.[0] || '';
+        const text = part.slice(prefix.length);
+        const content = (prefix + text.slice(phraseLead.length).trim()).replace(/[。；;](?=\s*(?:[（(]\s*\d+\s*分|$))/, '');
+        return `<div class="answer-item level-one parallel-item"><span class="answer-marker">${escape(phraseLead)}</span><span class="answer-content">${answerLine(content)}</span></div>`;
       }
       const marker = (matched || repeated)[0]; const body = part.slice(marker.length).trim();
       const level = matched && /^[①②③④⑤⑥⑦⑧⑨⑩]/.test(marker) ? 'level-two' : 'level-one';
