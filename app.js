@@ -32,13 +32,16 @@
   const optionText = text => String(text || '').replace(/\s*[（(]\s*[）)]\s*$/, '');
   const answerMarker = /([（(]\s*[一二三四五六七八九十\d]+\s*[）)]|[一二三四五六七八九十]+、|[①②③④⑤⑥⑦⑧⑨⑩])/g;
   const answerLine = text => escape(text).replace(/([（(]\s*\d+\s*分\s*[）)])/g, '<span class="score">$1</span>');
+  const wordAnswerMarker = /(\u7b2c[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341]+|[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341]+\u662f)/g;
+  const allAnswerMarkers = new RegExp(`${answerMarker.source}|${wordAnswerMarker.source}`, 'g');
+  const answerStartMarker = new RegExp(`^(?:${answerMarker.source}|${wordAnswerMarker.source})`);
   function formatAnswer(answer) {
     const source = String(answer || '').replace(/\r/g, '').trim();
     if (!source) return '<p class="answer-lead">原文未提供标准答案，请结合教材复习。</p>';
-    return source.replace(answerMarker, '\n$1').split('\n').map(part => part.trim()).filter(Boolean).map(part => {
-      const matched = part.match(/^([（(]\s*[一二三四五六七八九十\d]+\s*[）)]|[一二三四五六七八九十]+、|[①②③④⑤⑥⑦⑧⑨⑩])/);
+    return source.replace(allAnswerMarkers, match => `\n${match}`).split('\n').map(part => part.trim()).filter(Boolean).map(part => {
+      const matched = part.match(answerStartMarker);
       if (!matched) return `<p class="answer-lead">${answerLine(part)}</p>`;
-      const marker = matched[1]; const body = part.slice(marker.length).trim();
+      const marker = matched[0]; const body = part.slice(marker.length).trim();
       const level = /^[①②③④⑤⑥⑦⑧⑨⑩]/.test(marker) ? 'level-two' : 'level-one';
       return `<div class="answer-item ${level}"><span class="answer-marker">${escape(marker)}</span><span class="answer-content">${answerLine(body)}</span></div>`;
     }).join('');
