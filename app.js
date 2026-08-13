@@ -32,23 +32,45 @@
   const optionText = text => String(text || '').replace(/\s*[（(]\s*[）)]\s*$/, '');
   const answerMarker = /([（(]\s*[一二三四五六七八九十\d]+\s*[）)]|[一二三四五六七八九十]+、|[①②③④⑤⑥⑦⑧⑨⑩])/g;
   const answerLine = text => escape(text).replace(/([（(]\s*\d+\s*分\s*[）)])/g, '<span class="score">$1</span>');
-  // First/second and one-is/two-is are genuine outline titles.  Their
-  // punctuation is part of the marker so the following text starts cleanly.
-  const wordAnswerMarker = /(第[一二三四五六七八九十]+[、，,:：]?|[一二三四五六七八九十]+是[、，,:：]?)/g;
+  // Only numbered outline markers with explicit punctuation are candidates.
+  // This deliberately excludes prose such as “第一次”“第一位”.
+  const wordAnswerMarker = /(第[一二三四五六七八九十]+[、，,:：]|[一二三四五六七八九十]+是[、，,:：])/g;
   const repeatedLead = '(?:意味着|表明|说明|体现|要求|有利于|必须|需要|坚持|促进|推动|反映|标志着|关键是|核心是|根本是)';
   const allAnswerMarkers = new RegExp(`${answerMarker.source}|${wordAnswerMarker.source}`, 'g');
   const answerStartMarker = new RegExp(`^(?:${answerMarker.source}|${wordAnswerMarker.source})`);
   const repeatedStartMarker = new RegExp(`^(${repeatedLead})`);
   const repeatedAfterSemicolon = new RegExp(`([；;])\\s*(?=${repeatedLead})`, 'g');
+  const scorePrefix = /^[（(]\s*\d+\s*分\s*[）)]\s*/;
+  const parallelLead = /^(是|要|应|必须|坚持|通过|以|把|从|在|由|对于|实现|促进|推动|反映|体现|表明|说明|意味着|有利于|需要|要求)/;
+  function findParallelSemicolonLead(source) {
+    const leads = source.split(/[；;]/).map(part => part.trim().replace(scorePrefix, '')).map(part => part.match(parallelLead)?.[1]).filter(Boolean);
+    return [...new Set(leads)].find(lead => leads.filter(item => item === lead).length >= 2) || '';
+  }
+  const hasParallelWordOutline = source => {
+    const first = /第[一二三四五六七八九十]+[、，,:：]/.test(source) && /第[二三四五六七八九十]+[、，,:：]/.test(source);
+    const second = /[一二三四五六七八九十]是[、，,:：]/.test(source) && /[二三四五六七八九十]是[、，,:：]/.test(source);
+    return first || second;
+  };
   function formatAnswer(answer) {
     const source = String(answer || '').replace(/\r/g, '').trim();
     if (!source) return '<p class="answer-lead">原文未提供标准答案，请结合教材复习。</p>';
     const hasRepeatedLead = (source.match(new RegExp(repeatedLead, 'g')) || []).length > 1;
-    const prepared = source.replace(allAnswerMarkers, match => `\n${match}`).replace(hasRepeatedLead ? repeatedAfterSemicolon : /$^/, '$1\n');
+    const markerPattern = hasParallelWordOutline(source) ? allAnswerMarkers : answerMarker;
+    const startPattern = hasParallelWordOutline(source) ? answerStartMarker : new RegExp(`^(?:${answerMarker.source})`);
+    const semicolonLead = findParallelSemicolonLead(source);
+    const semicolonSeparator = semicolonLead ? new RegExp(`([；;])\\s*(([（(]\\s*\\d+\\s*分\\s*[）)])\\s*)?(?=${semicolonLead})`, 'g') : /$^/;
+    const prepared = source.replace(markerPattern, match => `\n${match}`).replace(hasRepeatedLead ? repeatedAfterSemicolon : /$^/, '$1\n').replace(semicolonSeparator, '$2\n');
     return prepared.split('\n').map(part => part.trim()).filter(Boolean).map(part => {
-      const matched = part.match(answerStartMarker);
+      const matched = part.match(startPattern);
       const repeated = !matched && hasRepeatedLead ? part.match(repeatedStartMarker) : null;
-      if (!matched && !repeated) return `<p class="answer-lead">${answerLine(part)}</p>`;
+      const parallel = !matched && !repeated && semicolonLead && part.replace(scorePrefix, '').startsWith(semicolonLead);
+      if (!matched && !repeated && !parallel) return `<p class="answer-lead">${answerLine(part)}</p>`;
+      if (parallel) {
+        const prefix = part.match(scorePrefix)?.[0] || '';
+        const text = part.slice(prefix.length);
+        const content = (prefix + text.slice(semicolonLead.length).trim()).replace(/[；;](?=\s*(?:[（(]\s*\d+\s*分|$))/, '');
+        return `<div class="answer-item level-one parallel-item"><span class="answer-marker">${escape(semicolonLead)}</span><span class="answer-content">${answerLine(content)}</span></div>`;
+      }
       const marker = (matched || repeated)[0]; const body = part.slice(marker.length).trim();
       const level = matched && /^[①②③④⑤⑥⑦⑧⑨⑩]/.test(marker) ? 'level-two' : 'level-one';
       return `<div class="answer-item ${level}"><span class="answer-marker">${escape(marker)}</span><span class="answer-content">${answerLine(body)}</span></div>`;
