@@ -34,7 +34,9 @@
   const answerLine = text => escape(text).replace(/([（(]\s*\d+\s*分\s*[）)])/g, '<span class="score">$1</span>');
   // Only numbered outline markers with explicit punctuation are candidates.
   // This deliberately excludes prose such as “第一次”“第一位”.
-  const wordAnswerMarker = /(第[一二三四五六七八九十]+[、，,:：]|[一二三四五六七八九十]+是[、，,:：])/g;
+  // Deliberately accept only formal enumerators, never words such as
+  // “第一次”“第一粒扣子”“第一阶段”.
+  const wordAnswerMarker = /(第[一二三四五六七八九十]+(?:、|，|,|：|:)|[一二三四五六七八九十]+是(?:、|，|,|：|:))/g;
   const repeatedLead = '(?:意味着|表明|说明|体现|要求|有利于|必须|需要|坚持|促进|推动|反映|标志着|关键是|核心是|根本是)';
   const allAnswerMarkers = new RegExp(`${answerMarker.source}|${wordAnswerMarker.source}`, 'g');
   const answerStartMarker = new RegExp(`^(?:${answerMarker.source}|${wordAnswerMarker.source})`);
@@ -47,8 +49,8 @@
     return [...new Set(leads)].find(lead => leads.filter(item => item === lead).length >= 2) || '';
   }
   const hasParallelWordOutline = source => {
-    const first = /第[一二三四五六七八九十]+[、，,:：]/.test(source) && /第[二三四五六七八九十]+[、，,:：]/.test(source);
-    const second = /[一二三四五六七八九十]是[、，,:：]/.test(source) && /[二三四五六七八九十]是[、，,:：]/.test(source);
+    const first = /第[一二三四五六七八九十]+(?:、|，|,|：|:)/.test(source) && /第[二三四五六七八九十]+(?:、|，|,|：|:)/.test(source);
+    const second = /[一二三四五六七八九十]是(?:、|，|,|：|:)/.test(source) && /[二三四五六七八九十]是(?:、|，|,|：|:)/.test(source);
     return first || second;
   };
   function formatAnswer(answer) {
