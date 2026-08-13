@@ -40,6 +40,11 @@
   const repeatedLead = '(?:意味着|表明|说明|体现|要求|有利于|必须|需要|坚持|促进|推动|反映|标志着|关键是|核心是|根本是)';
   const allAnswerMarkers = new RegExp(`${answerMarker.source}|${wordAnswerMarker.source}`, 'g');
   const answerStartMarker = new RegExp(`^(?:${answerMarker.source}|${wordAnswerMarker.source})`);
+  // Short labels such as “内容：”“意义：”“教训：” are answer section
+  // headings, even where the source document omitted a number before them.
+  const sectionHeadingNames = '根本原因|主要原因|直接原因|原因|内容|意义|教训|启示|结论|特点|表现|作用|要求|原则|措施|途径|本质|实质|内涵|关系|影响|任务|目标|重点|关键|基础|保证';
+  const sectionHeadingAtStart = new RegExp(`^(${sectionHeadingNames})：$`);
+  const sectionHeadingAfterScore = new RegExp(`([（(]\\s*\\d+\\s*分\\s*[）)])\\s*(${sectionHeadingNames})：`, 'g');
   const repeatedStartMarker = new RegExp(`^(${repeatedLead})`);
   const repeatedAfterSemicolon = new RegExp(`([；;])\\s*(?=${repeatedLead})`, 'g');
   const scorePrefix = /^[（(]\s*\d+\s*分\s*[）)]\s*/;
@@ -76,8 +81,10 @@
     const semicolonSeparator = semicolonLead ? new RegExp(`([；;])\\s*(([（(]\\s*\\d+\\s*分\\s*[）)])\\s*)?(?=${semicolonLead})`, 'g') : /$^/;
     const phraseSeparator = phraseLead ? new RegExp(`([。；;])\\s*(([（(]\\s*\\d+\\s*分\\s*[）)])\\s*)?(?=${phraseLead})`, 'g') : /$^/;
     const phraseStart = phraseLead ? new RegExp(regexEscape(phraseLead), 'g') : /$^/;
-    const prepared = source.replace(markerPattern, match => `\n${match}`).replace(hasRepeatedLead ? repeatedAfterSemicolon : /$^/, '$1\n').replace(semicolonSeparator, '$2\n').replace(phraseSeparator, '$2\n').replace(phraseStart, match => `\n${match}`);
+    const prepared = source.replace(markerPattern, match => `\n${match}`).replace(hasRepeatedLead ? repeatedAfterSemicolon : /$^/, '$1\n').replace(sectionHeadingAfterScore, '$1\n@@SECTION@@$2：\n').replace(semicolonSeparator, '$2\n').replace(phraseSeparator, '$2\n').replace(phraseStart, match => `\n${match}`);
     return prepared.split('\n').map(part => part.trim()).filter(Boolean).map(part => {
+      const section = part.replace('@@SECTION@@', '');
+      if (sectionHeadingAtStart.test(section)) return `<p class="answer-section">${escape(section)}</p>`;
       const matched = part.match(startPattern);
       const repeated = !matched && hasRepeatedLead ? part.match(repeatedStartMarker) : null;
       const parallel = !matched && !repeated && semicolonLead && part.replace(scorePrefix, '').startsWith(semicolonLead);
