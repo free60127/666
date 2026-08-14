@@ -13,6 +13,7 @@
   let paper = null;
   let mistakes = false;
   let filter = 'all';
+  let displayLimit = 30;
   let accessDialog = '';
 
   const persist = () => localStorage.setItem(storeKey, JSON.stringify(saved));
@@ -139,7 +140,7 @@
     const old = saved.papers[`${key}-${number}`];
     paper = old && old.version === PAPER_VERSION && Object.entries(expected).every(([type, count]) => old.questions.filter(question => question.sourceType === type).length === count) ? old : createPaper(bank, number);
     saved.papers[paper.key] = paper;
-    persist(); bankKey = key; screen = 'questions'; mistakes = false; filter = 'all'; render();
+    persist(); bankKey = key; screen = 'questions'; mistakes = false; filter = 'all'; displayLimit = 30; render();
   }
 
   function card(question) {
@@ -164,7 +165,6 @@
     app.innerHTML = `<button class="back hub-back" data-action="hub">‹ 返回知识分享站</button><header class="brand"><div class="mark">C</div><div><strong>计算机 · 刷题站</strong><small>COMPUTING REVIEW / 2026</small></div></header>
       <section class="hero"><small>COMPUTER QUESTION BANKS</small><h1>选择你的<span>计算机题库。</span></h1><p>题库进度保存在本机，可随时继续练习。</p></section>
       <section class="bank-list">${banks.map(bank => { const s = summary(bank); return `<button class="bank-card" data-action="bank" data-bank="${bank.key}"><div><b>${escape(bank.shortName)}</b><em>进入</em></div><h2>${escape(bank.name)}</h2><p>${escape(bank.subtitle)}</p><small>${s.total} 题　已完成 ${s.done}　正确率 ${s.accuracy}</small><footer>${['single','multi','theory','short','essay','material'].filter(type => s[type]).map(type => `<i>${labels[type]} ${s[type]}</i>`).join('')}</footer></button>`; }).join('')}</section>
-      <button class="entry paper-entry" data-action="papers"><b>卷</b><span><strong>模拟卷</strong><small>每个题库 5 套随机组卷，首次进入后固定</small></span><em>进入</em></button>
       <button class="entry mistake-entry" data-action="mistakes"><b>错</b><span><strong>错题本</strong><small>按题库归类，反复训练直到答对</small></span><em>进入</em></button>`;
   }
 
@@ -180,12 +180,13 @@
     const bank = getBank(bankKey); const source = bankQuestions();
     const questions = source.filter(question => !mistakes || stateFor(question).wrong);
     const types = ['all', ...Object.keys(labels).filter(type => type !== 'all' && questions.some(question => question.type === type))];
-    const visible = questions.filter(question => filter === 'all' || question.type === filter);
+    const matching = questions.filter(question => filter === 'all' || question.type === filter);
+    const visible = matching.slice(0, displayLimit);
     const s = summary(bank);
     app.innerHTML = `<button class="back" data-action="back">‹ 返回题库</button><section class="hero compact"><small>${mistakes ? '错题本 · ' : ''}${escape(paper ? `${bank.name} · 模拟卷${paper.number}` : bank.name)}</small><div class="stats"><span><b>${paper || mistakes ? questions.length : s.total}</b>题目</span><span><b>${s.done}</b>已完成</span><span><b>${s.accuracy}</b>正确率</span></div></section>
       <nav class="tabs">${types.map(type => `<button class="${filter === type ? 'active' : ''}" data-action="filter" data-filter="${type}">${labels[type]}</button>`).join('')}</nav>
       <div class="actions"><button data-action="random">↻ 随机一题</button>${paper ? '<button data-action="clear-paper">清空本模拟卷进度</button>' : (!mistakes ? '<button data-action="clear">清除本题库进度</button>' : '')}</div><p class="notice">${mistakes ? '错题答对后将自动移出错题本。' : '选择题支持判题；简答、论述和材料题可展开参考答案。'}</p>
-      ${visible.length ? visible.map(card).join('') : '<p class="empty">本题库暂无错题，继续保持。</p>'}<button class="to-top" data-action="top">↑<small>顶部</small></button>`;
+      ${visible.length ? visible.map(card).join('') : '<p class="empty">本题库暂无错题，继续保持。</p>'}${visible.length < matching.length ? `<div class="actions"><button data-action="more">加载更多（剩余 ${matching.length - visible.length} 题）</button></div>` : ''}<button class="to-top" data-action="top">↑<small>顶部</small></button>`;
   }
 
   function render() { if (screen === 'home') renderHome(); else if (screen === 'papers') renderPapers(); else if (screen === 'mistakes') renderMistakes(); else renderQuestions(); document.querySelectorAll('.answer').forEach(node => { node.innerHTML = formatAnswer(node.textContent); }); app.insertAdjacentHTML('beforeend', accessOverlay()); }
@@ -199,13 +200,14 @@
     if (action === 'modal-close') { accessDialog = ''; render(); return; }
     if (action === 'hub') { location.href = '../index.html'; return; }
     if (action === 'home') { screen = 'home'; bankKey = ''; paper = null; mistakes = false; }
-    if (action === 'bank') { bankKey = bank; screen = 'questions'; paper = null; mistakes = false; filter = 'all'; }
+    if (action === 'bank') { bankKey = bank; screen = 'questions'; paper = null; mistakes = false; filter = 'all'; displayLimit = 30; }
     if (action === 'papers') screen = 'papers';
     if (action === 'paper') return loadPaper(bank, Number(paperNo));
     if (action === 'mistakes') screen = 'mistakes';
-    if (action === 'mistake-bank') { if (!summary(getBank(bank)).mistakes) return; bankKey = bank; screen = 'questions'; paper = null; mistakes = true; filter = 'all'; Object.keys(saved.progress || {}).filter(key => key.startsWith(`${bank}-`) && saved.progress[key].wrong).forEach(key => { saved.progress[key] = {...saved.progress[key], selected: [], feedback: [], showAnswer: false}; delete saved.progress[key].ok; }); persist(); }
+    if (action === 'mistake-bank') { if (!summary(getBank(bank)).mistakes) return; bankKey = bank; screen = 'questions'; paper = null; mistakes = true; filter = 'all'; displayLimit = 30; Object.keys(saved.progress || {}).filter(key => key.startsWith(`${bank}-`) && saved.progress[key].wrong).forEach(key => { saved.progress[key] = {...saved.progress[key], selected: [], feedback: [], showAnswer: false}; delete saved.progress[key].ok; }); persist(); }
     if (action === 'back') { screen = paper ? 'papers' : (mistakes ? 'mistakes' : 'home'); paper = null; }
-    if (action === 'filter') { filter = nextFilter; render(); document.querySelector('.card')?.scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
+    if (action === 'filter') { filter = nextFilter; displayLimit = 30; render(); document.querySelector('.card')?.scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
+    if (action === 'more') { displayLimit += 30; render(); return; }
     if (action === 'top') { window.scrollTo({top: 0, behavior: 'smooth'}); return; }
     if (action === 'random') { const list = bankQuestions().filter(question => (filter === 'all' || question.type === filter) && (!mistakes || stateFor(question).wrong)); const question = list[Math.floor(Math.random() * list.length)]; document.getElementById(`q-${questionToken(question)}`)?.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
     if (action === 'clear') { if (confirm('确定清除这个题库的答题进度吗？')) { Object.keys(saved.progress || {}).filter(key => key.startsWith(`${bankKey}-`)).forEach(key => delete saved.progress[key]); persist(); } }
