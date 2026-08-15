@@ -28,6 +28,7 @@
   ensure();
   persist();
   const escape = text => String(text || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const displayText = text => escape(text).replace(/\n/g, '<br>');
   // Remove source-document answer blanks such as "（ ）" only when they
   // appear at the very end of an option; normal brackets in the text remain.
   const optionText = text => String(text || '').replace(/\s*[（(]\s*[）)]\s*$/, '');
@@ -151,10 +152,10 @@
     const options = choices.map((option, index) => {
       const feedback = state.feedback?.[index] || '';
       const selected = state.selected?.includes(index) ? 'selected' : '';
-      return `<button class="option ${feedback} ${selected}" data-action="choose" data-id="${token}" data-index="${index}"><span class="${question.type === 'multi' ? 'check' : 'radio'} ${selected}"></span><span>${String.fromCharCode(65 + index)}．${escape(optionText(option))}</span></button>`;
+      return `<button class="option ${feedback} ${selected}" data-action="choose" data-id="${token}" data-index="${index}"><span class="${question.type === 'multi' ? 'check' : 'radio'} ${selected}"></span><span>${String.fromCharCode(65 + index)}．${displayText(optionText(option))}</span></button>`;
     }).join('');
     return `<article class="card" id="q-${token}">
-      <div class="qrow"><span class="qindex">${question.id}</span><div><h2>${escape(question.title)}</h2><span class="tag">${labels[question.type] || question.type}</span>${question.hint ? `<span class="hint">记忆 · ${escape(question.hint)}</span>` : ''}</div></div>
+      <div class="qrow"><span class="qindex">${question.displayNumber || question.id}</span><div><h2>${displayText(question.title)}</h2><span class="tag">${labels[question.type] || question.type}</span>${question.hint ? `<span class="hint">记忆 · ${escape(question.hint)}</span>` : ''}</div></div>
       ${choices.length ? `<div class="options">${options}${question.type === 'multi' && answer ? `<button class="confirm" data-action="confirm" data-id="${token}">确认答案</button>` : ''}</div>` : ''}
       <button class="answer-toggle" data-action="answer" data-id="${token}">${state.showAnswer ? '收起答案' : '点击展开答案'}</button>
       ${state.showAnswer ? `<div class="answer">${escape(answer || '原文未提供标准答案，请结合教材复习。')}</div>` : ''}
@@ -165,7 +166,8 @@
     app.innerHTML = `<button class="back hub-back" data-action="hub">‹ 返回知识分享站</button><header class="brand"><div class="mark">C</div><div><strong>计算机 · 刷题站</strong><small>COMPUTING REVIEW / 2026</small></div></header>
       <section class="hero"><small>COMPUTER QUESTION BANKS</small><h1>选择你的<span>计算机题库。</span></h1><p>题库进度保存在本机，可随时继续练习。</p></section>
       <section class="bank-list">${banks.map(bank => { const s = summary(bank); return `<button class="bank-card" data-action="bank" data-bank="${bank.key}"><div><b>${escape(bank.shortName)}</b><em>进入</em></div><h2>${escape(bank.name)}</h2><p>${escape(bank.subtitle)}</p><small>${s.total} 题　已完成 ${s.done}　正确率 ${s.accuracy}</small><footer>${['single','multi','theory','short','essay','material'].filter(type => s[type]).map(type => `<i>${labels[type]} ${s[type]}</i>`).join('')}</footer></button>`; }).join('')}</section>
-      <button class="entry mistake-entry" data-action="mistakes"><b>错</b><span><strong>错题本</strong><small>按题库归类，反复训练直到答对</small></span><em>进入</em></button>`;
+      <button class="entry mistake-entry" data-action="mistakes"><b>错</b><span><strong>错题本</strong><small>按题库归类，反复训练直到答对</small></span><em>进入</em></button>
+      <section class="practice-qr"><div><strong>计算机实操题</strong><small>提取密码：FREE</small></div><img src="computer-practice-qr.png" alt="计算机实操题资料二维码"></section>`;
   }
 
   function renderPapers() {
@@ -183,10 +185,17 @@
     const matching = questions.filter(question => filter === 'all' || question.type === filter);
     const visible = matching.slice(0, displayLimit);
     const s = summary(bank);
+    let previousSection = '';
+    const cards = visible.map(question => {
+      const notices = filter === 'all' && question.beforeSections ? question.beforeSections.map(title => `<h3 class="section-heading section-heading-empty">${escape(title)}</h3><p class="section-empty-note">原文在此标题后未提供可录入的题目。</p>`).join('') : '';
+      const heading = question.section && question.section !== previousSection ? `<h3 class="section-heading">${escape(question.section)}</h3>` : '';
+      previousSection = question.section || previousSection;
+      return notices + heading + card(question);
+    }).join('');
     app.innerHTML = `<button class="back" data-action="back">‹ 返回题库</button><section class="hero compact"><small>${mistakes ? '错题本 · ' : ''}${escape(paper ? `${bank.name} · 模拟卷${paper.number}` : bank.name)}</small><div class="stats"><span><b>${paper || mistakes ? questions.length : s.total}</b>题目</span><span><b>${s.done}</b>已完成</span><span><b>${s.accuracy}</b>正确率</span></div></section>
       <nav class="tabs">${types.map(type => `<button class="${filter === type ? 'active' : ''}" data-action="filter" data-filter="${type}">${labels[type]}</button>`).join('')}</nav>
       <div class="actions"><button data-action="random">↻ 随机一题</button>${paper ? '<button data-action="clear-paper">清空本模拟卷进度</button>' : (!mistakes ? '<button data-action="clear">清除本题库进度</button>' : '')}</div><p class="notice">${mistakes ? '错题答对后将自动移出错题本。' : '选择题支持判题；简答、论述和材料题可展开参考答案。'}</p>
-      ${visible.length ? visible.map(card).join('') : '<p class="empty">本题库暂无错题，继续保持。</p>'}${visible.length < matching.length ? `<div class="actions"><button data-action="more">加载更多（剩余 ${matching.length - visible.length} 题）</button></div>` : ''}<button class="to-top" data-action="top">↑<small>顶部</small></button>`;
+      ${visible.length ? cards : '<p class="empty">本题库暂无错题，继续保持。</p>'}${visible.length < matching.length ? `<div class="actions"><button data-action="more">加载更多（剩余 ${matching.length - visible.length} 题）</button></div>` : ''}<button class="to-top" data-action="top">↑<small>顶部</small></button>`;
   }
 
   function render() { if (screen === 'home') renderHome(); else if (screen === 'papers') renderPapers(); else if (screen === 'mistakes') renderMistakes(); else renderQuestions(); document.querySelectorAll('.answer').forEach(node => { node.innerHTML = formatAnswer(node.textContent); }); app.insertAdjacentHTML('beforeend', accessOverlay()); }
