@@ -3,6 +3,8 @@
   const withLineBreaks = value => escapeHtml(value).replace(/\n/g, '<br>');
   const mobileBrowser = () => navigator.userAgentData?.mobile || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
   const fileName = title => `${String(title || '题库').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80)}-A4打印版.pdf`;
+  const isAppleMobile = () => /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  let activeMobilePdfUrl = '';
 
   function wrapText(value, maxWidth = 47) {
     const output = [];
@@ -119,24 +121,68 @@
     return new TextEncoder().encode(pdf);
   }
 
-  function openMobilePdf(options) {
-    const viewer = window.open('', '_blank');
+  function removeMobileDownloadPanel() {
+    document.getElementById('a4-mobile-download-panel')?.remove();
+    if (activeMobilePdfUrl) URL.revokeObjectURL(activeMobilePdfUrl);
+    activeMobilePdfUrl = '';
+  }
+
+  function triggerDownload(url, name) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  function showMobileDownloadPanel(url, name) {
+    const panel = document.createElement('div');
+    panel.id = 'a4-mobile-download-panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(17,32,27,.58);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;';
+    const card = document.createElement('section');
+    card.style.cssText = 'width:min(100%,390px);padding:26px 22px 20px;border-radius:20px;background:#fffdf8;color:#1d2924;box-shadow:0 18px 52px rgba(0,0,0,.28);text-align:center;';
+    const title = document.createElement('h2');
+    title.textContent = 'PDF 已生成';
+    title.style.cssText = 'margin:0 0 10px;font-size:22px;line-height:1.25;color:#1d5948;';
+    const description = document.createElement('p');
+    description.textContent = '已尝试开始下载。若浏览器没有反应，请点击下面的按钮。';
+    description.style.cssText = 'margin:0 0 17px;line-height:1.65;color:#52645b;font-size:14px;';
+    const download = document.createElement('a');
+    download.href = url;
+    download.download = name;
+    download.target = '_blank';
+    download.rel = 'noopener';
+    download.textContent = '下载 / 打开 A4 PDF';
+    download.style.cssText = 'display:block;padding:13px 14px;border-radius:12px;background:#1d5948;color:#fff;text-decoration:none;font-weight:700;font-size:16px;';
+    const note = document.createElement('p');
+    note.textContent = '苹果手机可在 PDF 预览页点“分享”→“存储到文件”。';
+    note.style.cssText = 'margin:15px 0 12px;line-height:1.55;color:#74827a;font-size:12px;';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '留在当前页面';
+    close.style.cssText = 'border:0;background:transparent;color:#527366;font-size:14px;padding:8px 12px;';
+    const dismiss = () => removeMobileDownloadPanel();
+    close.addEventListener('click', dismiss);
+    panel.addEventListener('click', event => { if (event.target === panel) dismiss(); });
+    card.append(title, description, download, note, close);
+    panel.appendChild(card);
+    document.body.appendChild(panel);
+  }
+
+  function downloadMobilePdf(options) {
     try {
       const url = URL.createObjectURL(new Blob([pdfBytes(options)], {type: 'application/pdf'}));
-      if (viewer) {
-        viewer.location.replace(url);
-      } else {
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName(options.title);
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+      removeMobileDownloadPanel();
+      activeMobilePdfUrl = url;
+      const name = fileName(options.title);
+      showMobileDownloadPanel(url, name);
+      if (!isAppleMobile()) triggerDownload(url, name);
+      setTimeout(() => { if (activeMobilePdfUrl === url) removeMobileDownloadPanel(); }, 10 * 60 * 1000);
     } catch (error) {
-      viewer?.close();
       alert('PDF 生成失败，请稍后重试。');
       console.error(error);
     }
@@ -165,7 +211,7 @@
       return;
     }
     if (mobileBrowser()) {
-      openMobilePdf(normalized);
+      downloadMobilePdf(normalized);
       return;
     }
     openDesktopPrint(normalized);
