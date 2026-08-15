@@ -2,8 +2,8 @@
   const banks = window.POLITICS_BANKS || [];
   const labels = {all: '全部', single: '单选题', multi: '多选题', theory: '基本理论观点', short: '简答题', essay: '论述题', material: '材料分析题'};
   // Bump whenever the source data is corrected so saved mock papers rebuild.
-  const PAPER_VERSION = 1;
-  const storeKey = 'computer-h5-state-v1';
+  const PAPER_VERSION = 3;
+  const storeKey = 'politics-h5-state-v1';
   const paymentQr = window.PAYMENT_QR_DATA_URL || 'payment-qr.jpg';
   const welcomeCat = window.WELCOME_CAT_DATA_URL || 'welcome-cat.jpg';
   const app = document.getElementById('app');
@@ -13,8 +13,7 @@
   let paper = null;
   let mistakes = false;
   let filter = 'all';
-  let displayLimit = 30;
-  let accessDialog = '';
+  let accessDialog = 'welcome';
 
   const persist = () => localStorage.setItem(storeKey, JSON.stringify(saved));
   const getBank = key => banks.find(bank => bank.key === key);
@@ -28,7 +27,6 @@
   ensure();
   persist();
   const escape = text => String(text || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  const displayText = text => escape(text).replace(/\n/g, '<br>');
   // Remove source-document answer blanks such as "（ ）" only when they
   // appear at the very end of an option; normal brackets in the text remain.
   const optionText = text => String(text || '').replace(/\s*[（(]\s*[）)]\s*$/, '');
@@ -124,8 +122,9 @@
   }
 
   function paperPlan(bank) {
-    const defaults = {single: 20, multi: 20, short: 5, essay: 2, material: 2};
-    return Object.fromEntries(Object.entries(defaults).map(([type, count]) => [type, Math.min(count, bank.questions.filter(question => question.type === type).length)]).filter(([, count]) => count));
+    if (bank.key === 'marx') return {short: 5, essay: 2};
+    if (bank.key === 'xi') return {single: 20, multi: 20, short: 5, essay: 2, material: 2};
+    return {single: 20, multi: 20, short: 5, essay: Math.min(2, bank.questions.filter(question => question.type === 'essay').length)};
   }
 
   function createPaper(bank, number) {
@@ -141,7 +140,7 @@
     const old = saved.papers[`${key}-${number}`];
     paper = old && old.version === PAPER_VERSION && Object.entries(expected).every(([type, count]) => old.questions.filter(question => question.sourceType === type).length === count) ? old : createPaper(bank, number);
     saved.papers[paper.key] = paper;
-    persist(); bankKey = key; screen = 'questions'; mistakes = false; filter = 'all'; displayLimit = 30; render();
+    persist(); bankKey = key; screen = 'questions'; mistakes = false; filter = 'all'; render();
   }
 
   function card(question) {
@@ -152,10 +151,10 @@
     const options = choices.map((option, index) => {
       const feedback = state.feedback?.[index] || '';
       const selected = state.selected?.includes(index) ? 'selected' : '';
-      return `<button class="option ${feedback} ${selected}" data-action="choose" data-id="${token}" data-index="${index}"><span class="${question.type === 'multi' ? 'check' : 'radio'} ${selected}"></span><span>${String.fromCharCode(65 + index)}．${displayText(optionText(option))}</span></button>`;
+      return `<button class="option ${feedback} ${selected}" data-action="choose" data-id="${token}" data-index="${index}"><span class="${question.type === 'multi' ? 'check' : 'radio'} ${selected}"></span><span>${String.fromCharCode(65 + index)}．${escape(optionText(option))}</span></button>`;
     }).join('');
     return `<article class="card" id="q-${token}">
-      <div class="qrow"><span class="qindex">${question.displayNumber || question.id}</span><div><h2>${displayText(question.title)}</h2><span class="tag">${labels[question.type] || question.type}</span>${question.hint ? `<span class="hint">记忆 · ${escape(question.hint)}</span>` : ''}</div></div>
+      <div class="qrow"><span class="qindex">${question.id}</span><div><h2>${escape(question.title)}</h2><span class="tag">${labels[question.type] || question.type}</span>${question.hint ? `<span class="hint">记忆 · ${escape(question.hint)}</span>` : ''}</div></div>
       ${choices.length ? `<div class="options">${options}${question.type === 'multi' && answer ? `<button class="confirm" data-action="confirm" data-id="${token}">确认答案</button>` : ''}</div>` : ''}
       <button class="answer-toggle" data-action="answer" data-id="${token}">${state.showAnswer ? '收起答案' : '点击展开答案'}</button>
       ${state.showAnswer ? `<div class="answer">${escape(answer || '原文未提供标准答案，请结合教材复习。')}</div>` : ''}
@@ -163,11 +162,12 @@
   }
 
   function renderHome() {
-    app.innerHTML = `<button class="back hub-back" data-action="hub">‹ 返回知识分享站</button><header class="brand"><div class="mark">C</div><div><strong>计算机 · 刷题站</strong><small>COMPUTING REVIEW / 2026</small></div></header>
-      <section class="hero"><small>COMPUTER QUESTION BANKS</small><h1>选择你的<span>计算机题库。</span></h1><p>题库进度保存在本机，可随时继续练习。</p></section>
+    app.innerHTML = `<header class="brand"><div class="mark">M</div><div><strong>思政 · 刷题站</strong><small>THEORY REVIEW / 2026</small></div></header>
+      <section class="hero"><small>POLITICAL THEORY QUESTION BANKS</small><h1>选择你的<span>课程题库。</span></h1><p>五门课程统一练习，进度分别保存在本机。</p></section>
       <section class="bank-list">${banks.map(bank => { const s = summary(bank); return `<button class="bank-card" data-action="bank" data-bank="${bank.key}"><div><b>${escape(bank.shortName)}</b><em>进入</em></div><h2>${escape(bank.name)}</h2><p>${escape(bank.subtitle)}</p><small>${s.total} 题　已完成 ${s.done}　正确率 ${s.accuracy}</small><footer>${['single','multi','theory','short','essay','material'].filter(type => s[type]).map(type => `<i>${labels[type]} ${s[type]}</i>`).join('')}</footer></button>`; }).join('')}</section>
-      <button class="entry mistake-entry" data-action="mistakes"><b>错</b><span><strong>错题本</strong><small>按题库归类，反复训练直到答对</small></span><em>进入</em></button>
-      <section class="practice-qr"><div><strong>计算机实操题</strong><small>提取密码：FREE</small></div><img src="computer-practice-qr.png" alt="计算机实操题资料二维码"></section>`;
+      <button class="entry paper-entry" data-action="papers"><b>卷</b><span><strong>模拟卷</strong><small>每门课程 5 套随机组卷，首次进入后固定</small></span><em>进入</em></button>
+      <button class="entry mistake-entry" data-action="mistakes"><b>错</b><span><strong>错题本</strong><small>按课程归类，反复训练直到答对</small></span><em>进入</em></button>
+      <button class="support-entry" data-action="sponsor"><span>赞助</span><b>♥</b><small>自愿支持本题库持续完善</small></button>`;
   }
 
   function renderPapers() {
@@ -182,20 +182,12 @@
     const bank = getBank(bankKey); const source = bankQuestions();
     const questions = source.filter(question => !mistakes || stateFor(question).wrong);
     const types = ['all', ...Object.keys(labels).filter(type => type !== 'all' && questions.some(question => question.type === type))];
-    const matching = questions.filter(question => filter === 'all' || question.type === filter);
-    const visible = matching.slice(0, displayLimit);
+    const visible = questions.filter(question => filter === 'all' || question.type === filter);
     const s = summary(bank);
-    let previousSection = '';
-    const cards = visible.map(question => {
-      const notices = filter === 'all' && question.beforeSections ? question.beforeSections.map(title => `<h3 class="section-heading section-heading-empty">${escape(title)}</h3><p class="section-empty-note">原文在此标题后未提供可录入的题目。</p>`).join('') : '';
-      const heading = question.section && question.section !== previousSection ? `<h3 class="section-heading">${escape(question.section)}</h3>` : '';
-      previousSection = question.section || previousSection;
-      return notices + heading + card(question);
-    }).join('');
     app.innerHTML = `<button class="back" data-action="back">‹ 返回题库</button><section class="hero compact"><small>${mistakes ? '错题本 · ' : ''}${escape(paper ? `${bank.name} · 模拟卷${paper.number}` : bank.name)}</small><div class="stats"><span><b>${paper || mistakes ? questions.length : s.total}</b>题目</span><span><b>${s.done}</b>已完成</span><span><b>${s.accuracy}</b>正确率</span></div></section>
       <nav class="tabs">${types.map(type => `<button class="${filter === type ? 'active' : ''}" data-action="filter" data-filter="${type}">${labels[type]}</button>`).join('')}</nav>
       <div class="actions"><button data-action="random">↻ 随机一题</button>${paper ? '<button data-action="clear-paper">清空本模拟卷进度</button>' : (!mistakes ? '<button data-action="clear">清除本题库进度</button>' : '')}</div><p class="notice">${mistakes ? '错题答对后将自动移出错题本。' : '选择题支持判题；简答、论述和材料题可展开参考答案。'}</p>
-      ${visible.length ? cards : '<p class="empty">本题库暂无错题，继续保持。</p>'}${visible.length < matching.length ? `<div class="actions"><button data-action="more">加载更多（剩余 ${matching.length - visible.length} 题）</button></div>` : ''}<button class="to-top" data-action="top">↑<small>顶部</small></button>`;
+      ${visible.length ? visible.map(card).join('') : '<p class="empty">本题库暂无错题，继续保持。</p>'}<button class="to-top" data-action="top">↑<small>顶部</small></button>`;
   }
 
   function render() { if (screen === 'home') renderHome(); else if (screen === 'papers') renderPapers(); else if (screen === 'mistakes') renderMistakes(); else renderQuestions(); document.querySelectorAll('.answer').forEach(node => { node.innerHTML = formatAnswer(node.textContent); }); app.insertAdjacentHTML('beforeend', accessOverlay()); }
@@ -207,16 +199,14 @@
     const {action, bank, paper: paperNo, id, index, filter: nextFilter} = button.dataset;
     if (action === 'sponsor') { accessDialog = 'pay'; render(); return; }
     if (action === 'modal-close') { accessDialog = ''; render(); return; }
-    if (action === 'hub') { location.href = '../index.html'; return; }
     if (action === 'home') { screen = 'home'; bankKey = ''; paper = null; mistakes = false; }
-    if (action === 'bank') { bankKey = bank; screen = 'questions'; paper = null; mistakes = false; filter = 'all'; displayLimit = 30; }
+    if (action === 'bank') { bankKey = bank; screen = 'questions'; paper = null; mistakes = false; filter = 'all'; }
     if (action === 'papers') screen = 'papers';
     if (action === 'paper') return loadPaper(bank, Number(paperNo));
     if (action === 'mistakes') screen = 'mistakes';
-    if (action === 'mistake-bank') { if (!summary(getBank(bank)).mistakes) return; bankKey = bank; screen = 'questions'; paper = null; mistakes = true; filter = 'all'; displayLimit = 30; Object.keys(saved.progress || {}).filter(key => key.startsWith(`${bank}-`) && saved.progress[key].wrong).forEach(key => { saved.progress[key] = {...saved.progress[key], selected: [], feedback: [], showAnswer: false}; delete saved.progress[key].ok; }); persist(); }
+    if (action === 'mistake-bank') { if (!summary(getBank(bank)).mistakes) return; bankKey = bank; screen = 'questions'; paper = null; mistakes = true; filter = 'all'; Object.keys(saved.progress || {}).filter(key => key.startsWith(`${bank}-`) && saved.progress[key].wrong).forEach(key => { saved.progress[key] = {...saved.progress[key], selected: [], feedback: [], showAnswer: false}; delete saved.progress[key].ok; }); persist(); }
     if (action === 'back') { screen = paper ? 'papers' : (mistakes ? 'mistakes' : 'home'); paper = null; }
-    if (action === 'filter') { filter = nextFilter; displayLimit = 30; render(); document.querySelector('.card')?.scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
-    if (action === 'more') { displayLimit += 30; render(); return; }
+    if (action === 'filter') { filter = nextFilter; render(); document.querySelector('.card')?.scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
     if (action === 'top') { window.scrollTo({top: 0, behavior: 'smooth'}); return; }
     if (action === 'random') { const list = bankQuestions().filter(question => (filter === 'all' || question.type === filter) && (!mistakes || stateFor(question).wrong)); const question = list[Math.floor(Math.random() * list.length)]; document.getElementById(`q-${questionToken(question)}`)?.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
     if (action === 'clear') { if (confirm('确定清除这个题库的答题进度吗？')) { Object.keys(saved.progress || {}).filter(key => key.startsWith(`${bankKey}-`)).forEach(key => delete saved.progress[key]); persist(); } }
