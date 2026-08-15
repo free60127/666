@@ -7,6 +7,15 @@
   const paymentQr = window.PAYMENT_QR_DATA_URL || 'payment-qr.jpg';
   const welcomeCat = window.WELCOME_CAT_DATA_URL || 'welcome-cat.jpg';
   const app = document.getElementById('app');
+  // Handles both /栏目/index.html and a directory-style /栏目 URL on GitHub Pages.
+  // The latter otherwise makes ../index.html jump outside a project Pages site.
+  const goToHub = () => {
+    const parts = location.pathname.replace(/\/+$/, '').split('/');
+    if (parts.at(-1)?.toLowerCase() === 'index.html') parts.pop();
+    parts.pop();
+    parts.push('index.html');
+    location.href = `${location.protocol}//${location.host}${parts.join('/')}`;
+  };
   let saved = JSON.parse(localStorage.getItem(storeKey) || '{}');
   let screen = 'home';
   let bankKey = '';
@@ -207,7 +216,7 @@
     const {action, bank, paper: paperNo, id, index, filter: nextFilter} = button.dataset;
     if (action === 'sponsor') { accessDialog = 'pay'; render(); return; }
     if (action === 'modal-close') { accessDialog = ''; render(); return; }
-    if (action === 'hub') { location.href = '../index.html'; return; }
+    if (action === 'hub') { goToHub(); return; }
     if (action === 'home') { screen = 'home'; bankKey = ''; paper = null; mistakes = false; }
     if (action === 'bank') { bankKey = bank; screen = 'questions'; paper = null; mistakes = false; filter = 'all'; displayLimit = 30; }
     if (action === 'papers') screen = 'papers';
