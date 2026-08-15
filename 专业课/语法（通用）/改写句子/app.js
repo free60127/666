@@ -18,6 +18,7 @@ function render() {
     <header class="exercise-head">
       <div class="exercise-top"><p class="exercise-label">${escapeHtml(item.title)}</p><span class="kind ${item.kind}">${labels[item.kind]}</span></div>
       <p class="instruction">${escapeHtml(item.instruction)}</p>
+      <button class="print-button" data-print="${escapeHtml(item.id)}">导出 A4 PDF / 打印</button>
     </header>
     <ol class="questions">${item.questions.map(question => `<li><p class="question-text">${escapeHtml(question.text)}</p><details class="answer"><summary>查看参考答案</summary><p>${escapeHtml(question.answer)}</p></details></li>`).join('')}</ol>
   </article>`).join('');
@@ -34,6 +35,17 @@ sectionNav.addEventListener('click', event => {
   const button = event.target.closest('[data-section]');
   if (!button) return;
   document.getElementById(button.dataset.section)?.scrollIntoView({behavior:'smooth', block:'start'});
+});
+
+exercisesNode.addEventListener('click', event => {
+  const button = event.target.closest('[data-print]');
+  if (!button) return;
+  const item = (data?.exercises || []).find(exercise => exercise.id === button.dataset.print);
+  if (item) window.A4QuestionPrint?.open({
+    title: `改写句子 · ${item.title}`,
+    subtitle: item.instruction,
+    questions: item.questions.map(question => ({question: question.text, answer: question.answer})),
+  });
 });
 
 window.addEventListener('scroll', () => backToTop.classList.toggle('show', window.scrollY > 400), {passive:true});

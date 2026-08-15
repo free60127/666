@@ -203,12 +203,37 @@
     }).join('');
     app.innerHTML = `<button class="back" data-action="back">‹ 返回题库</button><section class="hero compact"><small>${mistakes ? '错题本 · ' : ''}${escape(paper ? `${bank.name} · 模拟卷${paper.number}` : bank.name)}</small><div class="stats"><span><b>${paper || mistakes ? questions.length : s.total}</b>题目</span><span><b>${s.done}</b>已完成</span><span><b>${s.accuracy}</b>正确率</span></div></section>
       <nav class="tabs">${types.map(type => `<button class="${filter === type ? 'active' : ''}" data-action="filter" data-filter="${type}">${labels[type]}</button>`).join('')}</nav>
-      <div class="actions"><button data-action="random">↻ 随机一题</button>${paper ? '<button data-action="clear-paper">清空本模拟卷进度</button>' : (!mistakes ? '<button data-action="clear">清除本题库进度</button>' : '')}</div><p class="notice">${mistakes ? '错题答对后将自动移出错题本。' : '选择题支持判题；简答、论述和材料题可展开参考答案。'}</p>
+      <div class="actions"><button data-action="random">↻ 随机一题</button><button data-action="export">导出当前题目 A4 PDF</button>${paper ? '<button data-action="clear-paper">清空本模拟卷进度</button>' : (!mistakes ? '<button data-action="clear">清除本题库进度</button>' : '')}</div><p class="notice">${mistakes ? '错题答对后将自动移出错题本。' : '选择题支持判题；简答、论述和材料题可展开参考答案。'}</p>
       ${visible.length ? cards : '<p class="empty">本题库暂无错题，继续保持。</p>'}${visible.length < matching.length ? `<div class="actions"><button data-action="more">加载更多（剩余 ${matching.length - visible.length} 题）</button></div>` : ''}<button class="to-top" data-action="top">↑<small>顶部</small></button>`;
   }
 
   function render() { if (screen === 'home') renderHome(); else if (screen === 'papers') renderPapers(); else if (screen === 'mistakes') renderMistakes(); else renderQuestions(); document.querySelectorAll('.answer').forEach(node => { node.innerHTML = formatAnswer(node.textContent); }); app.insertAdjacentHTML('beforeend', accessOverlay()); }
   function findQuestion(id) { return bankQuestions().find(question => questionToken(question) === String(id)); }
+  function printableQuestion(question) {
+    const options = (question.options || []).map((option, index) => `${String.fromCharCode(65 + index)}. ${optionText(option)}`).join('\n');
+    return [question.title, options].filter(Boolean).join('\n');
+  }
+  function printableAnswer(question) {
+    const answer = String(question.answer || '').trim();
+    const letters = answer.match(/^[A-E]+/i)?.[0].toUpperCase().split('') || [];
+    if (!letters.length || !(question.options || []).length) return answer || '原文未提供标准答案，请结合教材复习。';
+    const choices = letters.map(letter => {
+      const option = question.options[letter.charCodeAt(0) - 65];
+      return option === undefined ? letter : `${letter}. ${optionText(option)}`;
+    }).join('\n');
+    const explanation = answer.slice(letters.length).trim();
+    return explanation ? `${choices}\n${explanation}` : choices;
+  }
+  function exportCurrentQuestions() {
+    const bank = getBank(bankKey);
+    const questions = bankQuestions().filter(question => !mistakes || stateFor(question).wrong).filter(question => filter === 'all' || question.type === filter);
+    const title = paper ? `${bank.name} · 模拟卷${paper.number}` : (mistakes ? `${bank.name} · 错题本` : bank.name);
+    window.A4QuestionPrint?.open({
+      title,
+      subtitle: `${labels[filter] || labels.all} · ${questions.length} 题`,
+      questions: questions.map(question => ({question: printableQuestion(question), answer: printableAnswer(question), type: labels[question.type] || question.type})),
+    });
+  }
   function judge(question) { const key = questionKey(question); const item = saved.progress[key] || {}; const right = String(question.answer).match(/^[A-E]+/i)?.[0].toUpperCase().split('').map(letter => letter.charCodeAt(0) - 65) || []; const picked = item.selected || []; item.feedback = question.options.map((_, index) => right.includes(index) ? 'correct' : picked.includes(index) ? 'wrong' : ''); item.ok = right.length === picked.length && right.every(index => picked.includes(index)); item.wrong = !item.ok; saved.progress[key] = item; persist(); }
 
   app.addEventListener('click', event => {
@@ -227,6 +252,7 @@
     if (action === 'filter') { filter = nextFilter; displayLimit = 30; render(); document.querySelector('.card')?.scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
     if (action === 'more') { displayLimit += 30; render(); return; }
     if (action === 'top') { window.scrollTo({top: 0, behavior: 'smooth'}); return; }
+    if (action === 'export') { exportCurrentQuestions(); return; }
     if (action === 'random') { const list = bankQuestions().filter(question => (filter === 'all' || question.type === filter) && (!mistakes || stateFor(question).wrong)); const question = list[Math.floor(Math.random() * list.length)]; document.getElementById(`q-${questionToken(question)}`)?.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
     if (action === 'clear') { if (confirm('确定清除这个题库的答题进度吗？')) { Object.keys(saved.progress || {}).filter(key => key.startsWith(`${bankKey}-`)).forEach(key => delete saved.progress[key]); persist(); } }
     if (action === 'clear-paper') { if (confirm('确定清空这套模拟卷的答题进度吗？题目不会重新随机。')) { Object.keys(saved.progress || {}).filter(key => key.startsWith(`paper-${paper.key}-`)).forEach(key => delete saved.progress[key]); persist(); } }
