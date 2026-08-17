@@ -21,16 +21,16 @@
 - 项目：https://github.com/open-spaced-repetition/ts-fsrs
 - 作者/维护者：Open Spaced Repetition 社区及项目贡献者
 - 许可证：MIT License
-- 使用情况：参考间隔复习理念；第一版使用独立编写的轻量离线调度器，尚未复制或打包其源代码。
+- 使用情况：已整合 ts-fsrs 5.4.1 的 CommonJS 与 UMD 构建文件，分别用于微信小程序端和网页端的间隔复习调度。原始 MIT License 随源码保存在 `words/vendor/ts-fsrs/` 及网页端对应目录。
 
 ## ECDICT
 
 - 项目：https://github.com/skywind3000/ECDICT
 - 作者/维护者：skywind3000 及项目贡献者
 - 许可证：MIT License
-- 使用情况：后续扩展完整词典字段的候选数据源。第一版体验词库为本项目独立整理，尚未导入 ECDICT 数据文件。
+- 使用情况：以用户提供的《HY2024版专四词汇8000》书后索引为白名单，筛选并导入 4115 个专四词条的音标、中文释义、英文释义、词形变化及考试标签。未将 ECDICT 全库打包进项目，原始 MIT License 保存在 `words/vendor/ecdict/LICENSE` 及网页端对应目录。
 
-当前内置词库是用于验证学习流程的首批体验数据，不宣称等同于任何考试官方完整词表。后续导入完整词表时，必须继续保留准确的数据来源、作者和许可证声明。
+专四词表的收词范围来自用户提供词汇书的书后索引；项目不包含或重新发布该书正文、例句和版式内容。专八词库目前仍为首批体验数据，不宣称等同于考试官方完整词表。
 
 ## MIT License 原文
 

@@ -1,0 +1,40 @@
+.word-search {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 8px;
+}
+
+.word-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--cream);
+  font: inherit;
+}
+
+.word-search button,
+.load-more {
+  border: 0;
+  border-radius: 13px;
+  background: var(--green);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.word-search button {
+  padding: 0 18px;
+}
+
+.list-count {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.load-more {
+  display: block;
+  margin: 22px auto 0;
+  padding: 12px 28px;
+}
