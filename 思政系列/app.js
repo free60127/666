@@ -203,8 +203,7 @@
   function render() { if (screen === 'home') renderHome(); else if (screen === 'papers') renderPapers(); else if (screen === 'mistakes') renderMistakes(); else renderQuestions(); document.querySelectorAll('.answer').forEach(node => { node.innerHTML = formatAnswer(node.textContent); }); app.insertAdjacentHTML('beforeend', accessOverlay()); }
   function findQuestion(id) { return bankQuestions().find(question => questionToken(question) === String(id)); }
   function printableQuestion(question) {
-    const options = (question.options || []).map((option, index) => `${String.fromCharCode(65 + index)}. ${optionText(option)}`).join('\n');
-    return [question.title, options].filter(Boolean).join('\n');
+    return question.title || '';
   }
   function printableAnswer(question) {
     const answer = String(question.answer || '').trim();
@@ -224,7 +223,7 @@
     window.A4QuestionPrint?.open({
       title,
       subtitle: `${labels[filter] || labels.all} · ${questions.length} 题`,
-      questions: questions.map(question => ({question: printableQuestion(question), answer: printableAnswer(question), type: labels[question.type] || question.type})),
+      questions: questions.map(question => ({question: printableQuestion(question), options: (question.options || []).map(optionText), answer: printableAnswer(question), type: labels[question.type] || question.type})),
     });
   }
   function judge(question) { const key = questionKey(question); const item = saved.progress[key] || {}; const right = String(question.answer).match(/^[A-E]+/i)?.[0].toUpperCase().split('').map(letter => letter.charCodeAt(0) - 65) || []; const picked = item.selected || []; item.feedback = question.options.map((_, index) => right.includes(index) ? 'correct' : picked.includes(index) ? 'wrong' : ''); item.ok = right.length === picked.length && right.every(index => picked.includes(index)); item.wrong = !item.ok; saved.progress[key] = item; persist(); }

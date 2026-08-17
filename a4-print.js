@@ -27,6 +27,9 @@
     return output;
   }
 
+  function textWidth(value) { return [...String(value || '')].reduce((width, character) => width + (/[^\u0000-\u00ff]/.test(character) ? 1 : .55), 0); }
+  function optionRows(options) { const entries = (options || []).map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`); if (!entries.length) return []; if (entries.length <= 4 && entries.reduce((width, entry) => width + textWidth(entry), 0) + (entries.length - 1) * 2 <= 47) return [{entries, columns: entries.length}]; const rows = []; for (let index = 0; index < entries.length; index += 2) { const left = wrapText(entries[index], 21); const right = entries[index + 1] ? wrapText(entries[index + 1], 21) : []; const count = Math.max(left.length, right.length); for (let line = 0; line < count; line++) rows.push({entries: [left[line] || '', right[line] || ''], columns: 2}); } return rows; }
+
   function buildPages({title, subtitle, questions}) {
     const pages = [];
     let page;
@@ -50,12 +53,24 @@
       wrapText(text, maxWidth).forEach(line => addLine(line, size, gap));
     }
 
+    function addOptions(options) {
+      optionRows(options).forEach(row => {
+        const size = row.columns === 4 ? 9.5 : 10.5;
+        const gap = row.columns === 4 ? 15 : 16;
+        if (!page) startPage();
+        if (page.y - gap < 54) startPage();
+        page.lines.push({kind: 'options', entries: row.entries, columns: row.columns, size, y: page.y});
+        page.y -= gap;
+      });
+    }
+
     section = '题目';
     continuation = false;
     startPage();
     questions.forEach((item, index) => {
       const type = item.type ? `【${item.type}】` : '';
       addText(`${index + 1}. ${type}${item.question || ''}`, 10.5, 15);
+      addOptions(item.options);
       addLine('', 10.5, 7);
     });
 
@@ -121,6 +136,17 @@
     return new TextEncoder().encode(pdf);
   }
 
+  // Mobile browsers and the mini program cannot rely on a reader having the
+  // same Chinese CID font installed.  Render every A4 page first, then embed
+  // that JPEG page in the PDF.  The exported file is therefore portable: it
+  // has the same Chinese layout in WeChat, Android and desktop PDF readers.
+  function asciiBytes(value) { const out = new Uint8Array(value.length); for (let i = 0; i < value.length; i++) out[i] = value.charCodeAt(i) & 255; return out; }
+  function concatBytes(chunks) { const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0); const out = new Uint8Array(length); let offset = 0; chunks.forEach(chunk => { out.set(chunk, offset); offset += chunk.length; }); return out; }
+  function jpegSize(bytes) { let offset = 2; while (offset < bytes.length) { if (bytes[offset] !== 255) { offset++; continue; } while (bytes[offset] === 255) offset++; const marker = bytes[offset++]; const length = bytes[offset] * 256 + bytes[offset + 1]; if ((marker >= 192 && marker <= 195) || (marker >= 197 && marker <= 199) || (marker >= 201 && marker <= 203) || (marker >= 205 && marker <= 207)) return {height: bytes[offset + 3] * 256 + bytes[offset + 4], width: bytes[offset + 5] * 256 + bytes[offset + 6]}; offset += length; } throw new Error('页面图片生成失败。'); }
+  function imagePdf(images) { const objects = []; const pageIds = images.map((_, index) => 5 + index * 3); objects[1] = [asciiBytes('<< /Type /Catalog /Pages 2 0 R >>')]; objects[2] = [asciiBytes(`<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${images.length} >>`)]; images.forEach((image, index) => { const imageId = 3 + index * 3; const contentId = imageId + 1; const pageId = imageId + 2; const size = jpegSize(image); const content = asciiBytes('q\n595 0 0 842 0 0 cm\n/Im0 Do\nQ\n'); objects[imageId] = [asciiBytes(`<< /Type /XObject /Subtype /Image /Width ${size.width} /Height ${size.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.length} >>\nstream\n`), image, asciiBytes('\nendstream')]; objects[contentId] = [asciiBytes(`<< /Length ${content.length} >>\nstream\n`), content, asciiBytes('endstream')]; objects[pageId] = [asciiBytes(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im0 ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`)]; }); const chunks = [asciiBytes('%PDF-1.4\n% portable A4 image PDF\n')]; const offsets = [0]; let length = chunks[0].length; const maxId = objects.length - 1; for (let id = 1; id <= maxId; id++) { offsets[id] = length; [asciiBytes(`${id} 0 obj\n`), ...objects[id], asciiBytes('\nendobj\n')].forEach(chunk => { chunks.push(chunk); length += chunk.length; }); } const xrefOffset = length; chunks.push(asciiBytes(`xref\n0 ${maxId + 1}\n0000000000 65535 f \n`)); for (let id = 1; id <= maxId; id++) chunks.push(asciiBytes(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`)); chunks.push(asciiBytes(`trailer\n<< /Size ${maxId + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`)); return concatBytes(chunks); }
+  function drawPortablePage(context, page, index, total) { const scale = 2; const draw = (text, x, y, size, color = '#1d2924', weight = '400') => { context.fillStyle = color; context.font = `${weight} ${size * scale}px -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif`; context.fillText(String(text || ''), x * scale, (842 - y) * scale); }; context.fillStyle = '#fff'; context.fillRect(0, 0, 1190, 1684); context.textBaseline = 'alphabetic'; draw('外院 · 知识分享站', 42, 807, 8.5, '#6d8176', '600'); draw(page.title, 42, 786, 16, '#1d2924', '700'); if (page.subtitle) draw(page.subtitle, 42, 770, 8.5, '#6d8176'); draw(page.section, 42, 748, 14, '#1d5948', '700'); context.strokeStyle = '#cfdcd3'; context.lineWidth = 2; context.beginPath(); context.moveTo(84, 202); context.lineTo(1106, 202); context.stroke(); page.lines.forEach(line => { if (line.kind !== 'options') { draw(line.text, 42, line.y, line.size, '#26342d'); return; } const start = 58; const width = 495 / line.columns; line.entries.forEach((entry, column) => draw(entry, start + width * column, line.y, line.size, '#26342d')); }); draw(`A4 打印版 · 第 ${index + 1} / ${total} 页`, 42, 34, 8, '#718079'); }
+  function portablePdfBytes(options) { const pages = buildPages(options); const canvas = document.createElement('canvas'); canvas.width = 1190; canvas.height = 1684; const context = canvas.getContext('2d'); const images = pages.map((page, index) => { drawPortablePage(context, page, index, pages.length); const raw = atob(canvas.toDataURL('image/jpeg', .92).split(',')[1]); const bytes = new Uint8Array(raw.length); for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i); return bytes; }); return imagePdf(images); }
+
   function removeMobileDownloadPanel() {
     document.getElementById('a4-mobile-download-panel')?.remove();
     if (activeMobilePdfUrl) URL.revokeObjectURL(activeMobilePdfUrl);
@@ -173,9 +199,9 @@
     document.body.appendChild(panel);
   }
 
-  function downloadMobilePdf(options) {
+  async function downloadMobilePdf(options) {
     try {
-      const url = URL.createObjectURL(new Blob([pdfBytes(options)], {type: 'application/pdf'}));
+      const url = URL.createObjectURL(new Blob([portablePdfBytes(options)], {type: 'application/pdf'}));
       removeMobileDownloadPanel();
       activeMobilePdfUrl = url;
       const name = fileName(options.title);
@@ -210,11 +236,9 @@
       alert('当前没有可导出的题目。');
       return;
     }
-    if (mobileBrowser()) {
-      downloadMobilePdf(normalized);
-      return;
-    }
-    openDesktopPrint(normalized);
+    // Use one portable A4 renderer on every device so the downloaded file is
+    // identical in layout whether it was created on a phone or a computer.
+    downloadMobilePdf(normalized);
   }
 
   window.A4QuestionPrint = {open};
