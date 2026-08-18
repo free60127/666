@@ -2,6 +2,13 @@
 
 “外院 · 背单词”第一版在产品设计和技术调研阶段参考了以下开源项目。项目名称、作者和许可证按原仓库声明保留。
 
+## Learning With Texts (LWT)
+
+- 项目：https://github.com/HugoFara/lwt
+- 作者/维护者：HugoFara、原 LWT 作者及项目贡献者
+- 许可证：The Unlicense
+- 使用情况：参考点击查词、生词收藏和上下文学习的产品思路；当前网页端点击取词、词典加载与收藏代码为适配本站架构的独立实现，未复制其 PHP/MySQL 应用代码。
+
 ## Qwerty Learner
 
 - 项目：https://github.com/RealKai42/qwerty-learner

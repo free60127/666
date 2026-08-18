@@ -1,4 +1,4 @@
-{
+window.REWRITE_SENTENCE_DATA = {
   "source": "《新编英语语法教程 学生用书》第6版课后练习答案",
   "description": "多句合一与按指定方式改写句子练习，每题附对应官方参考答案。",
   "exercises": [
@@ -2438,4 +2438,4 @@
     }
   ],
   "withheld": []
-}
+};

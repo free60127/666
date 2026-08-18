@@ -45,7 +45,31 @@
   function textWidth(value) { return [...String(value || '')].reduce((width, character) => width + (/[^\u0000-\u00ff]/.test(character) ? 1 : .55), 0); }
   function optionRows(options) { const entries = (options || []).map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`); if (!entries.length) return []; if (entries.length <= 4 && entries.reduce((width, entry) => width + textWidth(entry), 0) + (entries.length - 1) * 2 <= 47) return [{entries, columns: entries.length}]; const rows = []; for (let index = 0; index < entries.length; index += 2) { const left = wrapText(entries[index], 21); const right = entries[index + 1] ? wrapText(entries[index + 1], 21) : []; const count = Math.max(left.length, right.length); for (let line = 0; line < count; line++) rows.push({entries: [left[line] || '', right[line] || ''], columns: 2}); } return rows; }
 
+  function prepareQuestions(source) {
+    const prepared = [];
+    (source || []).forEach(item => {
+      const question = String(item.question || '').trim();
+      const match = question.match(/^(.*?)[（(]\s*空格\s*([ivxlcdm\d]+)\s*[）)]\s*$/i);
+      const base = match ? match[1].trim() : question;
+      const label = match ? `空格 ${match[2]}` : '';
+      const previous = prepared[prepared.length - 1];
+      if (label && previous && previous.type === item.type && previous.question === base && previous.optionGroups) {
+        previous.optionGroups.push({label, options: item.options || []});
+        previous.answer = `${previous.answer}；${label.replace('空格 ', '')}：${cleanAnswer(item.answer)}`;
+        return;
+      }
+      prepared.push({
+        ...item,
+        question: base,
+        answer: label ? `${label.replace('空格 ', '')}：${cleanAnswer(item.answer)}` : cleanAnswer(item.answer),
+        optionGroups: label ? [{label, options: item.options || []}] : null,
+      });
+    });
+    return prepared;
+  }
+
   function buildPages({title, subtitle, questions, mode = 'standard'}) {
+    questions = prepareQuestions(questions);
     const pages = [];
     let page;
     let section = '';
@@ -79,6 +103,13 @@
       });
     }
 
+    function addOptionGroupLabel(label) {
+      if (!page) startPage();
+      if (page.y - 20 < 54) startPage();
+      page.lines.push({kind: 'option-label', text: label, size: 9, y: page.y});
+      page.y -= 14;
+    }
+
     function addModuleHeading(type) {
       const heading = String(type || '').trim();
       if (!heading) return;
@@ -97,10 +128,11 @@
       if (currentType && currentType !== previousType) addModuleHeading(currentType);
       previousType = currentType;
       addText(`${index + 1}. ${item.question || ''}`, 10.5, 16);
-      addOptions(item.options);
+      if (item.optionGroups) item.optionGroups.forEach(group => { addOptionGroupLabel(group.label); addOptions(group.options); });
+      else addOptions(item.options);
       if (mode === 'memorize') {
         addLine('', 10.5, 5);
-        addText(`参考答案：${cleanAnswer(item.answer)}`, 10.5, 16);
+        addText(`答案：${cleanAnswer(item.answer)}`, 10.5, 16);
       }
       addLine('', 10.5, 10);
     });
@@ -122,8 +154,9 @@
   }
 
   function cleanAnswer(value) {
-    const answer = String(value || '').trim().replace(/^(?:参考答案\s*[:：]\s*)+/i, '');
-    return answer || '原文未提供参考答案。';
+    const answer = String(value || '').trim().replace(/^(?:(?:查看)?参考答案\s*[:：]?\s*)+/i, '');
+    if (/教师用书对应页未提供本题答案|暂不作推测/.test(answer)) return '原书未提供答案';
+    return answer || '原书未提供答案';
   }
 
   function unicodeHex(value) {
@@ -186,7 +219,7 @@
   function concatBytes(chunks) { const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0); const out = new Uint8Array(length); let offset = 0; chunks.forEach(chunk => { out.set(chunk, offset); offset += chunk.length; }); return out; }
   function jpegSize(bytes) { let offset = 2; while (offset < bytes.length) { if (bytes[offset] !== 255) { offset++; continue; } while (bytes[offset] === 255) offset++; const marker = bytes[offset++]; const length = bytes[offset] * 256 + bytes[offset + 1]; if ((marker >= 192 && marker <= 195) || (marker >= 197 && marker <= 199) || (marker >= 201 && marker <= 203) || (marker >= 205 && marker <= 207)) return {height: bytes[offset + 3] * 256 + bytes[offset + 4], width: bytes[offset + 5] * 256 + bytes[offset + 6]}; offset += length; } throw new Error('页面图片生成失败。'); }
   function imagePdf(images) { const objects = []; const pageIds = images.map((_, index) => 5 + index * 3); objects[1] = [asciiBytes('<< /Type /Catalog /Pages 2 0 R >>')]; objects[2] = [asciiBytes(`<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${images.length} >>`)]; images.forEach((image, index) => { const imageId = 3 + index * 3; const contentId = imageId + 1; const pageId = imageId + 2; const size = jpegSize(image); const content = asciiBytes('q\n595 0 0 842 0 0 cm\n/Im0 Do\nQ\n'); objects[imageId] = [asciiBytes(`<< /Type /XObject /Subtype /Image /Width ${size.width} /Height ${size.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.length} >>\nstream\n`), image, asciiBytes('\nendstream')]; objects[contentId] = [asciiBytes(`<< /Length ${content.length} >>\nstream\n`), content, asciiBytes('endstream')]; objects[pageId] = [asciiBytes(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im0 ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`)]; }); const chunks = [asciiBytes('%PDF-1.4\n% portable A4 image PDF\n')]; const offsets = [0]; let length = chunks[0].length; const maxId = objects.length - 1; for (let id = 1; id <= maxId; id++) { offsets[id] = length; [asciiBytes(`${id} 0 obj\n`), ...objects[id], asciiBytes('\nendobj\n')].forEach(chunk => { chunks.push(chunk); length += chunk.length; }); } const xrefOffset = length; chunks.push(asciiBytes(`xref\n0 ${maxId + 1}\n0000000000 65535 f \n`)); for (let id = 1; id <= maxId; id++) chunks.push(asciiBytes(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`)); chunks.push(asciiBytes(`trailer\n<< /Size ${maxId + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`)); return concatBytes(chunks); }
-  function drawPortablePage(context, page, index, total) { const scale = 2; const draw = (text, x, y, size, color = '#1d2924', weight = '400') => { context.fillStyle = color; context.font = `${weight} ${size * scale}px -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif`; context.fillText(String(text || ''), x * scale, (842 - y) * scale); }; context.fillStyle = '#fff'; context.fillRect(0, 0, 1190, 1684); context.textBaseline = 'alphabetic'; draw('外院 · 知识分享站', 42, 807, 8.5, '#6d8176', '600'); draw(page.title, 42, 786, 16, '#1d2924', '700'); if (page.subtitle) draw(page.subtitle, 42, 770, 8.5, '#6d8176'); draw(page.section, 42, 748, 14, '#1d5948', '700'); context.strokeStyle = '#cfdcd3'; context.lineWidth = 2; context.beginPath(); context.moveTo(84, 202); context.lineTo(1106, 202); context.stroke(); page.lines.forEach(line => { if (line.kind === 'module') { draw(line.text, 42, line.y, line.size, '#1d5948', '700'); return; } if (line.kind !== 'options') { draw(line.text, 42, line.y, line.size, '#26342d'); return; } const start = 58; const width = 495 / line.columns; line.entries.forEach((entry, column) => draw(entry, start + width * column, line.y, line.size, '#26342d')); }); draw(`A4 打印版 · 第 ${index + 1} / ${total} 页`, 42, 34, 8, '#718079'); }
+  function drawPortablePage(context, page, index, total) { const scale = 2; const draw = (text, x, y, size, color = '#1d2924', weight = '400') => { context.fillStyle = color; context.font = `${weight} ${size * scale}px -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif`; context.fillText(String(text || ''), x * scale, (842 - y) * scale); }; context.fillStyle = '#fff'; context.fillRect(0, 0, 1190, 1684); context.textBaseline = 'alphabetic'; draw('外院 · 知识分享站', 42, 807, 8.5, '#6d8176', '600'); draw(page.title, 42, 786, 16, '#1d2924', '700'); if (page.subtitle) draw(page.subtitle, 42, 770, 8.5, '#6d8176'); draw(page.section, 42, 748, 14, '#1d5948', '700'); context.strokeStyle = '#cfdcd3'; context.lineWidth = 2; context.beginPath(); context.moveTo(84, 202); context.lineTo(1106, 202); context.stroke(); page.lines.forEach(line => { if (line.kind === 'module') { draw(line.text, 42, line.y, line.size, '#1d5948', '700'); return; } if (line.kind === 'option-label') { draw(line.text, 50, line.y, line.size, '#5c7569', '700'); return; } if (line.kind !== 'options') { draw(line.text, 42, line.y, line.size, '#26342d'); return; } const start = 58; const width = 495 / line.columns; line.entries.forEach((entry, column) => draw(entry, start + width * column, line.y, line.size, '#26342d')); }); draw(`A4 打印版 · 第 ${index + 1} / ${total} 页`, 42, 34, 8, '#718079'); }
   function portablePdfBytes(options) { const pages = buildPages(options); const canvas = document.createElement('canvas'); canvas.width = 1190; canvas.height = 1684; const context = canvas.getContext('2d'); const images = pages.map((page, index) => { drawPortablePage(context, page, index, pages.length); const raw = atob(canvas.toDataURL('image/jpeg', .92).split(',')[1]); const bytes = new Uint8Array(raw.length); for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i); return bytes; }); return imagePdf(images); }
 
   function removeMobileDownloadPanel() {
@@ -353,7 +386,7 @@
       alert('浏览器拦截了打印窗口，请允许弹出窗口后重试。');
       return;
     }
-    const questionRows = questions.map(item => `<li>${withLineBreaks(item.question)}${mode === 'memorize' ? `<div class="inline-answer"><b>参考答案：</b>${withLineBreaks(cleanAnswer(item.answer))}</div>` : ''}</li>`).join('');
+    const questionRows = questions.map(item => `<li>${withLineBreaks(item.question)}${mode === 'memorize' ? `<div class="inline-answer"><b>答案：</b>${withLineBreaks(cleanAnswer(item.answer))}</div>` : ''}</li>`).join('');
     const answerRows = questions.map(item => `<li>${withLineBreaks(cleanAnswer(item.answer))}</li>`).join('');
     const documentTitle = `外院知识分享站 - ${title}`;
     printWindow.document.title = documentTitle;

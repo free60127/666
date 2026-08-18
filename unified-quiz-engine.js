@@ -16,6 +16,7 @@
     const answer = clean(card.querySelector('.answer')?.textContent);
     const key = `${pageKey}-${hash(`${index}-${title}`)}`;
     card.dataset.unifiedReady = key;
+    card.dataset.unifiedTitle = title;
     if (card.querySelector('.favorite-button,[data-action="favorite"]')) return;
     const button = document.createElement('button');
     button.className = `unified-favorite ${state.favorites[key] ? 'active' : ''}`;
@@ -29,6 +30,51 @@
     card.appendChild(button);
   }
 
+  function record(card, result) {
+    if (!card?.dataset.unifiedReady) return;
+    const key = card.dataset.unifiedReady;
+    const old = state.progress[key] || {};
+    const now = Date.now();
+    state.progress[key] = {
+      ...old,
+      key,
+      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody')?.textContent),
+      page: document.title,
+      path: location.pathname,
+      reviewed: true,
+      answered: result === true || result === false || old.answered || false,
+      ok: result === true ? true : result === false ? false : old.ok,
+      wrong: result === false ? true : result === true ? false : old.wrong,
+      attempts: (old.attempts || 0) + (result === true || result === false ? 1 : 0),
+      updatedAt: now
+    };
+    save(state);
+  }
+
+  function resultFromCard(card) {
+    const wrong = card.querySelector('.option.wrong,.wrong.option,[data-state="wrong"]');
+    const correct = card.querySelector('.option.correct,.correct.option,[data-state="correct"]');
+    if (wrong) return false;
+    if (correct) return true;
+    return null;
+  }
+
+  document.addEventListener('click', event => {
+    const target = event.target.closest('button,[data-action]');
+    const card = target?.closest('.question-card,.card');
+    if (!card || target?.classList.contains('unified-favorite')) return;
+    const action = target.dataset.action || '';
+    const isAnswer = target.matches('.answer-toggle,[data-action="answer"],[data-action="toggle-answer"]');
+    const isAttempt = target.matches('.option,.confirm,[data-action="choose"],[data-action="confirm"]');
+    if (!isAnswer && !isAttempt && !/answer|choose|confirm/i.test(action)) return;
+    setTimeout(() => {
+      const key = card.dataset.unifiedReady;
+      const current = [...document.querySelectorAll('.question-card,.card')].find(item => item.dataset.unifiedReady === key) || card;
+      const result = resultFromCard(current);
+      record(current, result === null ? undefined : result);
+    }, 0);
+  });
+
   function enhance() { document.querySelectorAll('.question-card,.card').forEach(enhanceCard); }
   function randomQuestion() { const cards = [...document.querySelectorAll('.question-card,.card')].filter(card => card.offsetParent !== null); if (!cards.length) return; cards[Math.floor(Math.random()*cards.length)].scrollIntoView({behavior:'smooth',block:'center'}); }
 
@@ -38,5 +84,5 @@
   const random = document.createElement('button'); random.className='unified-random-web'; random.textContent='↻ 随机一题'; random.addEventListener('click',randomQuestion); document.body.appendChild(random);
   new MutationObserver(enhance).observe(document.body,{childList:true,subtree:true});
   enhance(); save(state);
-  window.WaiyuanQuizEngine = {state, save, enhance, randomQuestion};
+  window.WaiyuanQuizEngine = {state, save, enhance, randomQuestion, record};
 })();
