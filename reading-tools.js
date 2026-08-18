@@ -12,6 +12,7 @@
   const tools = document.createElement('aside');
   tools.className = 'reading-tools';
   tools.setAttribute('aria-label', '阅读工具');
+  let pdfMenu = null;
 
   const fontMenu = document.createElement('div');
   fontMenu.className = 'reading-tools__font-menu';
@@ -37,7 +38,19 @@
   if (body.dataset.readingPdf === 'true') {
     const pdfButton = makeButton('PDF', '下载', '下载当前题库 PDF');
     pdfButton.classList.add('reading-tools__button--pdf');
-    pdfButton.addEventListener('click', exportPdf);
+    const books = [...document.querySelectorAll('main > section[id^="book-"]')]
+      .filter(book => book.querySelector('article .q'));
+    if (books.length > 1) {
+      pdfMenu = buildPdfMenu(books);
+      pdfButton.setAttribute('aria-label', '选择按单元或按整本书下载 PDF');
+      pdfButton.addEventListener('click', () => {
+        fontMenu.classList.remove('is-open');
+        pdfMenu.classList.toggle('is-open');
+      });
+      tools.appendChild(pdfMenu);
+    } else {
+      pdfButton.addEventListener('click', () => exportPdf());
+    }
     tools.appendChild(pdfButton);
   }
 
@@ -53,7 +66,10 @@
   updateTopButton();
 
   document.addEventListener('click', event => {
-    if (!tools.contains(event.target)) fontMenu.classList.remove('is-open');
+    if (!tools.contains(event.target)) {
+      fontMenu.classList.remove('is-open');
+      pdfMenu?.classList.remove('is-open');
+    }
   });
 
   function makeButton(primary, secondary, ariaLabel) {
@@ -82,7 +98,50 @@
     try { localStorage.setItem(STORAGE_KEY, level); } catch (_) {}
   }
 
-  function exportPdf() {
+  function buildPdfMenu(books) {
+    const menu = document.createElement('div');
+    menu.className = 'reading-tools__pdf-menu';
+    const heading = document.createElement('strong');
+    heading.className = 'reading-tools__pdf-title';
+    heading.textContent = '选择 PDF 范围';
+    menu.appendChild(heading);
+
+    const openedButton = document.createElement('button');
+    openedButton.type = 'button';
+    openedButton.className = 'reading-tools__pdf-option reading-tools__pdf-option--opened';
+    openedButton.innerHTML = '<b>已展开单元</b><span>导出当前展开的一个或多个 Unit</span>';
+    openedButton.addEventListener('click', () => {
+      menu.classList.remove('is-open');
+      exportPdf();
+    });
+    menu.appendChild(openedButton);
+
+    books.forEach(book => {
+      const bookTitle = book.querySelector(':scope > h2')?.textContent?.trim() || book.id;
+      const count = book.querySelectorAll('article .q').length;
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'reading-tools__pdf-option';
+      option.innerHTML = `<b>${escapeHtml(bookTitle)} · 整本书</b><span>${count} 题，包含本书全部单元</span>`;
+      option.addEventListener('click', () => {
+        menu.classList.remove('is-open');
+        exportPdf(book, bookTitle);
+      });
+      menu.appendChild(option);
+    });
+    return menu;
+  }
+
+  function exportPdf(book = null, bookTitle = '') {
+    if (book) {
+      const questions = extractQuestions(book);
+      openPdf({
+        title: `${document.title.replace(/\s*[·|｜].*$/, '')} · ${bookTitle}`,
+        subtitle: `整本书 · 共 ${questions.length} 题`,
+        questions,
+      });
+      return;
+    }
     const openedUnits = [...document.querySelectorAll('details[open]')]
       .filter(item => item.querySelector('article .q'));
     const scopes = openedUnits.length ? openedUnits : [document];
@@ -97,11 +156,16 @@
     }
     const firstUnit = openedUnits[0]?.querySelector(':scope > summary')?.textContent?.trim();
     const title = firstUnit ? `${document.title.replace(/\s*[·|｜].*$/, '')} · ${firstUnit}` : document.title;
-    if (window.A4QuestionPrint?.open) {
-      window.A4QuestionPrint.open({title, subtitle: openedUnits.length ? `已展开 ${openedUnits.length} 个单元` : '当前题库', questions});
-      return;
-    }
+    openPdf({title, subtitle: openedUnits.length ? `已展开 ${openedUnits.length} 个单元` : '当前题库', questions});
+  }
+
+  function openPdf(options) {
+    if (window.A4QuestionPrint?.open) return window.A4QuestionPrint.open(options);
     window.print();
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
   }
 
   function extractQuestions(scope) {

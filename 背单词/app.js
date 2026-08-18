@@ -8,8 +8,9 @@
   const progress = load();
   progress.words ||= {};
   progress.history ||= {};
-  progress.settings ||= {dailyGoal: 10};
+  progress.settings ||= {dailyGoal: 10, autoSpeak: true};
   progress.settings.dailyGoal ||= 10;
+  if (progress.settings.autoSpeak === undefined) progress.settings.autoSpeak = true;
   const state = {view: 'home', bookKey: '', mode: 'card', queue: [], index: 0, initialTotal: 0, reviewed: 0, correct: 0, filter: 'all', listLimit: 200, listQuery: '', requeue: {}};
   const save = () => localStorage.setItem(storageKey, JSON.stringify(progress));
   const day = (date = new Date()) => { const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60000); return copy.toISOString().slice(0, 10); };
@@ -59,7 +60,10 @@
     const activity = state.mode === 'choice' ? `<div class="choices">${state.choices.map(item=>`<button data-action="choice" data-id="${item.id}">${item.meaning}</button>`).join('')}</div><div id="feedback"></div>` : state.mode === 'card' ? '<button class="reveal" data-action="reveal">显示释义</button><div id="answer"></div>' : '';
     root.innerHTML = `<section class="study-head"><button data-action="book-back">×</button><span class="study-progress"><i style="width:${Math.min(state.index+1,state.initialTotal)/state.initialTotal*100}%"></i></span><small>${Math.min(state.index+1,state.initialTotal)} / ${state.initialTotal}</small></section><section class="word-card"><button class="speak" data-action="speak">🔊 朗读</button><button class="favorite" data-action="favorite">${favorite?'★':'☆'}</button>${question}${activity}</section><section id="rating"></section>`;
     if (state.mode === 'spelling') document.querySelector('#spelling').focus();
+    if (progress.settings.autoSpeak) setTimeout(speakWord, 160);
   }
+
+  function speakWord() { if (!state.current || !('speechSynthesis' in window)) return; speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(state.current.word); utterance.lang = 'en-US'; utterance.rate = .85; speechSynthesis.speak(utterance); }
 
   const answerHtml = () => `<div class="answer"><div class="meaning">${state.current.meaning}</div><div class="example">${state.current.example}</div></div>`;
   function reveal() { document.querySelector('#answer').innerHTML = answerHtml(); document.querySelector('.reveal').remove(); document.querySelector('#rating').innerHTML = `<div class="rating">${[['0','忘记','重新学习'],['1','模糊','较短间隔'],['2','认识','标准间隔'],['3','熟练','较长间隔']].map(x=>`<button data-action="rate" data-grade="${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></button>`).join('')}</div>`; }
