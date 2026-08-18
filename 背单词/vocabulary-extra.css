@@ -38,3 +38,35 @@
   margin: 22px auto 0;
   padding: 12px 28px;
 }
+
+.summary button {
+  padding: 18px 5px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--cream);
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.summary button:hover,
+.summary button:focus-visible {
+  border-color: var(--green);
+  outline: 0;
+}
+
+.study-head .previous {
+  flex: none;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #e5f0e7;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.study-head .previous:disabled {
+  opacity: .4;
+  cursor: default;
+}
