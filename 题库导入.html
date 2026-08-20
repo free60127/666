@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#28634f">
+  <title>外院知识分享站 · 题库导入工具</title>
+  <meta name="robots" content="noindex">
+  <style>
+    :root{--green:#28634f;--cream:#fffefa;--ink:#17211f;--muted:#73817b;--line:#dfe6df;--orange:#d97845;--bg:#f7f8f3}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.55}
+    .wrap{max-width:860px;margin:0 auto;padding:28px 18px 80px}
+    .brand{display:flex;gap:12px;align-items:center;margin:4px 0 28px}
+    .mark{display:grid;place-items:center;background:var(--green);color:#fff;border-radius:12px;font-size:26px;width:52px;height:52px;font-weight:800}
+    .brand strong{font-size:22px;display:block}
+    .brand small{display:block;letter-spacing:2px;color:#87918d;font-size:11px}
+    h1{font-size:28px;margin:0 0 6px}h1 span{color:var(--green)}
+    p.sub{color:var(--muted);margin:0 0 22px}
+    .card{background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px}
+    .card h2{font-size:16px;margin:0 0 12px;color:var(--green)}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+    select,input[type=text]{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);max-width:100%}
+    label{font-size:13.5px;color:var(--muted)}
+    textarea{width:100%;min-height:240px;font:13px/1.5 Consolas,Monaco,monospace;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fcfdfb;color:var(--ink);resize:vertical}
+    button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:9px 16px;background:var(--green);color:#fff}
+    button.ghost{background:#e7f1e9;color:var(--green)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .report{white-space:pre-wrap;font-size:13.5px;line-height:1.7}
+    .report.ok{color:#276545}.report.err{color:#a04b44}
+    .hint{font-size:12.5px;color:var(--muted);background:#f2f6f1;border-radius:8px;padding:10px 12px;margin-top:10px}
+    .hint code{background:#e5ece4;border-radius:4px;padding:1px 6px;font-size:12px}
+    .download{margin-top:12px}
+    .tabs{display:flex;gap:6px;margin-bottom:12px}
+    .tabs button{background:transparent;color:var(--muted);border:1px solid var(--line)}
+    .tabs button.active{background:var(--green);color:#fff;border-color:var(--green)}
+    details summary{cursor:pointer;font-size:13.5px;color:var(--green);margin-top:8px}
+  </style>
+<script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
+  <meta name="description" content="外院知识分享站 · 题库导入工具：课程题库、学习工具与专业资料，免费分享持续更新。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="外院知识分享站">
+  <meta property="og:title" content="外院知识分享站 · 题库导入工具">
+  <meta property="og:description" content="外院知识分享站 · 题库导入工具：课程题库、学习工具与专业资料，免费分享持续更新。">
+  <meta property="og:url" content="https://free60127.github.io/666/%E9%A2%98%E5%BA%93%E5%AF%BC%E5%85%A5.html">
+  <meta property="og:image" content="https://free60127.github.io/666/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+<main class="wrap">
+  <header class="brand"><div class="mark">＋</div><div><strong>题库导入工具</strong><small>QUIZ IMPORTER / 站长专用</small></div></header>
+  <h1>校验并生成<span>导入文件。</span></h1>
+  <p class="sub">在浏览器里粘贴题目（JSON 或 CSV），自动校验题型/答案/重复；通过后下载标准 JSON，在电脑上跑一行命令即可合并进题库并发布。所有数据仅在本机浏览器处理，不会上传。</p>
+
+  <div class="card">
+    <h2>1. 选择目标题库</h2>
+    <div class="row">
+      <label>题库</label>
+      <select id="target">
+        <option value="politics">思政（source/politics.json）</option>
+        <option value="computer">计算机（source/computer.json）</option>
+        <option value="reading">泛读（source/reading.json）</option>
+        <option value="basic-english">基英（source/basic-english.json）</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>容器（bank 或单元，可选；留空则导入器会提示可用项）</label>
+      <input type="text" id="container" placeholder="如 ethics / book-1-word-unit-1" style="flex:1;min-width:220px">
+    </div>
+    <div class="row">
+      <label>新建单元名（仅泛读/基英，可选）</label>
+      <input type="text" id="newUnit" placeholder="如 Unit 16 · 补充练习" style="flex:1;min-width:220px">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. 粘贴题目（JSON 或 CSV）</h2>
+    <div class="tabs">
+      <button id="tab-json" class="active" data-tab="json">JSON</button>
+      <button id="tab-csv" data-tab="csv">CSV</button>
+    </div>
+    <textarea id="input" placeholder='[
+  {"type":"single","title":"题干…","options":["选项A","选项B","选项C","选项D"],"answer":"C","hint":"可选"},
+  {"type":"multi","title":"多选题…","options":["…"],"answer":"AB"}
+]'></textarea>
+    <div class="hint" id="csv-hint" hidden>CSV 格式：<code>type,title,options,answer,hint</code>，选项用 <code>|</code> 分隔，type 可留空自动推断；首行表头可选。<br>示例：<code>single,我国的根本政治制度是？,人民代表大会制度|多党合作制度,人民代表大会制度</code></div>
+    <div class="row" style="margin-top:14px">
+      <button id="run">校验并生成导入文件</button>
+      <button id="sample" class="ghost">填入示例</button>
+      <a id="download" class="download" style="display:none;text-decoration:none;color:#fff;background:#28634f;border-radius:10px;padding:9px 16px;font-size:14px" download="import.json">⬇ 下载导入文件 import.json</a>
+    </div>
+    <div class="report" id="report"></div>
+    <details id="command-hint" hidden>
+      <summary>查看导入命令（在电脑上执行）</summary>
+      <div class="hint" id="command"></div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>3. 本地合并发布（电脑上执行）</h2>
+    <div class="hint">把下载的 <code>import.json</code> 放到项目 <code>scripts/</code> 目录旁边，然后执行：<br>
+      <code id="cmd-main">node scripts/import-quiz.js politics import.json --bank ethics</code><br><br>
+      命令会自动校验、去重、备份源文件并写入；最后跑 <code>node scripts/release.js</code> 一键构建发布上线。<br>
+      全新题库（没有 bank 的）请直接编辑 <code>source/politics.json</code> 添加一个 <code>{"key":"xxx","name":"课程名","questions":[]}</code> 对象。
+    </div>
+  </div>
+</main>
+<script src="scripts/quiz-schema.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const targetSel = $('target'), containerInput = $('container'), newUnitInput = $('newUnit');
+  const input = $('input'), report = $('report'), download = $('download'), commandHint = $('command-hint'), command = $('command');
+
+  document.querySelectorAll('.tabs button').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b === btn));
+    const tab = btn.dataset.tab;
+    $('csv-hint').hidden = tab !== 'csv';
+    input.placeholder = tab === 'csv'
+      ? 'type,title,options,answer,hint\nsingle,我国的根本政治制度是？,人民代表大会制度|多党合作制度|…,A,\n,简述题题干…,,参考答案,'
+      : '';
+  }));
+
+  $('sample').addEventListener('click', () => {
+    input.value = '[\n  {"type":"single","title":"我国现行宪法是哪一年通过的？","options":["1982年","1984年","1986年","1988年"],"answer":"C","hint":"宪法常识"},\n  {"type":"multi","title":"以下哪些属于社会主义核心价值观？","options":["富强","民主","文明","和谐"],"answer":"ABCD"}\n]';
+  });
+
+  $('run').addEventListener('click', () => {
+    report.className = 'report';
+    report.textContent = '';
+    download.style.display = 'none';
+    commandHint.hidden = true;
+    const text = input.value.trim();
+    if (!text) { report.textContent = '请先粘贴题目。'; report.classList.add('err'); return; }
+    let questions = [];
+    try {
+      if (text.startsWith('[') || text.startsWith('{')) {
+        const parsed = JSON.parse(text);
+        questions = Array.isArray(parsed) ? parsed : (parsed.questions || []);
+      } else {
+        // 简易 CSV 解析
+        const rows = parseCsv(text);
+        let rowsData = rows;
+        const headerHits = (rows[0] || []).filter(h => ['type','title','题干','question','options','答案','answer','hint','提示'].includes(String(h).trim().toLowerCase()));
+        if (headerHits.length >= 2) rowsData = rows.slice(1);
+        const content = targetSel.value === 'reading' || targetSel.value === 'basic-english';
+        questions = rowsData.map(r => {
+          const q = { type: String(r[0]||'').trim().toLowerCase(), title: String(r[1]||'').trim(), options: r[2], answer: String(r[3]||'').trim(), hint: String(r[4]||'').trim() };
+          if (!q.type) q.type = (q.options && String(q.options).trim()) ? 'single' : (content ? 'text' : 'short');
+          return q;
+        });
+      }
+    } catch (e) { report.textContent = '✗ 解析失败：' + e.message; report.classList.add('err'); return; }
+    if (!questions.length) { report.textContent = '✗ 未解析出任何题目。'; report.classList.add('err'); return; }
+
+    const validation = QuizSchema.validateList(questions, targetSel.value === 'reading' || targetSel.value === 'basic-english' ? 'content' : 'quiz');
+    let out = `解析到 ${validation.stats.total} 题：` + Object.entries(validation.stats.byType).map(([t,n]) => `${t}=${n}`).join(' ') + '\n';
+    if (validation.duplicates.length) {
+      out += `\n⚠ 输入内重复 ${validation.duplicates.length} 题（同题型同题干）：\n` + validation.duplicates.slice(0, 5).map(d => `  #${d.index+1} 与 #${d.sameAs+1} 重复：「${String(d.title).slice(0,40)}」`).join('\n');
+    }
+    if (validation.errors.length) {
+      out += `\n✗ 校验错误 ${validation.errors.length} 条，请修正后重试：\n` + validation.errors.slice(0, 10).flatMap(e => e.messages.map(m => `  #${e.index+1} ${m}`)).join('\n');
+      report.textContent = out; report.classList.add('err');
+      return;
+    }
+    out += '\n✓ 全部通过，可导入。';
+    report.textContent = out; report.classList.add('ok');
+
+    // 生成下载文件
+    const blob = new Blob([JSON.stringify(questions, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    download.href = url;
+    download.style.display = 'inline-block';
+
+    // 生成命令
+    const target = targetSel.value;
+    const container = containerInput.value.trim();
+    const newUnit = newUnitInput.value.trim();
+    const parts = [`node scripts/import-quiz.js ${target} import.json`];
+    if (container) parts.push(`--${target === 'reading' || target === 'basic-english' ? 'unit' : 'bank'} ${container}`);
+    if (newUnit) parts.push(`--unit-name "${newUnit}"`);
+    command.textContent = parts.join(' ');
+    commandHint.hidden = false;
+  });
+
+  function parseCsv(text) {
+    const rows = []; let row = [], field = '', inQuotes = false;
+    const pushField = () => { row.push(field); field = ''; };
+    const pushRow = () => { if (row.some(f => String(f).trim())) rows.push(row); row = []; };
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) { if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else inQuotes = false; } else field += c; }
+      else if (c === '"') inQuotes = true;
+      else if (c === ',') pushField();
+      else if (c === '\n' || c === '\r') { if (c === '\r' && text[i+1] === '\n') i++; pushField(); pushRow(); }
+      else field += c;
+    }
+    if (field !== '' || row.length) { pushField(); pushRow(); }
+    return rows;
+  }
+})();
+</script>
+  <link rel="stylesheet" href="theme.css">
+  <script defer src="common.js" data-common-injected></script>
+</body>
+</html>

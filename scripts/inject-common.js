@@ -21,12 +21,22 @@ function relPrefix(file) {
   return rel ? rel.split(path.sep).map(() => '../').join('') : '';
 }
 
+function pageNameOf(file) {
+  const html = fs.readFileSync(file, 'utf8');
+  const titleMatch = html.match(/<title>([^<]*)<\/title>/i);
+  const rawTitle = titleMatch ? titleMatch[1].trim() : '外院知识分享站';
+  const pageName = rawTitle
+    .replace(/^外院知识分享站\s*[·|｜]\s*/, '')
+    .replace(/\s*\|\s*.*$/, '')
+    .trim() || rawTitle;
+  return pageName;
+}
+
 function seoTags(file, prefix) {
   const html = fs.readFileSync(file, 'utf8');
   const titleMatch = html.match(/<title>([^<]*)<\/title>/i);
   const rawTitle = titleMatch ? titleMatch[1].trim() : '外院知识分享站';
-  const title = rawTitle.replace(/\s*\|\s*.*$/, '').trim() || rawTitle;
-  const cleanTitle = title.replace(/[|｜·].*$/, '').trim() || title;
+  const cleanTitle = pageNameOf(file);
   const rel = path.relative(ROOT, file).split(path.sep).join('/');
   const pageUrl = SITE_URL + (rel ? rel.split('/').map(encodeURIComponent).join('/') : '');
   return [
@@ -72,6 +82,14 @@ for (const file of files) {
   if (!html.includes('og:site_name')) {
     const tags = '  ' + seoTags(file, prefix) + '\n';
     html = html.replace('</head>', tags + '</head>');
+    changed = true;
+  }
+
+  // ②b 一次性修复旧版重复前缀 description（"外院知识分享站 · 外院知识分享站…"）
+  if (/外院知识分享站 · 外院知识分享站/.test(html)) {
+    const good = '外院知识分享站 · ' + pageNameOf(file) + '：课程题库、学习工具与专业资料，免费分享持续更新。';
+    html = html.replace(/<meta name="description" content="外院知识分享站 · 外院知识分享站[^"]*">/, `<meta name="description" content="${good}">`);
+    html = html.replace(/<meta property="og:description" content="外院知识分享站 · 外院知识分享站[^"]*">/, `<meta property="og:description" content="${good}">`);
     changed = true;
   }
 

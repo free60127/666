@@ -17,6 +17,8 @@ const targets = [
   {source:'dictionary.json', global:'WAIYUAN_ENGLISH_LOOKUP', js:['dictionary/english-lookup-data.js'], json:['dictionary/english-lookup-data.json']},
   {source:'translations.json', global:'translationData', js:['专业课/语法（通用）/翻译句子/data.js'], json:['专业课/语法（通用）/翻译句子/data.json']},
   {source:'rewrite-sentences.json', global:'REWRITE_SENTENCE_DATA', js:['专业课/语法（通用）/改写句子/data.js'], json:['专业课/语法（通用）/改写句子/data.json']},
+  {source:'reading.json', global:'CONTENT_BOOKS', js:['专业课/英语系/泛读系列/data.js'], json:['专业课/英语系/泛读系列/data.json']},
+  {source:'basic-english.json', global:'CONTENT_BOOKS', js:['专业课/英语系/基英系列/data.js'], json:['专业课/英语系/基英系列/data.json']},
 ];
 
 function compact(value) { return JSON.stringify(value); }

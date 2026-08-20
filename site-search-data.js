@@ -7,7 +7,7 @@ window.WAIYUAN_SITE_SEARCH = [
   {title:'翻译系资料', category:'专业课', path:'专业课/翻译系/index.html', keywords:'翻译 翻译系', description:'翻译系资料入口。'},
   {title:'英语系课程资料', category:'专业课', path:'专业课/英语系/index.html', keywords:'英语 基英 泛读 课程', description:'英语系课程资料与题库。'},
   {title:'基英系列课程题库', category:'专业课 · 英语系', path:'专业课/英语系/基英系列/index.html', keywords:'基英 基础英语 选词填空 汉译英 题库', description:'基英 1—4 课程题库。'},
-  {title:'泛读系列题库预览', category:'专业课 · 英语系', path:'专业课/英语系/泛读系列/index.html', keywords:'泛读 阅读 题库', description:'泛读系列题库预览。'},
+  {title:'泛读系列题库', category:'专业课 · 英语系', path:'专业课/英语系/泛读系列/index.html', keywords:'泛读 阅读 题库 单词填空', description:'泛读 1—4 题库，按单元组织，支持判题、查词与收藏。'},
   {title:'语法（通用）资料', category:'专业课', path:'专业课/语法（通用）/index.html', keywords:'语法 通用 语法教程 改写 翻译', description:'通用英语语法资料。'},
   {title:'改写句子题库', category:'专业课 · 语法', path:'专业课/语法（通用）/改写句子/index.html', keywords:'改写句子 新编英语语法教程 题库', description:'新编英语语法教程改写句子练习。'},
   {title:'翻译句子题库', category:'专业课 · 语法', path:'专业课/语法（通用）/翻译句子/index.html', keywords:'翻译句子 新编英语语法教程 题库', description:'新编英语语法教程翻译句子练习。'},

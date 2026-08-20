@@ -1419,7 +1419,7 @@ html[data-theme="dark"] .wrap .answer summary { background: #2c4036 !important; 
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260820-2236'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260820-2258'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -1593,6 +1593,41 @@ html[data-theme="dark"] .wrap .answer summary { background: #2c4036 !important; 
   const focusKey = new URLSearchParams(location.search).get('focus');
   let focusHandled = false;
 
+  function copyText(text) {
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
+    else legacyCopy(text);
+  }
+  function legacyCopy(text) {
+    try {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    } catch (_) {}
+  }
+  function showFeedbackNotice(message, mailtoHref) {
+    const notice = document.createElement('div');
+    notice.className = 'unified-feedback-notice';
+    notice.setAttribute('role', 'status');
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '知道了';
+    close.addEventListener('click', () => notice.remove());
+    notice.append(message);
+    if (mailtoHref) {
+      const link = document.createElement('a');
+      link.href = mailtoHref;
+      link.textContent = '发邮件';
+      notice.appendChild(link);
+    }
+    notice.appendChild(close);
+    document.body.appendChild(notice);
+    setTimeout(() => notice.remove(), 8000);
+  }
+
   function enhanceCard(card, index) {
     if (card.dataset.unifiedReady) return;
     const questionNode = card.querySelector('.question,h2,.qbody');
@@ -1606,6 +1641,24 @@ html[data-theme="dark"] .wrap .answer summary { background: #2c4036 !important; 
     const key = `${pageKey}-${hash(`${stableId}-${title}`)}`;
     card.dataset.unifiedReady = key;
     card.dataset.unifiedTitle = title;
+    // 纠错反馈：收集题目上下文，复制后发送给站长（零后端方案）
+    if (!card.querySelector('.unified-feedback')) {
+      const feedback = document.createElement('button');
+      feedback.type = 'button';
+      feedback.className = 'unified-feedback';
+      feedback.textContent = '⚠ 纠错';
+      feedback.addEventListener('click', event => {
+        event.stopPropagation();
+        const body = `【题目纠错】\n页面：${document.title}\n链接：${location.href}\n题干：${title}\n当前答案：${answer}\n\n问题描述：`;
+        const email = window.WAIYUAN_FEEDBACK_EMAIL || '';
+        copyText(body);
+        showFeedbackNotice(
+          `已复制纠错信息，粘贴发送给站长即可${email ? '，或点「发邮件」直接提交' : ''}。`,
+          email ? `mailto:${email}?subject=${encodeURIComponent('题目纠错 · ' + document.title)}&body=${encodeURIComponent(body)}` : null
+        );
+      });
+      card.appendChild(feedback);
+    }
     if (card.querySelector('.favorite-button,[data-action="favorite"]')) return;
     const button = document.createElement('button');
     button.className = `unified-favorite ${state.favorites[key] ? 'active' : ''}`;
@@ -1700,7 +1753,7 @@ html[data-theme="dark"] .wrap .answer summary { background: #2c4036 !important; 
   function randomQuestion() { const cards = [...document.querySelectorAll('.question-card,.card')].filter(card => card.offsetParent !== null); if (!cards.length) return; cards[Math.floor(Math.random()*cards.length)].scrollIntoView({behavior:'smooth',block:'center'}); }
 
   const style = document.createElement('style');
-  style.textContent = '.unified-favorite{margin-top:14px;padding:8px 14px;border:1px solid #d7dce5;border-radius:999px;background:#f7f8fa;color:#697386;cursor:pointer}.unified-favorite.active{background:#fff3c4;border-color:#e4b84a;color:#8a6200}.unified-review-target{outline:3px solid #d97845;outline-offset:5px;scroll-margin-block:24px}.unified-random-web{position:fixed;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(18px,env(safe-area-inset-bottom));z-index:30;max-width:calc(100vw - 100px);padding:11px 16px;border:0;border-radius:999px;background:#28634f;color:#fff;box-shadow:0 8px 25px rgba(0,0,0,.18);cursor:pointer;white-space:nowrap}@media(max-width:560px){.unified-random-web{left:12px;bottom:14px;padding:10px 13px;font-size:13px}}.unified-focus-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center}.unified-focus-notice button{flex:none;border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}';
+  style.textContent = '.unified-favorite{margin-top:14px;padding:8px 14px;border:1px solid #d7dce5;border-radius:999px;background:#f7f8fa;color:#697386;cursor:pointer}.unified-favorite.active{background:#fff3c4;border-color:#e4b84a;color:#8a6200}.unified-feedback{margin-top:14px;margin-left:8px;padding:8px 14px;border:1px solid #e8d5c8;border-radius:999px;background:#fdf6f0;color:#a05a3a;cursor:pointer}.unified-review-target{outline:3px solid #d97845;outline-offset:5px;scroll-margin-block:24px}.unified-random-web{position:fixed;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(18px,env(safe-area-inset-bottom));z-index:30;max-width:calc(100vw - 100px);padding:11px 16px;border:0;border-radius:999px;background:#28634f;color:#fff;box-shadow:0 8px 25px rgba(0,0,0,.18);cursor:pointer;white-space:nowrap}@media(max-width:560px){.unified-random-web{left:12px;bottom:14px;padding:10px 13px;font-size:13px}}.unified-focus-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center}.unified-focus-notice button{flex:none;border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-feedback-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff4ec;border:1px solid #e8b48f;color:#6b3d1d;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.unified-feedback-notice a{color:#b05f2e;font-weight:700;text-decoration:none;border-bottom:1px dashed #b05f2e}.unified-feedback-notice button{flex:none;border:0;background:#e8b48f;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}';
   document.head.appendChild(style);
   const randomButton = document.createElement('button'); randomButton.className='unified-random-web'; randomButton.textContent='↻ 随机一题'; randomButton.addEventListener('click',randomQuestion); randomButton.style.display='none'; document.body.appendChild(randomButton);
   new MutationObserver(enhance).observe(document.body,{childList:true,subtree:true});

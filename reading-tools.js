@@ -357,7 +357,7 @@
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260820-2236'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260820-2258'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
