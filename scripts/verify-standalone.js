@@ -1,6 +1,7 @@
 // 验证单文件离线版：提取所有内联 <script> 块做语法编译检查，并校验内嵌题库与 data.js 一致
 // 用法: node scripts/verify-standalone.js <单文件版.html>
 const fs = require('fs');
+const path = require('path');
 const vm = require('vm');
 
 const file = process.argv[2];
@@ -28,9 +29,9 @@ if (dataScript) {
   } else {
     pass = false; console.log('  ✗ POLITICS_BANKS 非数组');
   }
-  // 与同目录 data.js 对比
-  const dir = file.slice(0, file.lastIndexOf('/'));
-  const dataJs = fs.readFileSync(dir + '/data.js', 'utf8');
+  // 与同目录 data.js 对比（path 归一化，兼容 Windows 反斜杠参数）
+  const dir = path.dirname(file);
+  const dataJs = fs.readFileSync(path.join(dir, 'data.js'), 'utf8');
   if (dataScript.trim() === dataJs.trim()) console.log('题库数据与 data.js 一致 ✓');
   else { pass = false; console.log('  ✗ 题库数据与 data.js 不一致!'); }
 } else {
