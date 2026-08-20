@@ -70,7 +70,222 @@ html.word-lookup-open{overflow:hidden}
 .word-lookup__source{margin:14px 0 0;color:#8b9991;font-size:11px;text-align:center}
 @media(max-width:560px){.word-lookup__sheet{left:0;right:0;top:auto;bottom:0;width:100%;max-height:78vh;transform:none;border-width:1px 0 0;border-radius:8px 8px 0 0}.word-lookup__sheet>header{padding:17px 18px 12px}.word-lookup__content{padding:17px 18px max(22px,env(safe-area-inset-bottom))}.word-lookup__sheet h2{font-size:26px}}
 @media print{.reading-tools{display:none!important}:root{--reading-scale:1!important}body.reading-tools-enabled>:not(.reading-tools):not(#a4-mobile-download-panel){zoom:1!important}details>*{display:block!important}details>summary{display:list-item!important}}
+
+/* ============================================================
+   外院知识分享站 · 深色模式覆盖层
+   机制：html[data-theme="dark"] 由 reading-tools.js 的主题按钮切换，
+        初始值取 localStorage('waiyuan-web-theme-v1') 或系统偏好。
+   本文件不动各模块 CSS，仅用更高特异性的选择器做深色覆盖。
+   ============================================================ */
+
+/* ---------- 变量覆盖（各模块 CSS 均引用同名变量，一处生效） ---------- */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --green: #3f8f72;
+  --orange: #e08a55;
+  --cream: #1e2622;
+  --ink: #dfe6e2;
+  --muted: #8d9b94;
+  --line: #37423d;
+  --paper: #1e2622;
+  --bg: #151a18;
+  --gold: #c9a24b;
+  --red: #d97b6f;
+  --soft: #1c2521;
+}
+
+/* ---------- body 背景（hex 硬编码处逐项覆盖） ---------- */
+html[data-theme="dark"] body {
+  background: radial-gradient(circle at 0 0, #1d2a24 0, transparent 32%), #151a18 !important;
+  color: var(--ink);
+}
+
+/* ---------- 通用表单/链接 ---------- */
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background: #232d28;
+  color: var(--ink);
+  border-color: var(--line);
+}
+html[data-theme="dark"] ::placeholder { color: #6d7a73; }
+
+/* ============================================================
+   首页 home.css
+   ============================================================ */
+html[data-theme="dark"] .series-card i { background: #24302b !important; }
+html[data-theme="dark"] .series-card.politics {
+  background: linear-gradient(150deg, #1d2a24, #1e2a21) !important;
+  border-color: #3a5248 !important;
+}
+html[data-theme="dark"] .modal,
+html[data-theme="dark"] .access-modal { background: #1e2622 !important; }
+html[data-theme="dark"] .study-link i,
+html[data-theme="dark"] .center-link i { color: #e0b44d !important; }
+html[data-theme="dark"] .favorites-link {
+  background: #3a3220 !important;
+  border-color: #57492a !important;
+}
+html[data-theme="dark"] .favorites-link i { color: #e0b44d !important; }
+html[data-theme="dark"] .search-result:hover { background: #1d2a24 !important; }
+
+/* ============================================================
+   思政系列 / 计算机系列 style.css（两者结构相同）
+   ============================================================ */
+html[data-theme="dark"] .bank-card i { background: #24302b !important; color: #8f9f98 !important; }
+html[data-theme="dark"] .mistake-entry { background: #332822 !important; border-color: #6b4a3c !important; }
+html[data-theme="dark"] .paper-bank button,
+html[data-theme="dark"] .actions button { background: #2c4036 !important; color: #dceade !important; }
+html[data-theme="dark"] .tag,
+html[data-theme="dark"] .hint { background: #22312a !important; color: #86b39a !important; }
+html[data-theme="dark"] .hint { background: #33271f !important; color: #e0a475 !important; }
+html[data-theme="dark"] .option {
+  background: #26302c !important;
+  color: #aebdb6 !important;
+  border-color: #37423d !important;
+}
+html[data-theme="dark"] .option.correct {
+  background: #1b3a2c !important;
+  color: #7fd4a8 !important;
+  border-color: #2b6b4e !important;
+}
+html[data-theme="dark"] .option.wrong {
+  background: #3d2420 !important;
+  color: #e8a296 !important;
+  border-color: #7a4538 !important;
+}
+html[data-theme="dark"] .answer { background: #1c2e26 !important; color: #8fc4a8 !important; }
+html[data-theme="dark"] .support-entry { background: #3a3020 !important; color: #f7e9d2 !important; }
+html[data-theme="dark"] .support-entry b { color: #d4a862 !important; }
+html[data-theme="dark"] .score { background: #1e3129 !important; color: #7fc09f !important; }
+
+/* ============================================================
+   学习中心 style.css
+   ============================================================ */
+html[data-theme="dark"] header p { color: #e08a55 !important; }
+html[data-theme="dark"] .data-tools button:hover { background: #22302a !important; }
+html[data-theme="dark"] .data-tools button.danger { border-color: #5c3531 !important; }
+html[data-theme="dark"] .data-tools button.danger:hover { background: #462e2a !important; }
+html[data-theme="dark"] .answer {
+  background: #1c2621 !important;
+  color: #9fc4b0 !important;
+  border-color: #2b3d34 !important;
+}
+html[data-theme="dark"] .item-actions .practice-link,
+html[data-theme="dark"] .practice-panel {
+  background: #3a3020 !important;
+  color: #f7e9d2 !important;
+  border-color: #57492a !important;
+}
+html[data-theme="dark"] .item-actions .practice-link b { color: #d4a862 !important; }
+html[data-theme="dark"] .item-actions .remove { border-color: #5c3531 !important; }
+
+/* ============================================================
+   背单词 style.css / vocabulary-extra.css / licenses.css
+   ============================================================ */
+html[data-theme="dark"] .progress { background: #2a342f !important; }
+html[data-theme="dark"] .goal button,
+html[data-theme="dark"] .filters button { background: #26302b !important; color: #aebdb6 !important; }
+html[data-theme="dark"] .modes b { background: #22302a !important; }
+html[data-theme="dark"] .tools button { background: #2c2620 !important; color: #d9b48f !important; }
+html[data-theme="dark"] .study-progress { background: #2a342f !important; }
+html[data-theme="dark"] .word-card { background: #1d2823 !important; }
+html[data-theme="dark"] .speak,
+html[data-theme="dark"] .study-head .previous { background: #24302b !important; }
+html[data-theme="dark"] .choices button { background: #232b27 !important; color: #b9c6bf !important; }
+html[data-theme="dark"] .result.correct { background: #1b3a2c !important; color: #7fd4a8 !important; }
+html[data-theme="dark"] .result.wrong { background: #3d2420 !important; color: #e58d7a !important; }
+html[data-theme="dark"] .license-card { background: #232d28 !important; }
+
+/* ============================================================
+   专业课 course.css / 语法改写 / 翻译句子 / 考证 cert.css
+   ============================================================ */
+html[data-theme="dark"] .major-card i,
+html[data-theme="dark"] .password b { background: #24302b !important; }
+html[data-theme="dark"] .section-nav button { background: #232a26 !important; }
+html[data-theme="dark"] .kind { background: #24302b !important; }
+html[data-theme="dark"] .kind.rewrite { background: #332820 !important; color: #d99a6a !important; }
+html[data-theme="dark"] .print-button { background: #2c4036 !important; color: #dceade !important; }
+html[data-theme="dark"] .print-button:hover { background: #26342d !important; }
+html[data-theme="dark"] .questions li { background: #232d28 !important; color: #d8e2dc !important; }
+html[data-theme="dark"] .answer[open] summary { background: #26342d !important; }
+html[data-theme="dark"] .answer p { background: #2a241e !important; color: #d9d2c8 !important; }
+html[data-theme="dark"] .status { background: #33281f !important; color: #e08a55 !important; }
+html[data-theme="dark"] .answer-toggle { background: #24302a !important; }
+html[data-theme="dark"] .answer {
+  background: #2a241d !important;
+  color: #d8d2c8 !important;
+  border-color: #4a3f30 !important;
+}
+
+/* ============================================================
+   reading-tools.css（悬浮工具栏 + 查词面板，全部硬编码色）
+   ============================================================ */
+html[data-theme="dark"] .reading-tools button {
+  background: #2c3a33 !important;
+  color: #dfe6e2 !important;
+}
+html[data-theme="dark"] .reading-tools__button--top { background: #3f8f72 !important; color: #fff !important; }
+html[data-theme="dark"] .reading-tools__font-menu,
+html[data-theme="dark"] .reading-tools__pdf-menu {
+  background: #1f2723 !important;
+  border-color: #37423d !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .45) !important;
+}
+html[data-theme="dark"] .reading-tools__font-option.is-active { background: #2c3b33 !important; }
+html[data-theme="dark"] .reading-tools__pdf-option:hover { background: #26342d !important; }
+html[data-theme="dark"] .reading-tools__pdf-option--opened { background: #352a20 !important; color: #e0a475 !important; }
+html[data-theme="dark"] .reading-tools__pdf-option b { color: #dfe6e2 !important; }
+html[data-theme="dark"] .reading-tools__pdf-option span { color: #8d9b94 !important; }
+
+/* 静态答题选项（reading-tools 增强） */
+html[data-theme="dark"] .options > div[role="button"] {
+  background: #26302c !important;
+  color: #aebdb6 !important;
+  border-color: #37423d !important;
+}
+html[data-theme="dark"] .options > div[role="button"]:hover,
+html[data-theme="dark"] .options > div[role="button"]:focus-visible {
+  background: #26342d !important;
+  color: #9fc4b0 !important;
+}
+html[data-theme="dark"] .options > div[role="button"].is-selected {
+  background: #1e3a2e !important;
+  color: #5fb893 !important;
+  box-shadow: inset 3px 0 #3f8f72 !important;
+}
+html[data-theme="dark"] .options > div[role="button"].is-correct {
+  background: #173527 !important;
+  color: #7fd4a8 !important;
+  box-shadow: inset 3px 0 #2b8a52 !important;
+}
+html[data-theme="dark"] .options > div[role="button"].is-selected.is-wrong {
+  background: #3d241e !important;
+  color: #e8a296 !important;
+  box-shadow: inset 3px 0 #c96845 !important;
+}
+
+/* 查词面板 */
+html[data-theme="dark"] .word-lookup__backdrop { background: rgba(0, 0, 0, .55) !important; }
+html[data-theme="dark"] .word-lookup__sheet { background: #1a221e !important; }
+html[data-theme="dark"] .word-lookup__sheet > header { background: #24302b !important; }
+html[data-theme="dark"] .word-lookup__sheet > header small { color: #8d9b94 !important; }
+html[data-theme="dark"] .word-lookup__sheet h2 { color: #dfe6e2 !important; }
+html[data-theme="dark"] .word-lookup__sheet > header > button { background: #2c3a33 !important; color: #7fd4a8 !important; }
+html[data-theme="dark"] .word-lookup__content { color: #c8d2cc !important; }
+html[data-theme="dark"] .word-lookup__content details { background: #26302b !important; }
+html[data-theme="dark"] .word-lookup__content details summary { color: #dfe6e2 !important; }
+html[data-theme="dark"] .word-lookup__phonetic { color: #9fc4b0 !important; }
+html[data-theme="dark"] .word-lookup__context { background: #3a2f26 !important; color: #e8dfd2 !important; }
+html[data-theme="dark"] .word-lookup__actions button { background: #2c3a33 !important; color: #e8f2ec !important; }
+
+/* 统一错题/收藏提示条（unified-quiz-engine） */
+html[data-theme="dark"] .unified-focus-notice { background: #3a3220 !important; color: #f7e9d2 !important; }
+
+/* 学习提醒条（学习中心 / 背单词） */
+html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #dfe6e2 !important; border-color: #37423d !important; }
 </style>
+<script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
 </head>
 <body data-reading-tools="true">
   <main id="app"></main>
@@ -814,6 +1029,24 @@ html.word-lookup-open{overflow:hidden}
     }
     tools.appendChild(pdfButton);
   }
+
+  const themeButton = makeButton('🌙', '主题', '切换深色/浅色模式');
+  const THEME_KEY = 'waiyuan-web-theme-v1';
+  const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  let theme = 'light';
+  try { theme = localStorage.getItem(THEME_KEY) || (systemDark ? 'dark' : 'light'); } catch (e) { theme = systemDark ? 'dark' : 'light'; }
+  const applyTheme = t => {
+    theme = t;
+    document.documentElement.dataset.theme = t;
+    themeButton.textContent = t === 'dark' ? '☀️' : '🌙';
+    themeButton.setAttribute('aria-label', t === 'dark' ? '切换到浅色模式' : '切换到深色模式');
+  };
+  applyTheme(theme);
+  themeButton.addEventListener('click', () => {
+    applyTheme(theme === 'dark' ? 'light' : 'dark');
+    try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+  });
+  tools.appendChild(themeButton);
 
   const topButton = makeButton('↑', '顶部', '回到顶部');
   topButton.classList.add('reading-tools__button--top');

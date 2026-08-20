@@ -11,6 +11,9 @@ function walk(dir) {
       if (entry.name === '.git' || entry.name === 'node_modules') continue;
       walk(p);
     } else if (entry.name.endsWith('.html')) {
+      // 单文件离线版全部内联（内含 JS 模板字面量如 ${escape(...)}，静态扫描必然误报），
+      // 其完整性由 scripts/verify-standalone.js 单独负责。
+      if (entry.name.includes('单文件离线版')) continue;
       const html = fs.readFileSync(p, 'utf8');
       const refs = [...html.matchAll(/<(?:script|link|img)[^>]+(?:src|href)="([^"]+)"/g)].map(m => m[1]);
       for (const ref of refs) {

@@ -16,10 +16,18 @@
 | 思政 | `思政系列/` | 五门课程题库（思修 214 题、近代史 215 题、马原 197 题、毛概 243 题、习概 225 题）、模拟卷与错题本 |
 | 电子版教材 | `电子版教材/` | 电子教材二维码分发页 |
 | 考证 | `考证/` | 英语专四等考证资料 |
-| 背单词 | `背单词/` | 专四、专八词汇学习与智能复习（`vocabulary-data.js`） |
-| 学习中心 | `学习中心/` | 全站统一进度、正确率、收藏与错题复习 |
+| 背单词 | `背单词/` | 专四、专八词汇学习与智能复习（按词书按需加载：`vocabulary-meta.js` + `vocabulary-data-tem4/tem8.js`） |
+| 学习中心 | `学习中心/` | 全站统一进度、正确率、收藏与错题复习、错题提醒 |
 
-全站页面统一引用 `reading-tools.js`（字号调节、查词、PDF 下载）、`unified-quiz-engine.js`（收藏与进度统一记录、随机一题、学习中心定位复习）、`a4-print.js`（PDF 导出）。
+全站页面统一引用 `reading-tools.js`（字号调节、查词、PDF 下载、**深色/浅色主题切换**）、`unified-quiz-engine.js`（收藏与进度统一记录、随机一题、学习中心定位复习）、`a4-print.js`（PDF 导出）、`common.js`（GoatCounter 统计 + Service Worker 注册）。
+
+## 新功能一览（2026-08-20 新增）
+
+- **深色模式**：悬浮工具栏 🌙/☀️ 按钮一键切换，记忆选择（`localStorage: waiyuan-web-theme-v1`），未设置时跟随系统；实现为根目录 `theme.css` 覆盖层（`html[data-theme="dark"]`），不侵入各模块样式。
+- **访问统计（GoatCounter）**：`common.js` 已接入，**使用前需注册** [goatcounter.com](https://www.goatcounter.com) 账号并把子域名设为 `free60127`（或修改 `common.js` 顶部 `GC_SITE` 常量）。未注册不影响任何功能。
+- **PWA**：`manifest.webmanifest`（桌面图标 192/512）+ `sw.js`（核心资源预缓存、静态资源缓存优先、离线可访问首页）；图标与分享图由 `scripts/make-brand-assets.ps1` 生成。
+- **学习提醒**：背单词页「每日提醒」设定时间后，当日到点未学习时发系统通知（需授予通知权限）；学习中心「开启错题提醒」后有错题待复习时每日提醒一次。
+- **分享图**：`og-image.png`（1200×630），微信/社交平台分享链接时显示卡片预览。
 
 ## 题库数据管线
 
@@ -46,6 +54,9 @@ node scripts/build/verify-docx.js    # 与《大一上思政.docx》核对
 node scripts/build/dedupe-history.js # 近代史去重（331→215）
 node scripts/build/fix-history-answers.js # 近代史答案修正脚本（multi#15 等）
 node scripts/count-types.js          # 统计各题库题型分布
+node scripts/check-links.js          # 全站 HTML 资源引用完整性检查
+node scripts/inject-common.js        # 全站注入主题防闪烁脚本 + theme.css + common.js（幂等）
+node scripts/make-brand-assets.ps1   # 生成 PWA 图标与分享图（需在项目根用 PowerShell 执行）
 ```
 
 ## 单文件离线版
@@ -63,13 +74,15 @@ node scripts/build-standalone.js 计算机系列  # → 计算机系列/计算�
 
 ## 部署（GitHub Pages）
 
-本地目录不是 git 仓库；站点代码维护在 GitHub 仓库 `free60127/666`（仓库根 = 站点根）。发布流程：
+本站维护在 GitHub 仓库 `free60127/666`（仓库根 = 站点根，部署于 `/666/` 子路径）。**一键发布**：
 
-1. 本地全部更新后，将整个站点文件夹内容复制进 Pages 仓库工作目录；
-2. `git add -A && git commit && git push`；
-3. GitHub Actions（或 Pages 自动构建）发布，约 1 分钟后线上生效：`https://free60127.github.io/666/`。
+```bash
+node scripts/release.js
+```
 
-⚠️ 每次改完必须重新部署，否则线上仍是旧版（历史教训：线上曾停留在 8/18 版本，首页搜索与新版答题引擎全部 404）。部署后建议用浏览器无痕窗口 + 检查线上资源版本号确认。
+`release.js` 自动完成：重建数据产物 → 全站版本号刷新为 `v=YYYYMMDD-HHMM`（强制缓存更新）→ 重建两份单文件离线版 → 引用与单文件校验 → `git add/commit/push`（推送后自动核验远程 HEAD）。等 1-3 分钟 Pages 构建后执行 `node scripts/check-online.js` 确认线上可用。
+
+⚠️ 每次改完必须重新部署，否则线上仍是旧版（历史教训：线上曾停留在 8/18 版本，首页搜索与新版答题引擎全部 404）。
 
 ## 自愿赞助
 

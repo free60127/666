@@ -58,6 +58,24 @@
     tools.appendChild(pdfButton);
   }
 
+  const themeButton = makeButton('🌙', '主题', '切换深色/浅色模式');
+  const THEME_KEY = 'waiyuan-web-theme-v1';
+  const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  let theme = 'light';
+  try { theme = localStorage.getItem(THEME_KEY) || (systemDark ? 'dark' : 'light'); } catch (e) { theme = systemDark ? 'dark' : 'light'; }
+  const applyTheme = t => {
+    theme = t;
+    document.documentElement.dataset.theme = t;
+    themeButton.textContent = t === 'dark' ? '☀️' : '🌙';
+    themeButton.setAttribute('aria-label', t === 'dark' ? '切换到浅色模式' : '切换到深色模式');
+  };
+  applyTheme(theme);
+  themeButton.addEventListener('click', () => {
+    applyTheme(theme === 'dark' ? 'light' : 'dark');
+    try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+  });
+  tools.appendChild(themeButton);
+
   const topButton = makeButton('↑', '顶部', '回到顶部');
   topButton.classList.add('reading-tools__button--top');
   topButton.addEventListener('click', () => window.scrollTo({top: 0, behavior: 'smooth'}));

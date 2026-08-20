@@ -13,7 +13,7 @@
   };
   const normalizeUnified = value => {
     const state = objectOrEmpty(value);
-    return {version:DATA_VERSION, progress:objectOrEmpty(state.progress), favorites:objectOrEmpty(state.favorites)};
+    return {version:DATA_VERSION, progress:objectOrEmpty(state.progress), favorites:objectOrEmpty(state.favorites), settings:objectOrEmpty(state.settings)};
   };
   const normalizeVocabulary = value => objectOrEmpty(value);
   const read = () => normalizeUnified(readJson(KEY));
@@ -140,6 +140,8 @@
     const mistakeCount = Object.values(state.progress).filter(item => item.wrong).length;
     document.getElementById('favorite-count').textContent = favoriteCount;
     document.getElementById('mistake-count').textContent = mistakeCount;
+    const remindButton = document.getElementById('remind-toggle');
+    if (remindButton) remindButton.textContent = state.settings.remindOn ? '错题提醒：已开启' : '开启错题提醒';
     document.querySelectorAll('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === view));
     if (view === 'favorites') renderFavorites(state); else if (view === 'mistakes') renderMistakes(state); else renderOverview(state);
   }
@@ -153,6 +155,20 @@
     if (action === 'export') exportData();
     if (action === 'import') document.getElementById('import-file')?.click();
     if (action === 'clear') clearData();
+    if (action === 'remind') {
+      const state = read();
+      state.settings.remindOn = !state.settings.remindOn;
+      write(state);
+      if (state.settings.remindOn && 'Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') setStatus('已开启错题提醒，有错题待复习时会通知你。', 'success');
+          else setStatus('浏览器未授予通知权限，可在地址栏旁重新授权。', 'error');
+        }).catch(() => {});
+      } else if (state.settings.remindOn) {
+        setStatus('错题提醒已开启，有错题待复习时会通知你。', 'success');
+      }
+      render();
+    }
   });
 
   document.getElementById('import-file')?.addEventListener('change', event => {
@@ -163,4 +179,21 @@
   window.addEventListener('pageshow', render);
   window.addEventListener('storage', render);
   render();
+
+  // 错题复习提醒：已开启 && 存在错题 && 今日未提醒过 && 通知权限已授予 → 发系统通知（每日至多一次）
+  (function checkMistakeReminder() {
+    const state = read();
+    if (!state.settings.remindOn || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const wrongCount = Object.values(state.progress).filter(item => item.wrong).length;
+    if (!wrongCount) return;
+    const REMIND_MEMO = 'waiyuan-study-remind-memo-v1';
+    let memo = '';
+    try { memo = JSON.parse(localStorage.getItem(REMIND_MEMO) || '""'); } catch (_) {}
+    const today = dateStamp();
+    if (memo === today) return;
+    try {
+      new Notification('外院 · 学习中心', {body: `你有 ${wrongCount} 道错题待复习，趁热打铁巩固一下吧 ✍️`});
+      localStorage.setItem(REMIND_MEMO, JSON.stringify(today));
+    } catch (_) {}
+  })();
 })();

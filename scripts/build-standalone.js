@@ -40,7 +40,9 @@ const html = `<!doctype html>
   <meta name="theme-color" content="#28634f">
   <title>${config.title}</title>
   <style>${read('style.css')}
-${readRoot('reading-tools.css')}</style>
+${readRoot('reading-tools.css')}
+${readRoot('theme.css')}</style>
+<script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
 </head>
 <body data-reading-tools="true">
   <main id="app"></main>
