@@ -58,13 +58,25 @@
       <section class="unit-list">${groups.map(group => (group.label ? `<div class="module-title">${escape(group.label)}</div>` : '') + group.units.map(unitDetails).join('')).join('')}</section>`;
   }
 
+  const wordBankHtml = (bank, withName) => `<div class="word-bank"><strong>${escape(withName ? (bank.module || '本模块词库') + ' · 词库' : '本模块词库')}</strong><div>${(bank.words || []).map(w => `<span>${escape(w)}</span>`).join('')}</div></div>`;
+
   function renderUnit(detailsEl) {
     const unit = unitOf(detailsEl.dataset.unit);
     if (!unit) return;
     const body = detailsEl.querySelector('.unit-body');
-    const modules = (unit.modules || []).map(m => `<div class="module-title">${escape(m)}</div>`).join('');
+    // 共享选项组（word-bank）按模块标题顺序插回对应模块标题下方；
+    // 未匹配到标题的防御性追加在全部模块之后（避免词库丢失）。
+    const banksByModule = new Map((unit.wordBanks || []).map(b => [b.module, b]));
+    const used = new Set();
+    const modules = (unit.modules || []).map(m => {
+      const bank = banksByModule.get(m);
+      let html = `<div class="module-title">${escape(m)}</div>`;
+      if (bank) { used.add(m); html += wordBankHtml(bank, false); }
+      return html;
+    }).join('');
+    const leftover = (unit.wordBanks || []).filter(b => !used.has(b.module)).map(b => wordBankHtml(b, true)).join('');
     const instruction = unit.instruction ? `<p class="module-instruction">${escape(unit.instruction)}</p>` : '';
-    body.innerHTML = modules + instruction + unit.questions.map((q, i) => card(q, unit.key, i, unit.kind)).join('');
+    body.innerHTML = modules + leftover + instruction + unit.questions.map((q, i) => card(q, unit.key, i, unit.kind)).join('');
   }
 
   function showAnswer(cardNode, q, right) {

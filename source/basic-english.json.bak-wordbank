@@ -15,7 +15,6 @@
       "Prepositions"
      ],
      "instruction": "Prepositions：Complete the following sentences by filling in each blank with a preposition or preposition phrase from the alternatives given in brackets.",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -89,20 +88,6 @@
       "Verbs and phrases"
      ],
      "instruction": "Articles and prepositions：Complete the following sentences by filling in each blank with an appropriate article or preposition in the brackets.",
-     "wordBanks": [
-      {
-       "module": "Verbs and phrases",
-       "words": [
-        "coincide",
-        "collide",
-        "handle",
-        "convey",
-        "transfer",
-        "originate from",
-        "date back to"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -188,25 +173,6 @@
       "Verbs"
      ],
      "instruction": "Adverbs and prepositions：Complete the following sentences by filling in each blank with an appropriate adverb or preposition from the alternatives given in brackets.",
-     "wordBanks": [
-      {
-       "module": "Verbs",
-       "words": [
-        "vary",
-        "differ",
-        "illustrate",
-        "exemplify",
-        "expound",
-        "interpret",
-        "demonstrate",
-        "elucidate",
-        "signal",
-        "mean",
-        "say",
-        "discuss"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -334,20 +300,6 @@
       "Word formation"
      ],
      "instruction": "Prepositions and adverbs：Complete the following sentences by filling in each blank with an appropriate preposition or adverb.",
-     "wordBanks": [
-      {
-       "module": "Word formation",
-       "words": [
-        "conform",
-        "deform",
-        "inform",
-        "uniform",
-        "multiform",
-        "reform",
-        "transform"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -455,48 +407,6 @@
       "Word set 5"
      ],
      "instruction": "Prepositions and adverbs：Complete the following sentences by filling in each blank with an appropriate preposition or adverb.",
-     "wordBanks": [
-      {
-       "module": "Word set 1",
-       "words": [
-        "evolve",
-        "involve",
-        "revolve"
-       ]
-      },
-      {
-       "module": "Word set 2",
-       "words": [
-        "conceive",
-        "deceive",
-        "perceive"
-       ]
-      },
-      {
-       "module": "Word set 3",
-       "words": [
-        "binational",
-        "transnational",
-        "multinational"
-       ]
-      },
-      {
-       "module": "Word set 4",
-       "words": [
-        "assume",
-        "presume",
-        "resume"
-       ]
-      },
-      {
-       "module": "Word set 5",
-       "words": [
-        "intervene",
-        "interweave",
-        "intertwine"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -545,7 +455,6 @@
       "Prepositions"
      ],
      "instruction": "Prepositions：Complete the following sentences by filling in each blank with an appropriate preposition,.",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -607,23 +516,6 @@
       "Verbs"
      ],
      "instruction": "Articles and prepositions：Complete the following sentences by filling in each blank with one of the phrases provided in brackets.",
-     "wordBanks": [
-      {
-       "module": "Verbs",
-       "words": [
-        "rest",
-        "betray",
-        "spice",
-        "prevail",
-        "pull",
-        "resist",
-        "get",
-        "put",
-        "grant",
-        "claim"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -738,7 +630,6 @@
       "Prepositions"
      ],
      "instruction": "Prepositions：Complete the following sentences by filling in each blank with an appropriate preposition.",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -812,7 +703,6 @@
       "Phrasal verbs"
      ],
      "instruction": "Articles and prepositions：Complete the following sentences by filling in each blank with an appropriate article or preposition.",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -945,7 +835,6 @@
       "Articles and prepositions"
      ],
      "instruction": "Articles and prepositions：Complete the following sentences by filling in each blank with an appropriate article or preposition.",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1018,7 +907,6 @@
       "Prepositions"
      ],
      "instruction": "Prepositions：Complete the following sentences by filling in each blank with an appropriate preposition.",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1091,7 +979,6 @@
       "Prepositions"
      ],
      "instruction": "Prepositions：Complete the following sentences by filling in each blank with an appropriate preposition.",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1164,7 +1051,6 @@
       "Prepositions"
      ],
      "instruction": "Prepositions：Complete the following sentences by filling in each blank with an appropriate preposition.",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1237,7 +1123,6 @@
       "Prepositions"
      ],
      "instruction": "Prepositions：preposition.",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1308,7 +1193,6 @@
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1343,7 +1227,6 @@
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1372,7 +1255,6 @@
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1407,7 +1289,6 @@
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1436,7 +1317,6 @@
      "name": "Unit 6",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1465,7 +1345,6 @@
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1494,7 +1373,6 @@
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1523,7 +1401,6 @@
      "name": "Unit 9",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1552,7 +1429,6 @@
      "name": "Unit 10",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1581,7 +1457,6 @@
      "name": "Unit 11",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1610,7 +1485,6 @@
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1639,7 +1513,6 @@
      "name": "Unit 13",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1668,7 +1541,6 @@
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1703,7 +1575,6 @@
      "name": "Unit 15",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -1745,48 +1616,6 @@
       "练习 5 · 第2组"
      ],
      "instruction": "Fill in the blanks in the following sentences with the correct form of the words from the box.",
-     "wordBanks": [
-      {
-       "module": "练习 1 · 第1组",
-       "words": [
-        "occupant",
-        "occupation",
-        "preoccupy"
-       ]
-      },
-      {
-       "module": "练习 1 · 第2组",
-       "words": [
-        "contempt",
-        "contemptible"
-       ]
-      },
-      {
-       "module": "练习 3",
-       "words": [
-        "urge",
-        "transfer",
-        "institute"
-       ]
-      },
-      {
-       "module": "练习 5 · 第1组",
-       "words": [
-        "all right",
-        "at any rate",
-        "in some measure",
-        "on account of"
-       ]
-      },
-      {
-       "module": "练习 5 · 第2组",
-       "words": [
-        "bawl out",
-        "go with",
-        "throw in"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -1959,42 +1788,6 @@
       "练习 4"
      ],
      "instruction": "1. Fill in the blanks in the following sentences with the correct form of the words from the boxes.",
-     "wordBanks": [
-      {
-       "module": "练习 1 · 第1组",
-       "words": [
-        "variable",
-        "invariably",
-        "vary"
-       ]
-      },
-      {
-       "module": "练习 1 · 第2组",
-       "words": [
-        "console",
-        "inconsolable",
-        "consolation"
-       ]
-      },
-      {
-       "module": "练习 1 · 第3组",
-       "words": [
-        "claim",
-        "declaim",
-        "acclaim"
-       ]
-      },
-      {
-       "module": "练习 3",
-       "words": [
-        "pay no mind",
-        "come off",
-        "make a nice touch",
-        "in fine fettle",
-        "settle scores"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -2142,48 +1935,6 @@
       "练习 3 · 第3组"
      ],
      "instruction": "I. Write down the noun form of the verbs in the box and then fill in the blanks in. the following sentences with the words in their correct forms.",
-     "wordBanks": [
-      {
-       "module": "练习 1",
-       "words": [
-        "approve",
-        "assure",
-        "console",
-        "depart",
-        "resign"
-       ]
-      },
-      {
-       "module": "练习 3 · 第1组",
-       "words": [
-        "breakup",
-        "in a miserable plight",
-        "in distress",
-        "in haste",
-        "to ones amazement"
-       ]
-      },
-      {
-       "module": "练习 3 · 第2组",
-       "words": [
-        "venture",
-        "spurt",
-        "retort",
-        "stumble",
-        "contract"
-       ]
-      },
-      {
-       "module": "练习 3 · 第3组",
-       "words": [
-        "chill",
-        "incongruous",
-        "bulging",
-        "harrowing",
-        "cross"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -2333,74 +2084,6 @@
       "练习 3"
      ],
      "instruction": "1. Write down the adjective form of the adverbs in the box and then fill in the blanks in the following sentences with the correct for im of the words.",
-     "wordBanks": [
-      {
-       "module": "练习 1",
-       "words": [
-        "lightly",
-        "reflective ly",
-        "apologetically",
-        "heavily",
-        "gravely",
-        "solemnly",
-        "hesitantly",
-        "swarthily",
-        "gauntly"
-       ]
-      },
-      {
-       "module": "练习 2 · 第1组",
-       "words": [
-        "run for",
-        "leaf through",
-        "prop up",
-        "fix up",
-        "rule out"
-       ]
-      },
-      {
-       "module": "练习 2 · 第2组",
-       "words": [
-        "palpitate",
-        "wiggle",
-        "edge",
-        "limp",
-        "prolong"
-       ]
-      },
-      {
-       "module": "练习 2 · 第3组",
-       "words": [
-        "confer",
-        "mutter",
-        "numb le",
-        "stroke",
-        "heave"
-       ]
-      },
-      {
-       "module": "练习 2 · 第4组",
-       "words": [
-        "at the prospect of",
-        "ina huddle",
-        "get at the root of",
-        "consultation with",
-        "in horror"
-       ]
-      },
-      {
-       "module": "练习 3",
-       "words": [
-        "now and then",
-        "all the time",
-        "occasionally",
-        "in due course",
-        "presently",
-        "in just no time at all",
-        "in a jiffy"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -2623,23 +2306,6 @@
       "练习 2"
      ],
      "instruction": "2. Fill in the blanks in the foil owing sentences with the correct form of the words from the box. Pay attention to their meanings and parts of speech as they are used in the sentences.",
-     "wordBanks": [
-      {
-       "module": "练习 2",
-       "words": [
-        "kick",
-        "curve",
-        "scowl",
-        "prickle",
-        "motion",
-        "eye",
-        "cup",
-        "recoil",
-        "flicker",
-        "flash"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -2775,52 +2441,6 @@
       "练习 5 · 第2组"
      ],
      "instruction": "1. Fill in the blanks in the sentences with the correct form of the words from the boxes.",
-     "wordBanks": [
-      {
-       "module": "练习 1 · 第1组",
-       "words": [
-        "wearily",
-        "weariness",
-        "weary",
-        "wear"
-       ]
-      },
-      {
-       "module": "练习 1 · 第2组",
-       "words": [
-        "immovable",
-        "move",
-        "moving",
-        "movement"
-       ]
-      },
-      {
-       "module": "练习 5 · 第1组",
-       "words": [
-        "up",
-        "on",
-        "at",
-        "out",
-        "in",
-        "into",
-        "by"
-       ]
-      },
-      {
-       "module": "练习 5 · 第2组",
-       "words": [
-        "spy on",
-        "call sb up",
-        "get fresh with",
-        "cutsboff",
-        "give sb hell",
-        "wince at",
-        "pay a call",
-        "go one's own way",
-        "put one's finger on"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -2979,34 +2599,6 @@
       "练习 3"
      ],
      "instruction": "1. Look at the example, and then fill in the blanks in the sentences with the words from the box. Example: perfect——perfection (noun)",
-     "wordBanks": [
-      {
-       "module": "练习 1",
-       "words": [
-        "fixture-",
-        "enclose-",
-        "discontent-",
-        "dissolve--"
-       ]
-      },
-      {
-       "module": "练习 3",
-       "words": [
-        "inside and out",
-        "up and down",
-        "single out",
-        "see through",
-        "wear down",
-        "take in",
-        "set out",
-        "call up",
-        "watch over",
-        "go by",
-        "sum up",
-        "give way"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -3189,39 +2781,6 @@
       "练习 5"
      ],
      "instruction": "2. The words in the boxes can be used as both nouns and verbs. Use the correct form to fill in the blanks in the following sentences.",
-     "wordBanks": [
-      {
-       "module": "练习 2 · 第1组",
-       "words": [
-        "witness",
-        "claw",
-        "arch",
-        "burn",
-        "slope",
-        "hook",
-        "wreck"
-       ]
-      },
-      {
-       "module": "练习 2 · 第2组",
-       "words": [
-        "ditch",
-        "wrench",
-        "clatter",
-        "humor",
-        "broil",
-        "stumble",
-        "spurt"
-       ]
-      },
-      {
-       "module": "练习 5",
-       "words": [
-        "have second sight about sth",
-        "get straight on sth"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -3415,32 +2974,6 @@
       "练习 3"
      ],
      "instruction": "2. Choose adjectives fro rn the box to fill in the blanks in the following sentences.",
-     "wordBanks": [
-      {
-       "module": "练习 2",
-       "words": [
-        "singular",
-        "sly",
-        "obtrusive",
-        "clandestine",
-        "psychedelic",
-        "daft"
-       ]
-      },
-      {
-       "module": "练习 3",
-       "words": [
-        "draw",
-        "hang",
-        "cut",
-        "clear",
-        "back",
-        "drop act seek",
-        "roll",
-        "put"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -3560,114 +3093,6 @@
       "练习 5 · 第2组"
      ],
      "instruction": "1. Study the prefixes and suffixes of the words in the boxes and use the correct form of the words to fill in the blanks in the following.",
-     "wordBanks": [
-      {
-       "module": "练习 1 · 第1组",
-       "words": [
-        "overcharge",
-        "overturn",
-        "overpower",
-        "overture"
-       ]
-      },
-      {
-       "module": "练习 1 · 第2组",
-       "words": [
-        "exertion",
-        "recreation",
-        "admonition"
-       ]
-      },
-      {
-       "module": "练习 1 · 第3组",
-       "words": [
-        "chastisement",
-        "acquirement",
-        "refreshment"
-       ]
-      },
-      {
-       "module": "练习 1 · 第4组",
-       "words": [
-        "disreputable",
-        "unquenchable",
-        "inseparable"
-       ]
-      },
-      {
-       "module": "练习 1 · 第5组",
-       "words": [
-        "riotous",
-        "ponderous",
-        "avaricious"
-       ]
-      },
-      {
-       "module": "练习 2 · 第1组",
-       "words": [
-        "hilariously",
-        "industriously",
-        "perilously",
-        "wondrously"
-       ]
-      },
-      {
-       "module": "练习 2 · 第2组",
-       "words": [
-        "hastily",
-        "sturdily",
-        "stealthily",
-        "dreamily"
-       ]
-      },
-      {
-       "module": "练习 2 · 第3组",
-       "words": [
-        "exceptionally",
-        "frantically",
-        "practically"
-       ]
-      },
-      {
-       "module": "练习 2 · 第4组",
-       "words": [
-        "valiantly",
-        "persistently",
-        "contritely"
-       ]
-      },
-      {
-       "module": "练习 3 · 第1组",
-       "words": [
-        "regard",
-        "petition",
-        "retreat",
-        "heed",
-        "display",
-        "plot",
-        "level"
-       ]
-      },
-      {
-       "module": "练习 5 · 第1组",
-       "words": [
-        "in",
-        "with",
-        "to",
-        "against",
-        "opposite"
-       ]
-      },
-      {
-       "module": "练习 5 · 第2组",
-       "words": [
-        "whereupon",
-        "there in",
-        "whereby",
-        "thereby"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -4004,23 +3429,6 @@
       "练习 3"
      ],
      "instruction": "3. Fill in the blanks in the following sentences with the correct form of the verbs in the box. [WORD_BOX] disapprove deprive drag bound procure implore strain grope compress renounce",
-     "wordBanks": [
-      {
-       "module": "练习 3",
-       "words": [
-        "disapprove",
-        "deprive",
-        "drag",
-        "bound",
-        "procure",
-        "implore",
-        "strain",
-        "grope",
-        "compress",
-        "renounce"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -4094,20 +3502,6 @@
       "练习 4"
      ],
      "instruction": "3. The words in the box may be used as nouns or verbs, and their meanings may change. Use the correct form of the words to fill in the blanks in the following sentences.",
-     "wordBanks": [
-      {
-       "module": "练习 3",
-       "words": [
-        "brim",
-        "occasion",
-        "permit",
-        "start",
-        "censure",
-        "spot",
-        "discharge"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -4264,25 +3658,6 @@
       "练习 2"
      ],
      "instruction": "In Text A there are quite a few words describing actions or movements. Fill in the blanks with the words in the box with the help of the definitions provided. Be sure to use the correct form of them.",
-     "wordBanks": [
-      {
-       "module": "练习 2",
-       "words": [
-        "twitch",
-        "writhe",
-        "convulse",
-        "falter",
-        "limp",
-        "grip",
-        "swarm",
-        "scurry",
-        "roam",
-        "sling",
-        "toss",
-        "jerk"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -4365,7 +3740,6 @@
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "4",
@@ -4406,7 +3780,6 @@
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "5",
@@ -4441,7 +3814,6 @@
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "2",
@@ -4476,7 +3848,6 @@
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "5",
@@ -4511,7 +3882,6 @@
      "name": "Unit 5",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "4",
@@ -4552,7 +3922,6 @@
      "name": "Unit 6",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "4",
@@ -4593,7 +3962,6 @@
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "4",
@@ -4634,7 +4002,6 @@
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "5",
@@ -4669,7 +4036,6 @@
      "name": "Unit 9",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "5",
@@ -4704,7 +4070,6 @@
      "name": "Unit 10",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "4",
@@ -4745,7 +4110,6 @@
      "name": "Unit 11",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "5",
@@ -4780,7 +4144,6 @@
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "5",
@@ -4827,7 +4190,6 @@
      "name": "Unit 13",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "4",
@@ -4868,7 +4230,6 @@
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "4",
@@ -4909,7 +4270,6 @@
      "name": "Unit 15",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "4",
@@ -4950,7 +4310,6 @@
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -5101,7 +4460,6 @@
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -5252,7 +4610,6 @@
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -5389,7 +4746,6 @@
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -5540,7 +4896,6 @@
      "name": "Unit 6",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -5691,7 +5046,6 @@
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -5842,7 +5196,6 @@
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -5993,7 +5346,6 @@
      "name": "Unit 11",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -6144,7 +5496,6 @@
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -6267,7 +5618,6 @@
      "name": "Unit 13",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -6362,7 +5712,6 @@
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -6485,7 +5834,6 @@
      "name": "Unit 15",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -6611,38 +5959,6 @@
       "练习 4"
      ],
      "instruction": "Choose a word from the box below, and then use its correct grammatical form and appropriate collocation where necessary to replace the part in bold type in each sentence.",
-     "wordBanks": [
-      {
-       "module": "练习 3",
-       "words": [
-        "major",
-        "refrain",
-        "curious",
-        "base",
-        "interact",
-        "conform",
-        "engage",
-        "specialize",
-        "relate",
-        "lead"
-       ]
-      },
-      {
-       "module": "练习 4",
-       "words": [
-        "break away from",
-        "engage in",
-        "convict...of",
-        "embark on",
-        "bond with",
-        "focus...on",
-        "encounter",
-        "involve in",
-        "depend on",
-        "profit from"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -6776,21 +6092,6 @@
       "练习 4 · 第1组"
      ],
      "instruction": "2. Complete the following sentences with appropriate prepositions or adverbs",
-     "wordBanks": [
-      {
-       "module": "练习 4 · 第1组",
-       "words": [
-        "receive..from",
-        "pass from...to",
-        "expose to",
-        "participate in",
-        "draw from",
-        "refer...to",
-        "apply to",
-        "appeal to"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -6924,21 +6225,6 @@
       "练习 4"
      ],
      "instruction": "2. Complete the following passage with appropriate prepositions or adverbs given in brackets. It takes just one-tenth",
-     "wordBanks": [
-      {
-       "module": "练习 4",
-       "words": [
-        "spell out",
-        "workout",
-        "turn up",
-        "slip into",
-        "divert...from",
-        "feel about",
-        "put sb off",
-        "long for"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -7095,23 +6381,6 @@
       "练习 4"
      ],
      "instruction": "4. Complete the following sentences with expressions given in the box below. Change the form where necessary.",
-     "wordBanks": [
-      {
-       "module": "练习 4",
-       "words": [
-        "pass out",
-        "serve as",
-        "derive from",
-        "trade...for",
-        "dissolve into",
-        "attribute to",
-        "end up with",
-        "prevent sb from",
-        "inflict...on",
-        "differentiate between"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -7191,72 +6460,6 @@
       "练习 4"
      ],
      "instruction": "2. Fil in the blanks in the following sentences with the correct form of the words from the boxes.",
-     "wordBanks": [
-      {
-       "module": "练习 2 · 第1组",
-       "words": [
-        "distinct",
-        "distinctive",
-        "distinction"
-       ]
-      },
-      {
-       "module": "练习 2 · 第2组",
-       "words": [
-        "adapt",
-        "adjust",
-        "adept",
-        "adopt"
-       ]
-      },
-      {
-       "module": "练习 2 · 第3组",
-       "words": [
-        "tedious",
-        "hideous"
-       ]
-      },
-      {
-       "module": "练习 2 · 第4组",
-       "words": [
-        "explode",
-        "implode",
-        "go off"
-       ]
-      },
-      {
-       "module": "练习 2 · 第5组",
-       "words": [
-        "part",
-        "sector",
-        "segment"
-       ]
-      },
-      {
-       "module": "练习 2 · 第6组",
-       "words": [
-        "source",
-        "origin",
-        "root",
-        "resource"
-       ]
-      },
-      {
-       "module": "练习 3",
-       "words": [
-        "(be) immune to",
-        "reduce to",
-        "dispose of",
-        "exchange...for",
-        "translate...into",
-        "(be) oriented to/toward",
-        "in accord with",
-        "(be) extended to",
-        "ratchet up",
-        "impose...on"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -7535,35 +6738,6 @@
       "练习 4"
      ],
      "instruction": "2. Choose a word from the box below, and then use its correct grammatical form each sentence.",
-     "wordBanks": [
-      {
-       "module": "练习 2",
-       "words": [
-        "fulfll",
-        "absorb",
-        "cut",
-        "facilitate",
-        "replace",
-        "shun",
-        "eliminate",
-        "uphold",
-        "survive",
-        "interpret"
-       ]
-      },
-      {
-       "module": "练习 3",
-       "words": [
-        "relegate...to",
-        "compete with",
-        "count",
-        "accuse sb of",
-        "switch off",
-        "expand...into",
-        "deprive sb of"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -7745,23 +6919,6 @@
       "练习 4"
      ],
      "instruction": "2. Complete the following paragraphs with appropriate prepositions or adverbs",
-     "wordBanks": [
-      {
-       "module": "练习 4",
-       "words": [
-        "recognize",
-        "on end",
-        "in tandem",
-        "fulfll",
-        "contribute to",
-        "dist in guis...from",
-        "remove...from",
-        "offer",
-        "retreat from",
-        "give rise to"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -7847,37 +7004,6 @@
       "练习 4"
      ],
      "instruction": "3. Choose a word from the box below, and then use its correct grammatical form and appropriate collocation where necessary to replace the part in bold type in each sentence.",
-     "wordBanks": [
-      {
-       "module": "练习 3 · 第1组",
-       "words": [
-        "live",
-        "disservice",
-        "deviation",
-        "flux",
-        "bolster",
-        "doom",
-        "odds",
-        "lurch",
-        "torrent",
-        "discourse"
-       ]
-      },
-      {
-       "module": "练习 4",
-       "words": [
-        "on the verge of",
-        "attribute...to",
-        "depart from",
-        "give in to",
-        "shoot up",
-        "set...apart from",
-        "incorporate...into",
-        "at odds with",
-        "come up with"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -8014,57 +7140,6 @@
       "练习 4"
      ],
      "instruction": "3. Fill in the blanks in the following sentences with the correct form of the words from the boxes.",
-     "wordBanks": [
-      {
-       "module": "练习 3 · 第1组",
-       "words": [
-        "consider",
-        "regard",
-        "deem",
-        "reckon"
-       ]
-      },
-      {
-       "module": "练习 3 · 第2组",
-       "words": [
-        "intervene",
-        "interfere",
-        "interrupt",
-        "intrude"
-       ]
-      },
-      {
-       "module": "练习 3 · 第3组",
-       "words": [
-        "reputation",
-        "fame",
-        "prestige"
-       ]
-      },
-      {
-       "module": "练习 3 · 第4组",
-       "words": [
-        "vanish",
-        "disappear",
-        "fade"
-       ]
-      },
-      {
-       "module": "练习 4",
-       "words": [
-        "rain down on",
-        "entail",
-        "fob sth off on sb",
-        "testimony",
-        "hint at",
-        "condition to",
-        "on the grounds that",
-        "look on",
-        "wrestle...into line",
-        "exhort"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -8257,17 +7332,6 @@
       "练习 4 · 第1组"
      ],
      "instruction": "4. Complete the following sentences with expressions given in the box below. Change the form where necessary.",
-     "wordBanks": [
-      {
-       "module": "练习 4 · 第1组",
-       "words": [
-        "in that",
-        "for the sake of",
-        "lay up",
-        "transfer...to"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -8340,23 +7404,6 @@
       "练习 4"
      ],
      "instruction": "4. Complete the following sentences with words or expressions given in the box below. Change the form where necessary.",
-     "wordBanks": [
-      {
-       "module": "练习 4",
-       "words": [
-        "convert",
-        "confine",
-        "address",
-        "meet",
-        "fend off",
-        "separate...from",
-        "strive for",
-        "facilitate",
-        "control",
-        "devote...to"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -8430,40 +7477,6 @@
       "练习 4"
      ],
      "instruction": "3. Complete the following sentences with expressions given in the box below. Change the form where necessary.",
-     "wordBanks": [
-      {
-       "module": "练习 3",
-       "words": [
-        "bear out",
-        "give rise to",
-        "boil down to",
-        "crack down on",
-        "set in motion",
-        "in one's own right",
-        "hold sway",
-        "identify with",
-        "head off",
-        "plead guilty to"
-       ]
-      },
-      {
-       "module": "练习 4",
-       "words": [
-        "tab",
-        "add",
-        "get",
-        "shoe",
-        "subject",
-        "use",
-        "turn",
-        "charge",
-        "check",
-        "parole",
-        "pick",
-        "rise"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -8609,22 +7622,6 @@
       "练习 5"
      ],
      "instruction": "4. Complete the following sentences with expressions given in the box below. Change the form where necessary.",
-     "wordBanks": [
-      {
-       "module": "练习 4",
-       "words": [
-        "amount to",
-        "for that matter",
-        "get away with",
-        "accord sth to sb",
-        "pit...against",
-        "on the way to",
-        "rest on",
-        "look to",
-        "end up"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -8757,14 +7754,6 @@
       "练习 4"
      ],
      "instruction": "4. Complete the following sentences with expressions given in the box below. Change the form where necessary. augur well for shrug off initiate into (be) set apart from diverge from run its course call sb names exult in ascribe...to build on",
-     "wordBanks": [
-      {
-       "module": "练习 4",
-       "words": [
-        "their existing knowledge of their"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -8838,23 +7827,6 @@
       "练习 5"
      ],
      "instruction": "3. Select ONE answer that best completes each of the following sentences.",
-     "wordBanks": [
-      {
-       "module": "练习 5",
-       "words": [
-        "profit from",
-        "rail against",
-        "come to terms with",
-        "pass for",
-        "not least",
-        "speak ill of",
-        "in the ascendant",
-        "put an end to",
-        "call forth",
-        "at the mercy of"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -9045,7 +8017,6 @@
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9116,7 +8087,6 @@
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9187,7 +8157,6 @@
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9258,7 +8227,6 @@
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9329,7 +8297,6 @@
      "name": "Unit 5",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9400,7 +8367,6 @@
      "name": "Unit 6",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9483,7 +8449,6 @@
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9554,7 +8519,6 @@
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9625,7 +8589,6 @@
      "name": "Unit 9",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9696,7 +8659,6 @@
      "name": "Unit 10",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9767,7 +8729,6 @@
      "name": "Unit 11",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9838,7 +8799,6 @@
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9909,7 +8869,6 @@
      "name": "Unit 13",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -9968,7 +8927,6 @@
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -10039,7 +8997,6 @@
      "name": "Unit 15",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -10116,7 +9073,6 @@
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -10210,7 +9166,6 @@
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -10316,7 +9271,6 @@
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -10410,7 +9364,6 @@
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -10504,7 +9457,6 @@
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -10598,7 +9550,6 @@
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -10692,7 +9643,6 @@
      "name": "Unit 9",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -10786,7 +9736,6 @@
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -10880,7 +9829,6 @@
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -10976,22 +9924,6 @@
       "词库模块 1"
      ],
      "instruction": "从本模块词库中选择合适的词，并按需要变换形式。",
-     "wordBanks": [
-      {
-       "module": "词库模块 1",
-       "words": [
-        "fit into",
-        "involve",
-        "emerge",
-        "in so doing",
-        "at one time or another",
-        "at the outset",
-        "find oneself",
-        "tendency toward",
-        "in flux"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -11059,28 +9991,6 @@
       "词库模块 2"
      ],
      "instruction": "从本模块词库中选择合适的词，并按需要变换形式。",
-     "wordBanks": [
-      {
-       "module": "词库模块 1",
-       "words": [
-        "genuine",
-        "real",
-        "authentic",
-        "true",
-        "factual",
-        "legitimate"
-       ]
-      },
-      {
-       "module": "词库模块 2",
-       "words": [
-        "being",
-        "entity",
-        "existence",
-        "matter"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -11167,36 +10077,6 @@
       "词库模块 3"
      ],
      "instruction": "从本模块词库中选择合适的词，并按需要变换形式。",
-     "wordBanks": [
-      {
-       "module": "词库模块 1",
-       "words": [
-        "sufficient",
-        "enough",
-        "adequate",
-        "ample"
-       ]
-      },
-      {
-       "module": "词库模块 2",
-       "words": [
-        "dim",
-        "gloomy",
-        "dark",
-        "pale",
-        "faint"
-       ]
-      },
-      {
-       "module": "词库模块 3",
-       "words": [
-        "revive",
-        "rejuvenate",
-        "resurrect",
-        "regenerate"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -11303,49 +10183,6 @@
       "括号提示词近义词填空"
      ],
      "instruction": "从本模块词库中选择合适的词，并按需要变换形式。",
-     "wordBanks": [
-      {
-       "module": "词库模块 1",
-       "words": [
-        "conform",
-        "fascism",
-        "spontaneous",
-        "powerless",
-        "relative",
-        "individualism",
-        "emotional",
-        "structure",
-        "identity"
-       ]
-      },
-      {
-       "module": "词库模块 2",
-       "words": [
-        "specific",
-        "peculiar",
-        "special",
-        "exact",
-        "particular"
-       ]
-      },
-      {
-       "module": "词库模块 3",
-       "words": [
-        "substitute",
-        "replace",
-        "transplant",
-        "supplant"
-       ]
-      },
-      {
-       "module": "词库模块 4",
-       "words": [
-        "pleasant",
-        "pleasure",
-        "pleasing"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -11511,47 +10348,6 @@
       "词库模块 4"
      ],
      "instruction": "从本模块词库中选择合适的词，并按需要变换形式。",
-     "wordBanks": [
-      {
-       "module": "词库模块 1",
-       "words": [
-        "governed",
-        "family",
-        "combine",
-        "associate",
-        "state of nature",
-        "might",
-        "slavery",
-        "conventions",
-        "alienation",
-        "social contract"
-       ]
-      },
-      {
-       "module": "词库模块 2",
-       "words": [
-        "mature",
-        "ripe",
-        "grown"
-       ]
-      },
-      {
-       "module": "词库模块 3",
-       "words": [
-        "effect",
-        "affect",
-        "influence"
-       ]
-      },
-      {
-       "module": "词库模块 4",
-       "words": [
-        "nation",
-        "state",
-        "country"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -11654,19 +10450,6 @@
       "词库模块 1"
      ],
      "instruction": "从本模块词库中选择合适的词，并按需要变换形式。",
-     "wordBanks": [
-      {
-       "module": "词库模块 1",
-       "words": [
-        "that is to say",
-        "absent from",
-        "mark off",
-        "refer to",
-        "as such",
-        "relate to"
-       ]
-      }
-     ],
      "questions": [
       {
        "index": "1",
@@ -11713,7 +10496,6 @@
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -11778,7 +10560,6 @@
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -11849,7 +10630,6 @@
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -11884,7 +10664,6 @@
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -11931,7 +10710,6 @@
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -11984,7 +10762,6 @@
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -12031,7 +10808,6 @@
      "name": "Unit 9",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -12090,7 +10866,6 @@
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",
@@ -12137,7 +10912,6 @@
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
-     "wordBanks": [],
      "questions": [
       {
        "index": "1",

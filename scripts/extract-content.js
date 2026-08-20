@@ -88,7 +88,26 @@ function parseUnitBody(bodyHtml) {
     const isChoice = hasOptions && /^[A-E]+$/i.test(q.answer || '');
     q.type = isChoice ? 'choice' : 'text';
   }
-  return { modules: moduleTitles, instruction: instruction ? stripTags(instruction).trim() : '', questions };
+  // 共享选项组（word-bank）：多道题上方共用的词库（若干单词/短语）。
+  // 旧版曾把这类选项组整块丢弃，导致用户看不到可选词——按 exercise-module
+  // 归属提取 {module: 模块标题, words: [...]}，渲染端在对应模块标题下展示。
+  const wordBanks = [];
+  const moduleRe = /<div class="exercise-module">/g;
+  let mm;
+  while ((mm = moduleRe.exec(bodyHtml)) !== null) {
+    const block = matchBlock(bodyHtml, mm.index);
+    const moduleHtml = bodyHtml.slice(mm.index, block.end);
+    const titleMatch = moduleHtml.match(/<h3>([\s\S]*?)<\/h3>/);
+    const wbStart = moduleHtml.indexOf('<div class="word-bank">');
+    if (wbStart < 0) continue;
+    const wbBlock = matchBlock(moduleHtml, wbStart);
+    const wbHtml = moduleHtml.slice(wbStart, wbBlock.end);
+    const words = [...wbHtml.matchAll(/<span[^>]*>([\s\S]*?)<\/span>/g)]
+      .map(m => stripTags(m[1]).replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+    if (words.length) wordBanks.push({ module: titleMatch ? stripTags(titleMatch[1]).trim() : '', words });
+  }
+  return { modules: moduleTitles, instruction: instruction ? stripTags(instruction).trim() : '', wordBanks, questions };
 }
 
 function stripTags(html) {
@@ -150,6 +169,7 @@ function extractReading() {
       name: summary,
       modules: parsed.modules,
       instruction: parsed.instruction,
+      wordBanks: parsed.wordBanks,
       questions: parsed.questions
     };
     (byBook[bookNo] = byBook[bookNo] || []).push(unit);
@@ -203,6 +223,7 @@ function extractBasicEnglish() {
           name: summary,
           modules: parsed.modules,
           instruction: parsed.instruction,
+          wordBanks: parsed.wordBanks,
           questions: parsed.questions
         });
       });

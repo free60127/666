@@ -443,6 +443,11 @@ html[data-theme="dark"] .unified-self-assess .usa-label { color: #8d9b94 !import
 html[data-theme="dark"] .unified-self-assess.done .usa-label { color: #7fc39a !important; }
 html[data-theme="dark"] .unified-self-assess button { background: #24312b !important; border-color: #3a4541 !important; color: #cfd8d3 !important; }
 html[data-theme="dark"] .unified-self-assess button:hover { background: #2d4038 !important; }
+
+/* ---------- 基英 / 泛读 共享选项组（word-bank，2026-08-21 恢复） ---------- */
+html[data-theme="dark"] .word-bank { background: #232d28 !important; border-color: #3a4a42 !important; }
+html[data-theme="dark"] .word-bank strong { color: #9fc3b2 !important; }
+html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border-color: #3f5449 !important; color: #cfe0d8 !important; }
 </style>
 <script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
 </head>
@@ -1510,7 +1515,7 @@ html[data-theme="dark"] .unified-self-assess button:hover { background: #2d4038 
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-0706'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-0721'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;

@@ -18,6 +18,10 @@ details.unit>summary small{color:var(--muted);font-size:13px;font-weight:400;tex
 details.unit .unit-body{padding:2px 16px 16px}
 .module-title{font-size:15px;color:var(--green);font-weight:750;margin:14px 2px 4px}
 .module-instruction{font-size:13.5px;color:var(--muted);margin:0 2px 12px;line-height:1.6}
+.word-bank{margin:8px 2px 14px;padding:12px 14px;border:1px dashed #b7cdbd;border-radius:12px;background:#f2f8f3}
+.word-bank strong{display:block;font-size:13px;color:#245a45;margin-bottom:8px}
+.word-bank>div{display:flex;flex-wrap:wrap;gap:7px}
+.word-bank span{display:inline-block;padding:5px 11px;border-radius:999px;background:#e4efe6;border:1px solid #c9dccd;color:#2c5a45;font-size:13.5px}
 .unit-body .card:first-of-type{margin-top:12px}
 .card .qrow h2 mark,.card .qrow h2 em{background:#f5e9c8;color:#7a5a12;font-style:normal;border-radius:4px;padding:0 3px}
 
