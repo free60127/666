@@ -12,6 +12,9 @@
 | POST | `/api/notice` | 更新公告 `{text}` | Bearer ADMIN_TOKEN |
 | POST | `/api/feedback` | 提交反馈 `{page,question,answer,note,contact}`（同 IP 30 秒最多 5 次） | 公开 |
 | GET | `/api/feedback` | 拉取反馈列表（最多 200 条） | Bearer ADMIN_TOKEN |
+| POST | `/api/sync` | 进度同步上传 `{deviceId, payload}`（payload ≤ 1MB，deviceId ≤ 64 字符） | 匿名 |
+| GET | `/api/sync?deviceId=x` | 进度同步下载（不存在返回 404） | 匿名 |
+| DELETE | `/api/sync?deviceId=x` | 删除云端进度 | 匿名 |
 | GET | `/proxy/*` | 站点反代加速 → `https://free60127.github.io/666/*`（HTML 自动重写资源路径） | 公开 |
 
 所有 API 响应 JSON，带 `Access-Control-Allow-Origin: *` CORS 头。
