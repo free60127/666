@@ -47,10 +47,9 @@
     });
     const unitDetails = unit => `<details class="unit" data-unit="${unit.key}"><summary><span>${escape(unit.name)}</span><small>${unit.questions.length} 题${unitKindLabel(unit) ? ' · ' + unitKindLabel(unit) : ''}</small></summary><div class="unit-body"></div></details>`;
     app.innerHTML = `<button class="back" data-action="home">‹ 返回教材列表</button><section class="hero compact"><small>${escape(book.name)}</small><div class="stats"><span><b>${book.units.length}</b>单元</span><span><b>${totalQ(book)}</b>题目</span></div></section>
-      <div class="actions"><button data-action="export">导出全部题目 A4 PDF</button></div>
+      <div class="actions"><button data-action="export">导出全部题目 A4 PDF</button><button data-action="export-opened">导出已展开单元 PDF</button></div>
       <p class="notice">按题型展开单元；选择题点击选项判题，其余题型展开参考答案。</p>
-      <section class="unit-list">${groups.map(group => (group.label ? `<div class="module-title">${escape(group.label)}</div>` : '') + group.units.map(unitDetails).join('')).join('')}</section>
-      <button class="to-top" data-action="top">↑<small>顶部</small></button>`;
+      <section class="unit-list">${groups.map(group => (group.label ? `<div class="module-title">${escape(group.label)}</div>` : '') + group.units.map(unitDetails).join('')).join('')}</section>`;
   }
 
   function renderUnit(detailsEl) {
@@ -104,11 +103,10 @@
     toggle.textContent = '收起答案';
   }
 
-  function exportBook() {
-    const book = getBook(bookKey);
-    if (!book) return;
+  // 题目 → PDF 行映射（全部/已展开单元共用）
+  function buildExportQuestions(units) {
     const questions = [];
-    for (const unit of book.units) for (const q of unit.questions) {
+    for (const unit of units) for (const q of unit.questions) {
       questions.push({
         question: clean(q.q),
         options: (q.options || []).map(clean),
@@ -116,7 +114,27 @@
         type: q.type === 'choice' ? '选择' : '填空/翻译'
       });
     }
+    return questions;
+  }
+  function exportBook() {
+    const book = getBook(bookKey);
+    if (!book) return;
+    const questions = buildExportQuestions(book.units);
     window.A4QuestionPrint?.open({ title: book.name, subtitle: `${questions.length} 题`, questions });
+  }
+  // 只导出当前展开的单元：范围可按需选择，避免整本书 PDF 过大
+  function exportOpened() {
+    const book = getBook(bookKey);
+    if (!book) return;
+    const details = [...app.querySelectorAll('details.unit[open]')];
+    if (!details.length) {
+      alert('请先展开需要导出的单元（点击单元标题展开），再点击「导出已展开单元 PDF」。');
+      return;
+    }
+    const units = details.map(d => unitOf(d.dataset.unit)).filter(Boolean);
+    if (!units.length) return;
+    const questions = buildExportQuestions(units);
+    window.A4QuestionPrint?.open({ title: `${book.name} · 已展开 ${units.length} 个单元`, subtitle: `${questions.length} 题`, questions });
   }
 
   app.addEventListener('click', event => {
@@ -126,15 +144,19 @@
     if (action === 'hub') location.href = '../../index.html';
     else if (action === 'home') renderHome();
     else if (action === 'book') renderBook(target.dataset.book);
-    else if (action === 'top') window.scrollTo({ top: 0, behavior: 'smooth' });
     else if (action === 'export') exportBook();
+    else if (action === 'export-opened') exportOpened();
     else if (action === 'choose') choose(target.dataset.u, Number(target.dataset.index), Number(target.dataset.opt));
     else if (action === 'answer') toggleAnswer(target.dataset.u, Number(target.dataset.index));
   });
-  // 单元折叠展开时惰性渲染题目（details.open 在 click 冒泡时已更新，兼容旧 Safari 无 toggle 事件）
+  // 单元折叠展开时惰性渲染题目：toggle 是 click 事件的默认动作，在事件传播
+  // 结束后才更新 details.open——若在 click 冒泡时读 open 会拿到点击前的旧值，
+  // 导致「首次点击展开不渲染、收回后再点才有内容」。改为不依赖 open 当前值：
+  // 只要单元尚未渲染就渲染（渲染幂等，收起时提前渲染也无副作用），
+  // 首次点击即可正常显示题目。
   app.addEventListener('click', event => {
     const details = event.target.closest('details.unit');
-    if (details && details.open && !details.dataset.rendered) {
+    if (details && !details.dataset.rendered) {
       details.dataset.rendered = '1';
       renderUnit(details);
     }

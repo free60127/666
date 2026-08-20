@@ -195,7 +195,7 @@
     app.innerHTML = `<button class="back" data-action="back">‹ 返回题库</button><section class="hero compact"><small>${mistakes ? '错题本 · ' : ''}${escape(paper ? `${bank.name} · 模拟卷${paper.number}` : bank.name)}</small><div class="stats"><span><b>${paper || mistakes ? questions.length : s.total}</b>题目</span><span><b>${s.done}</b>已完成</span><span><b>${s.accuracy}</b>正确率</span></div></section>
       <nav class="tabs">${types.map(type => `<button class="${filter === type ? 'active' : ''}" data-action="filter" data-filter="${type}">${labels[type]}</button>`).join('')}</nav>
       <div class="actions"><button data-action="random">↻ 随机一题</button><button data-action="export">导出当前题目 A4 PDF</button>${paper ? '<button data-action="clear-paper">清空本模拟卷进度</button>' : (!mistakes ? '<button data-action="clear">清除本题库进度</button>' : '')}</div><p class="notice">${mistakes ? '错题答对后将自动移出错题本。' : '选择题支持判题；简答、论述和材料题可展开参考答案。'}</p>
-      ${visible.length ? visible.map(card).join('') : '<p class="empty">本题库暂无错题，继续保持。</p>'}${visible.length < matching.length ? `<div class="actions"><button data-action="more">加载更多（剩余 ${matching.length - visible.length} 题）</button></div>` : ''}<button class="to-top" data-action="top">↑<small>顶部</small></button>`;
+      ${visible.length ? visible.map(card).join('') : '<p class="empty">本题库暂无错题，继续保持。</p>'}${visible.length < matching.length ? `<div class="actions"><button data-action="more">加载更多（剩余 ${matching.length - visible.length} 题）</button></div>` : ''}`;
   }
 
   function render() { if (screen === 'home') renderHome(); else if (screen === 'papers') renderPapers(); else if (screen === 'mistakes') renderMistakes(); else renderQuestions(); document.querySelectorAll('.answer').forEach(node => { node.innerHTML = formatAnswer(node.textContent); }); app.insertAdjacentHTML('beforeend', accessOverlay()); }
@@ -241,7 +241,6 @@
     if (action === 'back') { screen = paper ? 'papers' : (mistakes ? 'mistakes' : 'home'); paper = null; }
     if (action === 'filter') { filter = nextFilter; displayLimit = 30; render(); document.querySelector('.card')?.scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
     if (action === 'more') { displayLimit += 30; render(); return; }
-    if (action === 'top') { window.scrollTo({top: 0, behavior: 'smooth'}); return; }
     if (action === 'export') { exportCurrentQuestions(); return; }
     if (action === 'random') { const list = bankQuestions().filter(question => (filter === 'all' || question.type === filter) && (!mistakes || stateFor(question).wrong)); if (!list.length) return; const question = list[Math.floor(Math.random() * list.length)]; document.getElementById(`q-${questionToken(question)}`)?.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
     if (action === 'clear') { if (confirm('确定清除这个题库的答题进度吗？')) { Object.keys(saved.progress || {}).filter(key => key.startsWith(`${bankKey}-`)).forEach(key => delete saved.progress[key]); persist(); } }

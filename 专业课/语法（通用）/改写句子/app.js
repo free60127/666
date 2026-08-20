@@ -3,7 +3,6 @@ const filters = document.getElementById('filters');
 const sectionNav = document.getElementById('section-nav');
 const status = document.getElementById('status');
 const exercisesNode = document.getElementById('exercises');
-const backToTop = document.getElementById('back-to-top');
 let activeKind = 'all';
 
 const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -48,6 +47,5 @@ exercisesNode.addEventListener('click', event => {
   });
 });
 
-window.addEventListener('scroll', () => backToTop.classList.toggle('show', window.scrollY > 400), {passive:true});
-backToTop.addEventListener('click', () => window.scrollTo({top:0, behavior:'smooth'}));
+// 回到顶部由全局悬浮工具栏提供，页面内按钮已移除
 render();

@@ -31,6 +31,4 @@ const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({'&
   });
 })()
 
-const backToTop = document.querySelector('#back-to-top');
-window.addEventListener('scroll', () => backToTop.classList.toggle('show', window.scrollY > 420), {passive:true});
-backToTop.addEventListener('click', () => window.scrollTo({top:0, behavior:'smooth'}));
+// 回到顶部由全局悬浮工具栏提供，页面内按钮已移除
