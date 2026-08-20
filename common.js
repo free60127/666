@@ -20,6 +20,24 @@
     document.head.appendChild(s);
   } catch (e) { /* 统计失败不影响页面 */ }
 
+  /* ---------- 云端 API 配置 ----------
+     默认指向 Cloudflare Worker；绑定自定义域名后改为 https://api.free60127.top
+     （只需改这一处，全站生效） */
+  window.WAIYUAN_API_BASE = window.WAIYUAN_API_BASE || 'https://waiyuan-study.3338095791.workers.dev';
+
+  /* ---------- 首页公告（读云端 /api/notice）----------
+     页面内有 #site-notice 才生效；云端不可达时静默隐藏，不影响任何功能 */
+  (function loadNotice() {
+    const el = document.getElementById('site-notice');
+    if (!el) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    fetch(window.WAIYUAN_API_BASE + '/api/notice', { signal: controller.signal })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { clearTimeout(timer); if (data && data.text) { el.textContent = data.text; el.hidden = false; } })
+      .catch(() => clearTimeout(timer));
+  })();
+
   /* ---------- Service Worker (PWA 离线缓存) ---------- */
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     const tag = document.querySelector('script[data-common-injected]');

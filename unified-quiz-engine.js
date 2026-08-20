@@ -63,8 +63,24 @@
       feedback.type = 'button';
       feedback.className = 'unified-feedback';
       feedback.textContent = '⚠ 纠错';
-      feedback.addEventListener('click', event => {
+      feedback.addEventListener('click', async event => {
         event.stopPropagation();
+        const apiBase = window.WAIYUAN_API_BASE;
+        // 优先提交到云端反馈 API（域名/网络不可达时自动回退到复制）
+        if (apiBase) {
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 5000);
+            const res = await fetch(`${apiBase}/api/feedback`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ page: document.title, question: title, answer }),
+              signal: controller.signal
+            });
+            clearTimeout(timer);
+            if (res.ok) { showFeedbackNotice('纠错信息已提交，感谢反馈！'); return; }
+          } catch (_) { /* 云端不可达，走复制兜底 */ }
+        }
         const body = `【题目纠错】\n页面：${document.title}\n链接：${location.href}\n题干：${title}\n当前答案：${answer}\n\n问题描述：`;
         const email = window.WAIYUAN_FEEDBACK_EMAIL || '';
         copyText(body);

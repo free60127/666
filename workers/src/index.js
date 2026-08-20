@@ -46,6 +46,13 @@ export default {
         return methodNotAllowed();
       }
 
+      if (path === '/api/sync') {
+        if (request.method === 'POST') return handleSyncUpload(request, env);
+        if (request.method === 'GET') return handleSyncDownload(request, env);
+        if (request.method === 'DELETE') return handleSyncDelete(request, env);
+        return methodNotAllowed();
+      }
+
       if (path.startsWith('/proxy/')) return handleProxy(request, path);
 
       return json({ error: 'not found', path }, 404);
@@ -130,6 +137,41 @@ async function handleListFeedback(request, env) {
   }
   items.sort((a, b) => (a.ts < b.ts ? 1 : -1));
   return json({ ok: true, count: items.length, items });
+}
+
+/* ---------- 进度同步（匿名设备 ID 即钥匙）----------
+   POST /api/sync   {deviceId, payload}  上传（payload ≤ 1MB）
+   GET  /api/sync?deviceId=x             下载（不存在返回 404）
+   DELETE /api/sync?deviceId=x           删除 */
+
+const MAX_SYNC_BYTES = 1_000_000;
+
+async function handleSyncUpload(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400); }
+  const deviceId = String(body.deviceId || '').trim();
+  if (!deviceId || deviceId.length > 64) return json({ error: 'deviceId required (<=64 chars)' }, 400);
+  const payload = JSON.stringify(body.payload ?? null);
+  if (payload.length > MAX_SYNC_BYTES) return json({ error: 'payload too large (max 1MB)' }, 413);
+  const record = { data: JSON.parse(payload), updatedAt: new Date().toISOString() };
+  await env.STUDY_KV.put(`sync:${deviceId}`, JSON.stringify(record));
+  return json({ ok: true, size: payload.length, updatedAt: record.updatedAt });
+}
+
+async function handleSyncDownload(request, env) {
+  const deviceId = new URL(request.url).searchParams.get('deviceId') || '';
+  if (!deviceId) return json({ error: 'deviceId required' }, 400);
+  const raw = await env.STUDY_KV.get(`sync:${deviceId}`);
+  if (!raw) return json({ error: 'not found' }, 404);
+  const record = JSON.parse(raw);
+  return json({ ok: true, payload: record.data, updatedAt: record.updatedAt });
+}
+
+async function handleSyncDelete(request, env) {
+  const deviceId = new URL(request.url).searchParams.get('deviceId') || '';
+  if (!deviceId) return json({ error: 'deviceId required' }, 400);
+  await env.STUDY_KV.delete(`sync:${deviceId}`);
+  return json({ ok: true });
 }
 
 /* ---------- 反代加速 ---------- */
