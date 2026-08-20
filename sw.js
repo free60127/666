@@ -11,7 +11,7 @@
         下次访问即新版本。
    版本号：更新本文件 CACHE 常量即可整体换新缓存。
    ============================================================ */
-const CACHE = 'waiyuan-v2';
+const CACHE = 'waiyuan-v3';
 
 const PRECACHE = [
   './',
@@ -20,6 +20,8 @@ const PRECACHE = [
   './theme.css',
   './reading-tools.css',
   './reading-tools.js',
+  './tomato-timer.css',
+  './tomato-timer.js',
   './common.js',
   './home.css',
   './home.js',

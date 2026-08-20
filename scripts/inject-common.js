@@ -101,6 +101,14 @@ for (const file of files) {
     changed = true;
   }
 
+  // ④ 番茄钟（幂等标记 data-tomato-injected；独立判断以便已注入页增量补上）
+  if (!html.includes('data-tomato-injected')) {
+    const link = `  <link rel="stylesheet" href="${prefix}tomato-timer.css?v=20260821-tomato-1">\n`;
+    const script = `  <script defer src="${prefix}tomato-timer.js?v=20260821-tomato-1" data-tomato-injected></script>\n</body>`;
+    html = html.replace('</body>', link + script);
+    changed = true;
+  }
+
   if (!changed) { skipped++; continue; }
   fs.writeFileSync(file, html, 'utf8');
   injected++;
