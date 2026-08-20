@@ -9,7 +9,7 @@
   const loadBook = (key, done) => {
     if (books.some(b => b.key === key)) return done();
     const script = document.createElement('script');
-    script.src = `vocabulary-data-${key}.js?v=20260820-2343`;
+    script.src = `vocabulary-data-${key}.js?v=20260820-2353`;
     // 竞态保护：快速切换词书时，旧回调不得渲染（state.bookKey 已指向新书）
     script.onload = () => { if (state.bookKey === key) done(); };
     script.onerror = () => { if (state.bookKey !== key) return; root.innerHTML = `${brand}<section class="hero"><h1>词库加载失败<span>。</span></h1><p>请检查网络后重新点击词书卡片。</p><button class="primary" data-action="home">返回首页</button></section>`; };

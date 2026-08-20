@@ -1,6 +1,7 @@
 const welcome = document.getElementById('welcome');
 const sponsor = document.getElementById('sponsor');
 const printShop = document.getElementById('print-shop');
+const feedback = document.getElementById('feedback');
 const welcomeStorageKey = 'waiyuan-knowledge-share-welcome-seen-v2';
 const legacyWelcomeSessionKey = 'waiyuan-knowledge-share-welcome-seen-v1';
 
@@ -31,6 +32,8 @@ document.addEventListener('click', event => {
   if (button.dataset.action === 'close-pay') sponsor.classList.add('hidden');
   if (button.dataset.action === 'print-shop') printShop.classList.remove('hidden');
   if (button.dataset.action === 'close-print-shop') printShop.classList.add('hidden');
+  if (button.dataset.action === 'feedback') feedback.classList.remove('hidden');
+  if (button.dataset.action === 'close-feedback') feedback.classList.add('hidden');
   if (button.dataset.action === 'copy-share') copyShareLink(button);
   if (button.dataset.area) alert(`${button.dataset.area}专区正在整理中，敬请期待喵。`);
 });
