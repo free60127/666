@@ -64,19 +64,31 @@
     const unit = unitOf(detailsEl.dataset.unit);
     if (!unit) return;
     const body = detailsEl.querySelector('.unit-body');
-    // 共享选项组（word-bank）按模块标题顺序插回对应模块标题下方；
-    // 未匹配到标题的防御性追加在全部模块之后（避免词库丢失）。
+    // 按题型模块交错渲染：模块标题 → 该模块共享词库 → 该模块题目，
+    // 词库紧跟所属题型正上方，避免整单元词库堆在顶部反复翻阅。
     const banksByModule = new Map((unit.wordBanks || []).map(b => [b.module, b]));
-    const used = new Set();
-    const modules = (unit.modules || []).map(m => {
+    const byModule = new Map();
+    unit.questions.forEach((q, i) => {
+      const m = q.module || '';
+      if (!byModule.has(m)) byModule.set(m, []);
+      byModule.get(m).push(i);
+    });
+    const usedBanks = new Set();
+    let html = '';
+    (unit.modules || []).forEach(m => {
+      const items = byModule.get(m) || [];
+      html += `<div class="module-title">${escape(m)}</div>`;
       const bank = banksByModule.get(m);
-      let html = `<div class="module-title">${escape(m)}</div>`;
-      if (bank) { used.add(m); html += wordBankHtml(bank, false); }
-      return html;
-    }).join('');
-    const leftover = (unit.wordBanks || []).filter(b => !used.has(b.module)).map(b => wordBankHtml(b, true)).join('');
+      if (bank) { usedBanks.add(m); html += wordBankHtml(bank, false); }
+      html += items.map(i => card(unit.questions[i], unit.key, i, unit.kind)).join('');
+    });
+    // 无模块归属的题目（旧 HTML 中不在任何 h3 模块下）：按原顺序整组展示
+    const orphans = byModule.get('') || [];
+    if (orphans.length) html += orphans.map(i => card(unit.questions[i], unit.key, i, unit.kind)).join('');
+    // 词库未匹配到任何模块标题的：防御性追加在末尾（避免词库丢失）
+    const leftover = (unit.wordBanks || []).filter(b => !usedBanks.has(b.module)).map(b => wordBankHtml(b, true)).join('');
     const instruction = unit.instruction ? `<p class="module-instruction">${escape(unit.instruction)}</p>` : '';
-    body.innerHTML = modules + leftover + instruction + unit.questions.map((q, i) => card(q, unit.key, i, unit.kind)).join('');
+    body.innerHTML = instruction + html + leftover;
   }
 
   function showAnswer(cardNode, q, right) {

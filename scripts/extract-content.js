@@ -49,7 +49,8 @@ function parseUnitBody(bodyHtml) {
   const parts = [];
   const qRe = /<div class="q"><b>(\d+)<\/b><pre>([\s\S]*?)<\/pre><\/div>/g;
   const ansRe = /<details class="answer"><summary>[\s\S]*?<\/summary>([\s\S]*?)<\/details>/g;
-  const moduleTitles = [...bodyHtml.matchAll(/<h3>([\s\S]*?)<\/h3>/g)].map(m => stripTags(m[1]).trim());
+  const h3Positions = [...bodyHtml.matchAll(/<h3>([\s\S]*?)<\/h3>/g)].map(m => ({ title: stripTags(m[1]).trim(), index: m.index }));
+  const moduleTitles = h3Positions.map(h => h.title);
   const instruction = (bodyHtml.match(/<p class="instruction">([\s\S]*?)<\/p>/) || [])[1];
   for (const [re, kind] of [[qRe, 'q'], [ansRe, 'answer']]) {
     let m;
@@ -66,7 +67,7 @@ function parseUnitBody(bodyHtml) {
   let current = null;
   for (const part of parts) {
     if (part.kind === 'q') {
-      current = { index: part.groups[1], q: part.groups[2].trim() };
+      current = { index: part.groups[1], q: part.groups[2].trim(), htmlIndex: part.index };
       questions.push(current);
     } else if (part.kind === 'options' && current) {
       current.options = parseOptions(bodyHtml.slice(part.block.start, part.block.end));
@@ -87,6 +88,12 @@ function parseUnitBody(bodyHtml) {
     const hasOptions = Array.isArray(q.options) && q.options.length;
     const isChoice = hasOptions && /^[A-E]+$/i.test(q.answer || '');
     q.type = isChoice ? 'choice' : 'text';
+    // 模块归属：该题在旧 HTML 中位于哪个 h3 模块标题之下（按位置判定）。
+    // 渲染端据此把题目按题型模块交错展示，词库紧跟其所属模块。
+    let owner = '';
+    for (const h of h3Positions) { if (h.index < q.htmlIndex) owner = h.title; }
+    q.module = owner;
+    delete q.htmlIndex;
   }
   // 共享选项组（word-bank）：多道题上方共用的词库（若干单词/短语）。
   // 旧版曾把这类选项组整块丢弃，导致用户看不到可选词——按 exercise-module
@@ -234,6 +241,30 @@ function extractBasicEnglish() {
 }
 
 // ---------- 输出 ----------
+// 语义修正表：旧 HTML 自身数据有误，重提取后必须重放的修正。
+// 每次重提取都会覆盖 source/*.json，这类人工核对结论固化在这里，防止丢失。
+const SEMANTIC_FIXES = [
+  // 泛读 book-4 词库变形单元第 8 题：旧 HTML 仅 3 个选项却标注答案 D；
+  // corporate = relating to a body（C 项），人工核对后定 C。
+  { file: 'reading', book: 'book-4', unit: 'book-4-word-unit-5', index: '8', answer: 'C' }
+];
+function applySemanticFixes(data, fileKey) {
+  let fixed = 0;
+  for (const fix of SEMANTIC_FIXES) {
+    if (fix.file !== fileKey) continue;
+    for (const book of data.books) {
+      if (book.key !== fix.book) continue;
+      for (const unit of book.units) {
+        if (unit.key !== fix.unit) continue;
+        for (const q of unit.questions) {
+          if (String(q.index) === String(fix.index)) { q.answer = fix.answer; fixed++; }
+        }
+      }
+    }
+  }
+  if (fixed) console.log(`语义修正：${fileKey} 重放 ${fixed} 处（${SEMANTIC_FIXES.filter(f => f.file === fileKey).map(f => f.unit + '#' + f.index).join('、')}）`);
+}
+
 function stats(data, label) {
   let qTotal = 0, choice = 0, text = 0;
   for (const book of data.books) for (const unit of book.units) for (const q of unit.questions) {
@@ -245,6 +276,8 @@ function stats(data, label) {
 
 const reading = extractReading();
 const basic = extractBasicEnglish();
+applySemanticFixes(reading, 'reading');
+applySemanticFixes(basic, 'basic');
 stats(reading, '泛读');
 stats(basic, '基英');
 fs.writeFileSync(path.join(sourceDir, 'reading.json'), JSON.stringify(reading, null, 1), 'utf8');
