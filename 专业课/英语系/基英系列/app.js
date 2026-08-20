@@ -8,7 +8,8 @@
   const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const clean = text => String(text || '').replace(/\s+/g, ' ').trim();
   const letterOf = i => String.fromCharCode(65 + i);
-  const kindLabel = kind => ({word:'单词', fill:'填空', grammar:'语法', '':''}[kind] || kind);
+  const kindLabel = kind => ({word:'单词', fill:'填空', grammar:'语法', vocabulary:'词汇', wordFill:'选词填空', translation:'汉译英', '':''}[kind] || kind);
+  const unitKindLabel = unit => unit.kindLabel || kindLabel(unit.kind) || '';
   let bookKey = '';
   const getBook = key => data.find(b => b.key === key);
   const unitOf = key => { const b = getBook(bookKey); return b && b.units.find(u => u.key === key); };
@@ -36,10 +37,19 @@
     const book = getBook(key);
     if (!book) return renderHome();
     bookKey = key;
+    // 按题型分组（基英按 kindLabel：选词填空/汉译英/词汇；泛读按 kind：单词/填空），组序保持数据顺序
+    const groups = [];
+    const groupMap = new Map();
+    book.units.forEach(unit => {
+      const label = unitKindLabel(unit);
+      if (!groupMap.has(label)) { groupMap.set(label, []); groups.push({ label, units: groupMap.get(label) }); }
+      groupMap.get(label).push(unit);
+    });
+    const unitDetails = unit => `<details class="unit" data-unit="${unit.key}"><summary><span>${escape(unit.name)}</span><small>${unit.questions.length} 题${unitKindLabel(unit) ? ' · ' + unitKindLabel(unit) : ''}</small></summary><div class="unit-body"></div></details>`;
     app.innerHTML = `<button class="back" data-action="home">‹ 返回教材列表</button><section class="hero compact"><small>${escape(book.name)}</small><div class="stats"><span><b>${book.units.length}</b>单元</span><span><b>${totalQ(book)}</b>题目</span></div></section>
       <div class="actions"><button data-action="export">导出全部题目 A4 PDF</button></div>
-      <p class="notice">点击单元展开题目；选择题点击选项判题，其余题型展开参考答案。</p>
-      <section class="unit-list">${book.units.map(unit => `<details class="unit" data-unit="${unit.key}"><summary><span>${escape(unit.name)}</span><small>${unit.questions.length} 题${unit.kind ? ' · ' + kindLabel(unit.kind) : ''}</small></summary><div class="unit-body"></div></details>`).join('')}</section>
+      <p class="notice">按题型展开单元；选择题点击选项判题，其余题型展开参考答案。</p>
+      <section class="unit-list">${groups.map(group => (group.label ? `<div class="module-title">${escape(group.label)}</div>` : '') + group.units.map(unitDetails).join('')).join('')}</section>
       <button class="to-top" data-action="top">↑<small>顶部</small></button>`;
   }
 

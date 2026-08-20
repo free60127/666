@@ -118,8 +118,9 @@ function cleanOption(divHtml) {
 }
 
 // ---------- 泛读系列 ----------
+// 提取源：archive/legacy/泛读系列-旧版.html（旧静态 HTML 的存档，工作区版本已被数据驱动页取代）
 function extractReading() {
-  const html = fs.readFileSync(path.join(root, '专业课/英语系/泛读系列/index.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'archive/legacy/泛读系列-旧版.html'), 'utf8');
   const books = [];
   // 单元 details 会嵌套 answer 的 <details class="answer">，不能用正则直接配对闭合标签；
   // 改为按开始位置切分：body = 本单元 summary 结束 → 下一个单元开始（或页面尾部）。
@@ -155,30 +156,55 @@ function extractReading() {
 }
 
 // ---------- 基英系列 ----------
+// 旧页面结构：<section id="book-N"> 是容器（只有标题），单元全部位于其下的题型小节
+// <section id="book-N-<kind>">（wordFill=选词填空 / translation=汉译英 / vocabulary=词汇）。
+// 用「下一个 section 标签」切分小节 body（嵌套不影响：主 section 的 body 含子小节内容，直接跳过主 section）。
+// 4 本书 × 题型还原：books = 基英1~4，unit.kind 记录题型，渲染端按 kind 分组展示。
+// 提取源：archive/legacy/基英系列-旧版.html
 function extractBasicEnglish() {
-  const html = fs.readFileSync(path.join(root, '专业课/英语系/基英系列/index.html'), 'utf8');
-  const units = [];
-  const unitStartRe = /<details id="unit-(\d+)"><summary>([\s\S]*?)<\/summary>/g;
+  const html = fs.readFileSync(path.join(root, 'archive/legacy/基英系列-旧版.html'), 'utf8');
+  const books = [];
+  const sectionStartRe = /<section id="(book-\d+(?:-[a-zA-Z]+)?)"[^>]*>/g;
   const markers = [];
   let m;
-  while ((m = unitStartRe.exec(html)) !== null) markers.push({ match: m, start: m.index });
+  while ((m = sectionStartRe.exec(html)) !== null) markers.push({ match: m, start: m.index });
+  const sections = []; // {id, body}
   markers.forEach((marker, i) => {
-    const [, unitNo, summaryHtml] = marker.match;
-    const summary = summaryHtml.replace(/<small>[\s\S]*?<\/small>/g, '').trim();
-    const bodyStart = marker.start + marker.match[0].length; // summary 结束处
     const bodyEnd = markers[i + 1] ? markers[i + 1].start : html.length;
-    const body = html.slice(bodyStart, bodyEnd);
-    const parsed = parseUnitBody(body);
-    units.push({
-      key: `unit-${unitNo}`,
-      kind: '',
-      name: summary,
-      modules: parsed.modules,
-      instruction: parsed.instruction,
-      questions: parsed.questions
-    });
+    const bodyStart = marker.start + marker.match[0].length;
+    sections.push({ id: marker.match[1], body: html.slice(bodyStart, bodyEnd) });
   });
-  return { version: 1, title: '基英系列', books: [{ key: 'book-1', name: '基英综合教程', units }] };
+  const kindLabelOf = kind => ({ wordFill: '选词填空', translation: '汉译英', vocabulary: '词汇' }[kind] || kind);
+  for (let n = 1; n <= 4; n++) {
+    const bookSections = sections.filter(s => s.id.startsWith(`book-${n}-`));
+    if (!bookSections.length) continue;
+    const units = [];
+    for (const sec of bookSections) {
+      const kind = sec.id.replace(/^book-\d+-/, '');
+      const unitStartRe = /<details id="unit-(\d+)"><summary>([\s\S]*?)<\/summary>/g;
+      const unitMarkers = [];
+      let um;
+      while ((um = unitStartRe.exec(sec.body)) !== null) unitMarkers.push({ match: um, start: um.index });
+      unitMarkers.forEach((umark, i) => {
+        const [, unitNo, summaryHtml] = umark.match;
+        const summary = summaryHtml.replace(/<small>[\s\S]*?<\/small>/g, '').trim();
+        const bodyStart = umark.start + umark.match[0].length;
+        const bodyEnd = unitMarkers[i + 1] ? unitMarkers[i + 1].start : sec.body.length;
+        const parsed = parseUnitBody(sec.body.slice(bodyStart, bodyEnd));
+        units.push({
+          key: `${sec.id}-unit-${unitNo}`,
+          kind,
+          kindLabel: kindLabelOf(kind),
+          name: summary,
+          modules: parsed.modules,
+          instruction: parsed.instruction,
+          questions: parsed.questions
+        });
+      });
+    }
+    books.push({ key: `book-${n}`, name: `基英${n}`, units });
+  }
+  return { version: 1, title: '基英系列', books };
 }
 
 // ---------- 输出 ----------

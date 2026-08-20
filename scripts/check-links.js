@@ -8,7 +8,7 @@ function walk(dir) {
   for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
     const p = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name === '.git' || entry.name === 'node_modules') continue;
+      if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === 'archive') continue;
       walk(p);
     } else if (entry.name.endsWith('.html')) {
       // 单文件离线版全部内联（内含 JS 模板字面量如 ${escape(...)}，静态扫描必然误报），

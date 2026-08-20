@@ -44,7 +44,7 @@ try {
   };
 
   const htmlFiles = [];
-  collect(root, htmlFiles, name => name.endsWith('.html'), ['.git', 'node_modules']);
+  collect(root, htmlFiles, name => name.endsWith('.html'), ['.git', 'node_modules', 'archive']);
 
   let bumped = 0;
   for (const file of htmlFiles) {

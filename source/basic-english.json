@@ -4,11 +4,12 @@
  "books": [
   {
    "key": "book-1",
-   "name": "基英综合教程",
+   "name": "基英1",
    "units": [
     {
-     "key": "unit-1",
-     "kind": "",
+     "key": "book-1-wordFill-unit-1",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 1",
      "modules": [
       "Prepositions"
@@ -78,8 +79,9 @@
      ]
     },
     {
-     "key": "unit-2",
-     "kind": "",
+     "key": "book-1-wordFill-unit-2",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 2",
      "modules": [
       "Articles and prepositions",
@@ -162,8 +164,9 @@
      ]
     },
     {
-     "key": "unit-3",
-     "kind": "",
+     "key": "book-1-wordFill-unit-3",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 3",
      "modules": [
       "Adverbs and prepositions",
@@ -288,8 +291,9 @@
      ]
     },
     {
-     "key": "unit-4",
-     "kind": "",
+     "key": "book-1-wordFill-unit-4",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 4",
      "modules": [
       "Prepositions and adverbs",
@@ -390,8 +394,9 @@
      ]
     },
     {
-     "key": "unit-5",
-     "kind": "",
+     "key": "book-1-wordFill-unit-5",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 5",
      "modules": [
       "Prepositions and adverbs",
@@ -442,8 +447,9 @@
      ]
     },
     {
-     "key": "unit-6",
-     "kind": "",
+     "key": "book-1-wordFill-unit-6",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 6",
      "modules": [
       "Prepositions"
@@ -501,8 +507,9 @@
      ]
     },
     {
-     "key": "unit-8",
-     "kind": "",
+     "key": "book-1-wordFill-unit-8",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 8",
      "modules": [
       "Articles and prepositions",
@@ -615,8 +622,9 @@
      ]
     },
     {
-     "key": "unit-9",
-     "kind": "",
+     "key": "book-1-wordFill-unit-9",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 9",
      "modules": [
       "Prepositions"
@@ -686,8 +694,9 @@
      ]
     },
     {
-     "key": "unit-10",
-     "kind": "",
+     "key": "book-1-wordFill-unit-10",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 10",
      "modules": [
       "Articles and prepositions",
@@ -818,8 +827,9 @@
      ]
     },
     {
-     "key": "unit-11",
-     "kind": "",
+     "key": "book-1-wordFill-unit-11",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 11",
      "modules": [
       "Articles and prepositions"
@@ -889,8 +899,9 @@
      ]
     },
     {
-     "key": "unit-12",
-     "kind": "",
+     "key": "book-1-wordFill-unit-12",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 12",
      "modules": [
       "Prepositions"
@@ -960,8 +971,9 @@
      ]
     },
     {
-     "key": "unit-13",
-     "kind": "",
+     "key": "book-1-wordFill-unit-13",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 13",
      "modules": [
       "Prepositions"
@@ -1031,8 +1043,9 @@
      ]
     },
     {
-     "key": "unit-14",
-     "kind": "",
+     "key": "book-1-wordFill-unit-14",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 14",
      "modules": [
       "Prepositions"
@@ -1102,8 +1115,9 @@
      ]
     },
     {
-     "key": "unit-15",
-     "kind": "",
+     "key": "book-1-wordFill-unit-15",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 15",
      "modules": [
       "Prepositions"
@@ -1173,8 +1187,9 @@
      ]
     },
     {
-     "key": "unit-1",
-     "kind": "",
+     "key": "book-1-translation-unit-1",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
@@ -1206,8 +1221,9 @@
      ]
     },
     {
-     "key": "unit-2",
-     "kind": "",
+     "key": "book-1-translation-unit-2",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
@@ -1233,8 +1249,9 @@
      ]
     },
     {
-     "key": "unit-3",
-     "kind": "",
+     "key": "book-1-translation-unit-3",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
@@ -1266,8 +1283,9 @@
      ]
     },
     {
-     "key": "unit-4",
-     "kind": "",
+     "key": "book-1-translation-unit-4",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
@@ -1293,8 +1311,9 @@
      ]
     },
     {
-     "key": "unit-6",
-     "kind": "",
+     "key": "book-1-translation-unit-6",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 6",
      "modules": [],
      "instruction": "",
@@ -1320,8 +1339,9 @@
      ]
     },
     {
-     "key": "unit-7",
-     "kind": "",
+     "key": "book-1-translation-unit-7",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
@@ -1347,8 +1367,9 @@
      ]
     },
     {
-     "key": "unit-8",
-     "kind": "",
+     "key": "book-1-translation-unit-8",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
@@ -1374,8 +1395,9 @@
      ]
     },
     {
-     "key": "unit-9",
-     "kind": "",
+     "key": "book-1-translation-unit-9",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 9",
      "modules": [],
      "instruction": "",
@@ -1401,8 +1423,9 @@
      ]
     },
     {
-     "key": "unit-10",
-     "kind": "",
+     "key": "book-1-translation-unit-10",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 10",
      "modules": [],
      "instruction": "",
@@ -1428,8 +1451,9 @@
      ]
     },
     {
-     "key": "unit-11",
-     "kind": "",
+     "key": "book-1-translation-unit-11",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 11",
      "modules": [],
      "instruction": "",
@@ -1455,8 +1479,9 @@
      ]
     },
     {
-     "key": "unit-12",
-     "kind": "",
+     "key": "book-1-translation-unit-12",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
@@ -1482,8 +1507,9 @@
      ]
     },
     {
-     "key": "unit-13",
-     "kind": "",
+     "key": "book-1-translation-unit-13",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 13",
      "modules": [],
      "instruction": "",
@@ -1509,8 +1535,9 @@
      ]
     },
     {
-     "key": "unit-14",
-     "kind": "",
+     "key": "book-1-translation-unit-14",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
@@ -1542,8 +1569,9 @@
      ]
     },
     {
-     "key": "unit-15",
-     "kind": "",
+     "key": "book-1-translation-unit-15",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 15",
      "modules": [],
      "instruction": "",
@@ -1567,10 +1595,17 @@
        "type": "text"
       }
      ]
-    },
+    }
+   ]
+  },
+  {
+   "key": "book-2",
+   "name": "基英2",
+   "units": [
     {
-     "key": "unit-1",
-     "kind": "",
+     "key": "book-2-wordFill-unit-1",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 1",
      "modules": [
       "练习 1 · 第1组",
@@ -1741,8 +1776,9 @@
      ]
     },
     {
-     "key": "unit-2",
-     "kind": "",
+     "key": "book-2-wordFill-unit-2",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 2",
      "modules": [
       "练习 1 · 第1组",
@@ -1888,8 +1924,9 @@
      ]
     },
     {
-     "key": "unit-3",
-     "kind": "",
+     "key": "book-2-wordFill-unit-3",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 3",
      "modules": [
       "练习 1",
@@ -2034,8 +2071,9 @@
      ]
     },
     {
-     "key": "unit-5",
-     "kind": "",
+     "key": "book-2-wordFill-unit-5",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 5",
      "modules": [
       "练习 1",
@@ -2260,8 +2298,9 @@
      ]
     },
     {
-     "key": "unit-6",
-     "kind": "",
+     "key": "book-2-wordFill-unit-6",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 6",
      "modules": [
       "练习 2"
@@ -2391,8 +2430,9 @@
      ]
     },
     {
-     "key": "unit-7",
-     "kind": "",
+     "key": "book-2-wordFill-unit-7",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 7",
      "modules": [
       "练习 1 · 第1组",
@@ -2549,8 +2589,9 @@
      ]
     },
     {
-     "key": "unit-9",
-     "kind": "",
+     "key": "book-2-wordFill-unit-9",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 9",
      "modules": [
       "练习 1",
@@ -2730,8 +2771,9 @@
      ]
     },
     {
-     "key": "unit-10",
-     "kind": "",
+     "key": "book-2-wordFill-unit-10",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 10",
      "modules": [
       "练习 2 · 第1组",
@@ -2923,8 +2965,9 @@
      ]
     },
     {
-     "key": "unit-11",
-     "kind": "",
+     "key": "book-2-wordFill-unit-11",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 11",
      "modules": [
       "练习 2",
@@ -3031,8 +3074,9 @@
      ]
     },
     {
-     "key": "unit-12",
-     "kind": "",
+     "key": "book-2-wordFill-unit-12",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 12",
      "modules": [
       "练习 1 · 第1组",
@@ -3377,8 +3421,9 @@
      ]
     },
     {
-     "key": "unit-13",
-     "kind": "",
+     "key": "book-2-wordFill-unit-13",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 13",
      "modules": [
       "练习 3"
@@ -3448,8 +3493,9 @@
      ]
     },
     {
-     "key": "unit-14",
-     "kind": "",
+     "key": "book-2-wordFill-unit-14",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 14",
      "modules": [
       "练习 3",
@@ -3604,8 +3650,9 @@
      ]
     },
     {
-     "key": "unit-15",
-     "kind": "",
+     "key": "book-2-wordFill-unit-15",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 15",
      "modules": [
       "练习 2"
@@ -3687,8 +3734,9 @@
      ]
     },
     {
-     "key": "unit-1",
-     "kind": "",
+     "key": "book-2-translation-unit-1",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
@@ -3726,8 +3774,9 @@
      ]
     },
     {
-     "key": "unit-2",
-     "kind": "",
+     "key": "book-2-translation-unit-2",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
@@ -3759,8 +3808,9 @@
      ]
     },
     {
-     "key": "unit-3",
-     "kind": "",
+     "key": "book-2-translation-unit-3",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
@@ -3792,8 +3842,9 @@
      ]
     },
     {
-     "key": "unit-4",
-     "kind": "",
+     "key": "book-2-translation-unit-4",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
@@ -3825,8 +3876,9 @@
      ]
     },
     {
-     "key": "unit-5",
-     "kind": "",
+     "key": "book-2-translation-unit-5",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 5",
      "modules": [],
      "instruction": "",
@@ -3864,8 +3916,9 @@
      ]
     },
     {
-     "key": "unit-6",
-     "kind": "",
+     "key": "book-2-translation-unit-6",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 6",
      "modules": [],
      "instruction": "",
@@ -3903,8 +3956,9 @@
      ]
     },
     {
-     "key": "unit-7",
-     "kind": "",
+     "key": "book-2-translation-unit-7",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
@@ -3942,8 +3996,9 @@
      ]
     },
     {
-     "key": "unit-8",
-     "kind": "",
+     "key": "book-2-translation-unit-8",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
@@ -3975,8 +4030,9 @@
      ]
     },
     {
-     "key": "unit-9",
-     "kind": "",
+     "key": "book-2-translation-unit-9",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 9",
      "modules": [],
      "instruction": "",
@@ -4008,8 +4064,9 @@
      ]
     },
     {
-     "key": "unit-10",
-     "kind": "",
+     "key": "book-2-translation-unit-10",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 10",
      "modules": [],
      "instruction": "",
@@ -4047,8 +4104,9 @@
      ]
     },
     {
-     "key": "unit-11",
-     "kind": "",
+     "key": "book-2-translation-unit-11",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 11",
      "modules": [],
      "instruction": "",
@@ -4080,8 +4138,9 @@
      ]
     },
     {
-     "key": "unit-12",
-     "kind": "",
+     "key": "book-2-translation-unit-12",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
@@ -4125,8 +4184,9 @@
      ]
     },
     {
-     "key": "unit-13",
-     "kind": "",
+     "key": "book-2-translation-unit-13",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 13",
      "modules": [],
      "instruction": "",
@@ -4164,8 +4224,9 @@
      ]
     },
     {
-     "key": "unit-14",
-     "kind": "",
+     "key": "book-2-translation-unit-14",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
@@ -4203,8 +4264,9 @@
      ]
     },
     {
-     "key": "unit-15",
-     "kind": "",
+     "key": "book-2-translation-unit-15",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 15",
      "modules": [],
      "instruction": "",
@@ -4234,10 +4296,17 @@
        "type": "text"
       }
      ]
-    },
+    }
+   ]
+  },
+  {
+   "key": "book-3",
+   "name": "基英3",
+   "units": [
     {
-     "key": "unit-1",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-1",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
@@ -4385,8 +4454,9 @@
      ]
     },
     {
-     "key": "unit-2",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-2",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
@@ -4534,8 +4604,9 @@
      ]
     },
     {
-     "key": "unit-3",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-3",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
@@ -4669,8 +4740,9 @@
      ]
     },
     {
-     "key": "unit-4",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-4",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
@@ -4818,8 +4890,9 @@
      ]
     },
     {
-     "key": "unit-6",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-6",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 6",
      "modules": [],
      "instruction": "",
@@ -4967,8 +5040,9 @@
      ]
     },
     {
-     "key": "unit-7",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-7",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
@@ -5116,8 +5190,9 @@
      ]
     },
     {
-     "key": "unit-8",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-8",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
@@ -5265,8 +5340,9 @@
      ]
     },
     {
-     "key": "unit-11",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-11",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 11",
      "modules": [],
      "instruction": "",
@@ -5414,8 +5490,9 @@
      ]
     },
     {
-     "key": "unit-12",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-12",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
@@ -5535,8 +5612,9 @@
      ]
     },
     {
-     "key": "unit-13",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-13",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 13",
      "modules": [],
      "instruction": "",
@@ -5628,8 +5706,9 @@
      ]
     },
     {
-     "key": "unit-14",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-14",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
@@ -5749,8 +5828,9 @@
      ]
     },
     {
-     "key": "unit-15",
-     "kind": "",
+     "key": "book-3-vocabulary-unit-15",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 15",
      "modules": [],
      "instruction": "",
@@ -5870,8 +5950,9 @@
      ]
     },
     {
-     "key": "unit-1",
-     "kind": "",
+     "key": "book-3-wordFill-unit-1",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 1",
      "modules": [
       "练习 3",
@@ -6002,8 +6083,9 @@
      ]
     },
     {
-     "key": "unit-2",
-     "kind": "",
+     "key": "book-3-wordFill-unit-2",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 2",
      "modules": [
       "练习 2",
@@ -6134,8 +6216,9 @@
      ]
     },
     {
-     "key": "unit-3",
-     "kind": "",
+     "key": "book-3-wordFill-unit-3",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 3",
      "modules": [
       "练习 2",
@@ -6290,8 +6373,9 @@
      ]
     },
     {
-     "key": "unit-4",
-     "kind": "",
+     "key": "book-3-wordFill-unit-4",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 4",
      "modules": [
       "练习 4"
@@ -6361,8 +6445,9 @@
      ]
     },
     {
-     "key": "unit-5",
-     "kind": "",
+     "key": "book-3-wordFill-unit-5",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 5",
      "modules": [
       "练习 2 · 第1组",
@@ -6643,8 +6728,9 @@
      ]
     },
     {
-     "key": "unit-6",
-     "kind": "",
+     "key": "book-3-wordFill-unit-6",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 6",
      "modules": [
       "练习 2",
@@ -6824,8 +6910,9 @@
      ]
     },
     {
-     "key": "unit-7",
-     "kind": "",
+     "key": "book-3-wordFill-unit-7",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 7",
      "modules": [
       "练习 2",
@@ -6908,8 +6995,9 @@
      ]
     },
     {
-     "key": "unit-8",
-     "kind": "",
+     "key": "book-3-wordFill-unit-8",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 8",
      "modules": [
       "练习 3 · 第1组",
@@ -7040,8 +7128,9 @@
      ]
     },
     {
-     "key": "unit-9",
-     "kind": "",
+     "key": "book-3-wordFill-unit-9",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 9",
      "modules": [
       "练习 3 · 第1组",
@@ -7235,8 +7324,9 @@
      ]
     },
     {
-     "key": "unit-10",
-     "kind": "",
+     "key": "book-3-wordFill-unit-10",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 10",
      "modules": [
       "练习 4 · 第1组"
@@ -7306,8 +7396,9 @@
      ]
     },
     {
-     "key": "unit-11",
-     "kind": "",
+     "key": "book-3-wordFill-unit-11",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 11",
      "modules": [
       "练习 4"
@@ -7377,8 +7468,9 @@
      ]
     },
     {
-     "key": "unit-12",
-     "kind": "",
+     "key": "book-3-wordFill-unit-12",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 12",
      "modules": [
       "练习 3",
@@ -7521,8 +7613,9 @@
      ]
     },
     {
-     "key": "unit-13",
-     "kind": "",
+     "key": "book-3-wordFill-unit-13",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 13",
      "modules": [
       "练习 4",
@@ -7653,8 +7746,9 @@
      ]
     },
     {
-     "key": "unit-14",
-     "kind": "",
+     "key": "book-3-wordFill-unit-14",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 14",
      "modules": [
       "练习 4"
@@ -7724,8 +7818,9 @@
      ]
     },
     {
-     "key": "unit-15",
-     "kind": "",
+     "key": "book-3-wordFill-unit-15",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 15",
      "modules": [
       "练习 3",
@@ -7856,8 +7951,9 @@
      ]
     },
     {
-     "key": "unit-1",
-     "kind": "",
+     "key": "book-3-translation-unit-1",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
@@ -7925,8 +8021,9 @@
      ]
     },
     {
-     "key": "unit-2",
-     "kind": "",
+     "key": "book-3-translation-unit-2",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
@@ -7994,8 +8091,9 @@
      ]
     },
     {
-     "key": "unit-3",
-     "kind": "",
+     "key": "book-3-translation-unit-3",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
@@ -8063,8 +8161,9 @@
      ]
     },
     {
-     "key": "unit-4",
-     "kind": "",
+     "key": "book-3-translation-unit-4",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
@@ -8132,8 +8231,9 @@
      ]
     },
     {
-     "key": "unit-5",
-     "kind": "",
+     "key": "book-3-translation-unit-5",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 5",
      "modules": [],
      "instruction": "",
@@ -8201,8 +8301,9 @@
      ]
     },
     {
-     "key": "unit-6",
-     "kind": "",
+     "key": "book-3-translation-unit-6",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 6",
      "modules": [],
      "instruction": "",
@@ -8282,8 +8383,9 @@
      ]
     },
     {
-     "key": "unit-7",
-     "kind": "",
+     "key": "book-3-translation-unit-7",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
@@ -8351,8 +8453,9 @@
      ]
     },
     {
-     "key": "unit-8",
-     "kind": "",
+     "key": "book-3-translation-unit-8",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
@@ -8420,8 +8523,9 @@
      ]
     },
     {
-     "key": "unit-9",
-     "kind": "",
+     "key": "book-3-translation-unit-9",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 9",
      "modules": [],
      "instruction": "",
@@ -8489,8 +8593,9 @@
      ]
     },
     {
-     "key": "unit-10",
-     "kind": "",
+     "key": "book-3-translation-unit-10",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 10",
      "modules": [],
      "instruction": "",
@@ -8558,8 +8663,9 @@
      ]
     },
     {
-     "key": "unit-11",
-     "kind": "",
+     "key": "book-3-translation-unit-11",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 11",
      "modules": [],
      "instruction": "",
@@ -8627,8 +8733,9 @@
      ]
     },
     {
-     "key": "unit-12",
-     "kind": "",
+     "key": "book-3-translation-unit-12",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
@@ -8696,8 +8803,9 @@
      ]
     },
     {
-     "key": "unit-13",
-     "kind": "",
+     "key": "book-3-translation-unit-13",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 13",
      "modules": [],
      "instruction": "",
@@ -8753,8 +8861,9 @@
      ]
     },
     {
-     "key": "unit-14",
-     "kind": "",
+     "key": "book-3-translation-unit-14",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
@@ -8822,8 +8931,9 @@
      ]
     },
     {
-     "key": "unit-15",
-     "kind": "",
+     "key": "book-3-translation-unit-15",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 15",
      "modules": [],
      "instruction": "",
@@ -8889,10 +8999,17 @@
        "type": "text"
       }
      ]
-    },
+    }
+   ]
+  },
+  {
+   "key": "book-4",
+   "name": "基英4",
+   "units": [
     {
-     "key": "unit-1",
-     "kind": "",
+     "key": "book-4-vocabulary-unit-1",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
@@ -8983,8 +9100,9 @@
      ]
     },
     {
-     "key": "unit-2",
-     "kind": "",
+     "key": "book-4-vocabulary-unit-2",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
@@ -9087,8 +9205,9 @@
      ]
     },
     {
-     "key": "unit-3",
-     "kind": "",
+     "key": "book-4-vocabulary-unit-3",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
@@ -9179,8 +9298,9 @@
      ]
     },
     {
-     "key": "unit-4",
-     "kind": "",
+     "key": "book-4-vocabulary-unit-4",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
@@ -9271,8 +9391,9 @@
      ]
     },
     {
-     "key": "unit-7",
-     "kind": "",
+     "key": "book-4-vocabulary-unit-7",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
@@ -9363,8 +9484,9 @@
      ]
     },
     {
-     "key": "unit-8",
-     "kind": "",
+     "key": "book-4-vocabulary-unit-8",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
@@ -9455,8 +9577,9 @@
      ]
     },
     {
-     "key": "unit-9",
-     "kind": "",
+     "key": "book-4-vocabulary-unit-9",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 9",
      "modules": [],
      "instruction": "",
@@ -9547,8 +9670,9 @@
      ]
     },
     {
-     "key": "unit-12",
-     "kind": "",
+     "key": "book-4-vocabulary-unit-12",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
@@ -9639,8 +9763,9 @@
      ]
     },
     {
-     "key": "unit-14",
-     "kind": "",
+     "key": "book-4-vocabulary-unit-14",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
@@ -9731,8 +9856,9 @@
      ]
     },
     {
-     "key": "unit-1",
-     "kind": "",
+     "key": "book-4-wordFill-unit-1",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 1",
      "modules": [
       "词库模块 1"
@@ -9796,8 +9922,9 @@
      ]
     },
     {
-     "key": "unit-3",
-     "kind": "",
+     "key": "book-4-wordFill-unit-3",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 3",
      "modules": [
       "词库模块 1",
@@ -9880,8 +10007,9 @@
      ]
     },
     {
-     "key": "unit-4",
-     "kind": "",
+     "key": "book-4-wordFill-unit-4",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 4",
      "modules": [
       "词库模块 1",
@@ -9983,8 +10111,9 @@
      ]
     },
     {
-     "key": "unit-7",
-     "kind": "",
+     "key": "book-4-wordFill-unit-7",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 7",
      "modules": [
       "词库模块 1",
@@ -10148,8 +10277,9 @@
      ]
     },
     {
-     "key": "unit-12",
-     "kind": "",
+     "key": "book-4-wordFill-unit-12",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 12",
      "modules": [
       "词库模块 1",
@@ -10252,8 +10382,9 @@
      ]
     },
     {
-     "key": "unit-14",
-     "kind": "",
+     "key": "book-4-wordFill-unit-14",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
      "name": "Unit 14",
      "modules": [
       "词库模块 1"
@@ -10299,8 +10430,9 @@
      ]
     },
     {
-     "key": "unit-1",
-     "kind": "",
+     "key": "book-4-translation-unit-1",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 1",
      "modules": [],
      "instruction": "",
@@ -10362,8 +10494,9 @@
      ]
     },
     {
-     "key": "unit-2",
-     "kind": "",
+     "key": "book-4-translation-unit-2",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 2",
      "modules": [],
      "instruction": "",
@@ -10431,8 +10564,9 @@
      ]
     },
     {
-     "key": "unit-3",
-     "kind": "",
+     "key": "book-4-translation-unit-3",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 3",
      "modules": [],
      "instruction": "",
@@ -10464,8 +10598,9 @@
      ]
     },
     {
-     "key": "unit-4",
-     "kind": "",
+     "key": "book-4-translation-unit-4",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 4",
      "modules": [],
      "instruction": "",
@@ -10509,8 +10644,9 @@
      ]
     },
     {
-     "key": "unit-7",
-     "kind": "",
+     "key": "book-4-translation-unit-7",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 7",
      "modules": [],
      "instruction": "",
@@ -10560,8 +10696,9 @@
      ]
     },
     {
-     "key": "unit-8",
-     "kind": "",
+     "key": "book-4-translation-unit-8",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 8",
      "modules": [],
      "instruction": "",
@@ -10605,8 +10742,9 @@
      ]
     },
     {
-     "key": "unit-9",
-     "kind": "",
+     "key": "book-4-translation-unit-9",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 9",
      "modules": [],
      "instruction": "",
@@ -10662,8 +10800,9 @@
      ]
     },
     {
-     "key": "unit-12",
-     "kind": "",
+     "key": "book-4-translation-unit-12",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 12",
      "modules": [],
      "instruction": "",
@@ -10707,8 +10846,9 @@
      ]
     },
     {
-     "key": "unit-14",
-     "kind": "",
+     "key": "book-4-translation-unit-14",
+     "kind": "translation",
+     "kindLabel": "汉译英",
      "name": "Unit 14",
      "modules": [],
      "instruction": "",
