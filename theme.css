@@ -299,3 +299,10 @@ html[data-theme="dark"] .wrap .answer summary { background: #2c4036 !important; 
 
 /* ---------- 背单词长词防溢出（全模式） ---------- */
 .word { overflow-wrap: anywhere; word-break: break-word; }
+
+html[data-theme="dark"] .option.selected {
+  background: #24312b !important;
+  color: #cfe0d8 !important;
+  border-color: #3f8f72 !important;
+  box-shadow: 0 0 0 2px rgba(63,143,114,.28);
+}

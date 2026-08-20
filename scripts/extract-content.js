@@ -72,9 +72,14 @@ function parseUnitBody(bodyHtml) {
       current.options = parseOptions(bodyHtml.slice(part.block.start, part.block.end));
     } else if (part.kind === 'answer' && current) {
       const text = stripTags(part.groups[1]).trim();
-      // "正确答案：C" / "参考答案：C&D"（多选用 & 、 ， 空格分隔）/ 无字母则为文本答案
-      const letter = text.match(/(?:正确答案|参考答案)[:：]\s*([A-E](?:\s*[&、,，]\s*[A-E])*)/i);
-      current.answer = letter ? letter[1].toUpperCase().replace(/[^A-E]/g, '') : text;
+      // 仅当「整个答案」就是选项字母序列（如 A / A、C / C&D）才视为选择题字母；
+      // 必须首尾锚定——文本答案（如 "a, the, with" / "convey, handle"）的首字母
+      // 恰好是 A-E 时不能被截断（曾把这两类误截成 "A" / "C"）。
+      // 文本答案统一剥掉「正确答案/参考答案：」前缀，保留纯答案文本。
+      const letter = text.match(/^(?:正确答案|参考答案)\s*[:：]\s*([A-E](?:\s*[&、,，]\s*[A-E])*)\s*$/i);
+      current.answer = letter
+        ? letter[1].toUpperCase().replace(/[^A-E]/g, '')
+        : text.replace(/^(?:正确答案|参考答案)\s*[:：]\s*/, '');
     }
   }
   // type 推断：有选项且答案是指向选项的字母 → choice，否则 text

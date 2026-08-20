@@ -17,10 +17,11 @@
 
   function card(question, unitKey, index) {
     const hasOptions = Array.isArray(question.options) && question.options.length;
+    const multi = hasOptions && (String(question.answer || '').match(/[A-E]/g) || []).length > 1;
     const options = hasOptions ? question.options.map((opt, i) =>
       `<button class="option" data-action="choose" data-u="${unitKey}" data-index="${index}" data-opt="${i}"><span class="radio"></span><span>${letterOf(i)}．${escape(opt)}</span></button>`).join('') : '';
     return `<article class="card" id="${unitKey}-q${index}">
-      <div class="qrow"><span class="qindex">${index + 1}</span><div><h2>${question.q || ''}</h2><span class="tag">${question.type === 'choice' ? '选择' : '填空/翻译'}</span></div></div>
+      <div class="qrow"><span class="qindex">${index + 1}</span><div><h2>${question.q || ''}</h2><span class="tag">${question.type === 'choice' ? (multi ? '多选' : '选择') : '填空/翻译'}</span></div></div>
       ${options ? `<div class="options">${options}</div>` : ''}
       <button class="answer-toggle" data-action="answer" data-u="${unitKey}" data-index="${index}">点击展开答案</button>
       <div class="answer" hidden></div>
@@ -61,6 +62,16 @@
     body.innerHTML = modules + instruction + unit.questions.map((q, i) => card(q, unit.key, i)).join('');
   }
 
+  function showAnswer(cardNode, q, right) {
+    const ansNode = cardNode.querySelector('.answer');
+    const toggle = cardNode.querySelector('.answer-toggle');
+    if (ansNode && toggle) {
+      ansNode.hidden = false;
+      ansNode.textContent = '正确答案：' + right.map(i => `${letterOf(i)}．${q.options[i]}`).join('；');
+      toggle.textContent = '收起答案';
+    }
+  }
+
   function choose(unitKey, index, optIndex) {
     const unit = unitOf(unitKey);
     const q = unit && unit.questions[index];
@@ -69,19 +80,29 @@
     const cardNode = document.getElementById(`${unitKey}-q${index}`);
     if (!cardNode) return;
     const buttons = [...cardNode.querySelectorAll('.option')];
-    buttons.forEach((btn, i) => {
-      if (right.includes(i)) btn.classList.add('correct');
-      else if (i === optIndex) btn.classList.add('wrong');
-      btn.disabled = true;
-    });
-    // 展开答案反馈
-    const ansNode = cardNode.querySelector('.answer');
-    const toggle = cardNode.querySelector('.answer-toggle');
-    if (ansNode && toggle) {
-      ansNode.hidden = false;
-      ansNode.textContent = '正确答案：' + right.map(i => `${letterOf(i)}．${q.options[i]}`).join('；');
-      toggle.textContent = '收起答案';
+    // 单选：点击即判定
+    if (right.length <= 1) {
+      buttons.forEach((btn, i) => {
+        if (right.includes(i)) btn.classList.add('correct');
+        else if (i === optIndex) btn.classList.add('wrong');
+        btn.disabled = true;
+      });
+      showAnswer(cardNode, q, right);
+      return;
     }
+    // 多选（答案含多个字母，如 "CD"）：点击切换选中态，
+    // 选中数量达到答案数时自动判定，避免逐一猜选。
+    const btn = buttons[optIndex];
+    if (!btn || btn.disabled) return;
+    btn.classList.toggle('selected');
+    const picked = buttons.map((b, i) => b.classList.contains('selected') ? i : -1).filter(i => i >= 0);
+    if (picked.length < right.length) return;
+    buttons.forEach((b, i) => {
+      if (right.includes(i)) b.classList.add('correct');
+      else if (picked.includes(i)) b.classList.add('wrong');
+      b.disabled = true;
+    });
+    showAnswer(cardNode, q, right);
   }
 
   function toggleAnswer(unitKey, index) {
