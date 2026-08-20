@@ -36,12 +36,19 @@
 ```
 source/*.json ──> scripts/build/build.js ──> 思政系列/data.js + data.json
                                             计算机系列/data.js + data.json
+                                            专业课/英语系/泛读系列/data.js + data.json
+                                            专业课/英语系/基英系列/data.js + data.json
 ```
 
 - `source/politics.json`：思政五门题库（ethics / history / marx / mao / xi）
 - `source/computer.json`：计算机题库
 - `source/vocabulary.json`：背单词词汇（tem4 / tem8）
+- `source/reading.json`：泛读系列教材题库（books → units → questions，由旧静态 HTML 提取迁移）
+- `source/basic-english.json`：基英系列教材题库（同上）
 - `source/tem4.json`、`source/tem8.json`、`source/dictionary.json`：查词词典与词表素材
+- `source/translations.json`、`source/rewrite-sentences.json`：翻译/改写句子题库（特殊结构，手动维护）
+
+**新增/导入题目**（推荐流程，见下方「题库导入工具」）：浏览器粘贴校验 → 下载标准 JSON → 本地一行命令合并，全程不需要手改源文件。
 
 scripts 下常用命令（在项目根目录执行）：
 
@@ -53,11 +60,35 @@ node scripts/build/report.js         # 生成数据治理报告
 node scripts/build/verify-docx.js    # 与《大一上思政.docx》核对
 node scripts/build/dedupe-history.js # 近代史去重（331→215）
 node scripts/build/fix-history-answers.js # 近代史答案修正脚本（multi#15 等）
+node scripts/extract-content.js      # 泛读/基英 静态 HTML → source JSON 迁移工具（已迁移，保留参考）
+node scripts/import-quiz.js          # 本地题库导入器（见下方说明）
+node scripts/quiz-schema.js          # 题库校验规则（Node/浏览器双端共用）
 node scripts/count-types.js          # 统计各题库题型分布
 node scripts/check-links.js          # 全站 HTML 资源引用完整性检查
 node scripts/inject-common.js        # 全站注入主题防闪烁脚本 + theme.css + common.js（幂等）
 node scripts/make-brand-assets.ps1   # 生成 PWA 图标与分享图（需在项目根用 PowerShell 执行）
 ```
+
+## 题库导入工具
+
+两种方式，都自动校验（题型白名单、选项数量、答案范围、重复检测）：
+
+**① 在线页面**（无需装环境）：打开 `题库导入.html`（线上 `/666/题库导入.html`），选择目标题库、粘贴 JSON 或 CSV，点「校验并生成导入文件」→ 下载 `import.json`。
+
+**② 本地命令**（推荐，一步到位）：
+
+```bash
+# JSON 或 CSV 文件，CSV 列：type,title,options,answer,hint（options 用 | 分隔，type 留空自动推断）
+node scripts/import-quiz.js politics 导入.json --bank ethics          # 思政某 bank
+node scripts/import-quiz.js computer 导入.csv --bank computer-first-semester
+node scripts/import-quiz.js reading 导入.json --unit book-1-word-unit-9   # 追加现有单元
+node scripts/import-quiz.js reading 导入.json --unit-name "Unit 16 · 补充" # 新建单元
+node scripts/import-quiz.js politics 导入.json --bank ethics --check  # 只校验不写入
+```
+
+导入器会自动：校验 → 与库内去重合并 → 备份源文件（`source/*.json.bak-import-*`）→ 重排 id → 提示发布。最后跑 `node scripts/release.js` 一键上线。
+
+**同学纠错**：全站题目卡片上有「⚠ 纠错」按钮，点击复制纠错信息（页面/题干/当前答案），粘贴发给站长即可；如需直达邮箱，在页面里设置 `window.WAIYUAN_FEEDBACK_EMAIL`。
 
 ## 单文件离线版
 
