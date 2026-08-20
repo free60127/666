@@ -1,8 +1,14 @@
 (() => {
   const KEY = 'waiyuan-unified-web-study-v1';
   const VOCABULARY_KEY = 'waiyuan-vocabulary-progress-v1';
+  // 2026-08-21 统一数据范围：导出/导入/清空覆盖全部学习数据（含思政/计算机答题状态、
+  // 查词收藏、当前词书），不再遗漏页面自带的本地存储。
+  const POLITICS_KEY = 'politics-h5-state-v1';
+  const COMPUTER_KEY = 'computer-h5-state-v1';
+  const LOOKUP_KEY = 'waiyuan-lookup-words-v1';
+  const BOOK_MEMORY_KEY = 'waiyuan-vocabulary-book-v1';
   const BACKUP_FORMAT = 'waiyuan-study-backup';
-  const DATA_VERSION = 1;
+  const DATA_VERSION = 2;
   const app = document.getElementById('app');
   const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
   const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -10,6 +16,42 @@
   const objectOrEmpty = value => isObject(value) ? value : {};
   const readJson = key => {
     try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; }
+  };
+  const EXTRA_KEYS = [POLITICS_KEY, COMPUTER_KEY, LOOKUP_KEY, BOOK_MEMORY_KEY];
+  const createBackup = () => {
+    const extra = {};
+    for (const key of EXTRA_KEYS) {
+      const value = readJson(key);
+      if (value !== null) extra[key] = value;
+    }
+    return {
+      format:BACKUP_FORMAT,
+      version:DATA_VERSION,
+      exportedAt:new Date().toISOString(),
+      data:{
+        webQuiz:{storageKey:KEY,...read()},
+        vocabulary:{storageKey:VOCABULARY_KEY,progress:readVocabulary()},
+        extra
+      }
+    };
+  };
+  const validateBackup = value => {
+    if (!isObject(value) || value.format !== BACKUP_FORMAT || !isObject(value.data)) {
+      throw new Error('文件格式或版本不受支持');
+    }
+    // v1 备份没有 version 字段，同样兼容；v2 引入 extra（思政/计算机等附加数据）
+    if (value.version !== undefined && value.version !== 1 && value.version !== DATA_VERSION) {
+      throw new Error('文件版本不受支持');
+    }
+    const webQuiz = value.data.webQuiz;
+    const vocabulary = value.data.vocabulary;
+    if (!isObject(webQuiz) || !isObject(vocabulary)) throw new Error('备份缺少网页题库或背单词数据');
+    const extra = isObject(value.data.extra) ? value.data.extra : {};
+    return {
+      webQuiz:normalizeUnified(webQuiz),
+      vocabulary:normalizeVocabulary(vocabulary.progress),
+      extra
+    };
   };
   const normalizeUnified = value => {
     const state = objectOrEmpty(value);
@@ -56,27 +98,6 @@
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 0);
   };
-  const createBackup = () => ({
-    format:BACKUP_FORMAT,
-    version:DATA_VERSION,
-    exportedAt:new Date().toISOString(),
-    data:{
-      webQuiz:{storageKey:KEY,...read()},
-      vocabulary:{storageKey:VOCABULARY_KEY,progress:readVocabulary()}
-    }
-  });
-  const validateBackup = value => {
-    if (!isObject(value) || value.format !== BACKUP_FORMAT || value.version !== DATA_VERSION || !isObject(value.data)) {
-      throw new Error('文件格式或版本不受支持');
-    }
-    const webQuiz = value.data.webQuiz;
-    const vocabulary = value.data.vocabulary;
-    if (!isObject(webQuiz) || !isObject(vocabulary)) throw new Error('备份缺少网页题库或背单词数据');
-    return {
-      webQuiz:normalizeUnified(webQuiz),
-      vocabulary:normalizeVocabulary(vocabulary.progress)
-    };
-  };
   const exportData = () => {
     try {
       download(JSON.stringify(createBackup(), null, 2), `waiyuan-study-backup-${dateStamp()}.json`);
@@ -91,10 +112,17 @@
     reader.onload = () => {
       try {
         const backup = validateBackup(JSON.parse(reader.result));
-        if (!window.confirm('导入会覆盖当前的网页题库记录和背单词记录，是否继续？')) return;
+        if (!window.confirm('导入会覆盖当前的网页题库、背单词、思政/计算机答题状态等全部学习数据，是否继续？')) return;
         localStorage.setItem(KEY, JSON.stringify(backup.webQuiz));
         localStorage.setItem(VOCABULARY_KEY, JSON.stringify(backup.vocabulary));
-        setStatus('学习数据导入成功，已恢复网页题库和背单词记录。', 'success');
+        let extraCount = 0;
+        for (const key of EXTRA_KEYS) {
+          if (backup.extra[key] !== undefined) {
+            localStorage.setItem(key, JSON.stringify(backup.extra[key]));
+            extraCount++;
+          }
+        }
+        setStatus(`学习数据导入成功，已恢复网页题库、背单词${extraCount ? `及 ${extraCount} 项附加数据` : ''}记录。`, 'success');
         render();
       } catch (error) {
         setStatus(`导入失败：${error.message || '无法读取文件'}。`, 'error');
@@ -104,11 +132,12 @@
     reader.readAsText(file, 'utf-8');
   };
   const clearData = () => {
-    if (!window.confirm('确定清空网页题库和背单词的本地学习数据吗？此操作无法撤销。')) return;
+    if (!window.confirm('确定清空全部本地学习数据吗（网页题库、背单词、思政/计算机答题状态、查词收藏）？此操作无法撤销，建议先导出备份。')) return;
     try {
       localStorage.removeItem(KEY);
       localStorage.removeItem(VOCABULARY_KEY);
-      setStatus('本地学习数据已清空。', 'success');
+      for (const key of EXTRA_KEYS) localStorage.removeItem(key);
+      setStatus('全部本地学习数据已清空。', 'success');
       render();
     } catch (_) {
       setStatus('清空失败，请检查浏览器存储权限。', 'error');
@@ -136,6 +165,53 @@
     return `<article class="item"><div class="item-head"><h2>${escape(item.title || '未命名题目')}</h2><span class="source">${escape(sourceName(item))}${item.updatedAt ? ` · ${escape(date(item.updatedAt))}` : ''}</span></div>${item.answer ? `<div class="answer"><b>参考答案</b><br>${escape(item.answer)}</div>` : ''}<div class="item-actions"><a href="${escape(sourceUrl(item))}">返回原题页面</a>${kind === 'mistake' ? `<a class="practice-link" href="${escape(practiceUrl(item))}">重新练习</a>` : ''}${kind === 'favorite' ? `<button class="remove" data-remove="${escape(item.key)}">取消收藏</button>` : ''}</div></article>`;
   }
 
+  // —— 统计增强（2026-08-21）：按课程进度 / 连续天数 / 近 7 天曲线 / 每日目标 ——
+  const dayOf = time => { const v = new Date(time); return Number.isFinite(v.getTime()) ? v.toISOString().slice(0, 10) : ''; };
+  const courseOf = item => {
+    const p = String(item.path || '');
+    const page = String(item.page || '');
+    if (p.includes('/思政系列/')) return '思政';
+    if (p.includes('/计算机系列/')) return '计算机';
+    if (p.includes('泛读系列')) return '泛读';
+    if (p.includes('基英系列')) return '基英';
+    if (page.includes('翻译句子') || p.includes('翻译句子')) return '翻译';
+    if (page.includes('改写句子') || p.includes('改写句子')) return '改写';
+    if (p.includes('/专业课/')) return '专业课';
+    return '其他';
+  };
+  const computeStreak = progress => {
+    const days = new Set();
+    for (const item of progress) {
+      const d = dayOf(item.updatedAt);
+      if (d) days.add(d);
+    }
+    if (!days.size) return 0;
+    const list = [...days].sort();
+    // 从今天或昨天开始向前数连续
+    const date = new Date();
+    const today = date.toISOString().slice(0, 10);
+    if (!days.has(today)) { date.setDate(date.getDate() - 1); if (!days.has(date.toISOString().slice(0, 10))) return 0; }
+    let streak = 0;
+    while (true) {
+      const key = date.toISOString().slice(0, 10);
+      if (!days.has(key)) break;
+      streak++;
+      date.setDate(date.getDate() - 1);
+    }
+    return streak;
+  };
+  const last7Days = progress => {
+    const out = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(); date.setDate(date.getDate() - i);
+      const key = date.toISOString().slice(0, 10);
+      const count = progress.filter(item => dayOf(item.updatedAt) === key && item.answered).length;
+      out.push({ day: key.slice(5), count });
+    }
+    return out;
+  };
+  const barStyle = (count, max) => count ? `style="height:${Math.max(8, Math.round(count / max * 100))}%"` : '';
+
   function renderOverview(state) {
     const progress = Object.values(state.progress);
     const answered = progress.filter(item => item.answered);
@@ -143,7 +219,34 @@
     const wrong = answered.filter(item => item.wrong === true).length;
     const accuracy = answered.length ? `${Math.round(correct / answered.length * 100)}%` : '—';
     const recent = [...progress].sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0,5);
-    app.innerHTML = `<section class="stats"><div class="stat"><small>已学习</small><b>${progress.length}</b></div><div class="stat"><small>答对</small><b>${correct}</b></div><div class="stat"><small>统一错题</small><b>${wrong}</b></div><div class="stat"><small>正确率</small><b>${accuracy}</b></div></section><h2 class="section-title">最近学习</h2>${recent.length ? `<div class="items">${recent.map(item => itemCard(item,'progress')).join('')}</div>` : empty('还没有学习记录','在网页题库中答题或展开答案后，这里会自动记录。')}<p class="note">网页端记录保存在当前浏览器中；更换设备或清理浏览器数据后不会自动同步。</p>`;
+    const today = dateStamp();
+    const todayCount = answered.filter(item => dayOf(item.updatedAt) === today).length;
+    const dailyGoal = Number(state.settings.dailyGoal) || 0;
+    const vocab = readVocabulary();
+    const vocabToday = (vocab.history && vocab.history[today] && vocab.history[today].reviews) || 0;
+    // 按课程分组
+    const groups = new Map();
+    for (const item of answered) {
+      const name = courseOf(item);
+      if (!groups.has(name)) groups.set(name, []);
+      groups.get(name).push(item);
+    }
+    const courseRows = [...groups.entries()].sort((a,b) => b[1].length - a[1].length).map(([name, items]) => {
+      const ok = items.filter(i => i.ok === true).length;
+      const wrongIn = items.filter(i => i.wrong === true).length;
+      return `<div class="course-row"><span>${escape(name)}</span><b>${items.length} 题</b><small>答对 ${ok} · 正确率 ${items.length ? Math.round(ok / items.length * 100) : 0}%</small>${wrongIn ? `<em>${wrongIn} 待复习</em>` : ''}</div>`;
+    }).join('');
+    // 近 7 天
+    const days = last7Days(progress);
+    const maxDay = Math.max(1, ...days.map(d => d.count));
+    const bars = days.map(d => `<div class="bar" title="${d.day} 答题 ${d.count}"><div class="bar-inner" ${barStyle(d.count, maxDay)}></div><small>${d.day}</small></div>`).join('');
+    const streak = computeStreak(progress);
+    const goalPct = dailyGoal ? Math.min(100, Math.round(todayCount / dailyGoal * 100)) : 0;
+    app.innerHTML = `<section class="stats"><div class="stat"><small>已学习</small><b>${progress.length}</b></div><div class="stat"><small>答对</small><b>${correct}</b></div><div class="stat"><small>统一错题</small><b>${wrong}</b></div><div class="stat"><small>正确率</small><b>${accuracy}</b></div></section>
+<section class="goal-card"><div class="goal-row"><b>每日答题目标</b><input id="daily-goal-input" type="number" min="0" max="500" value="${dailyGoal}" inputmode="numeric" aria-label="每日答题目标"><button type="button" data-action="set-goal">保存</button></div>${dailyGoal ? `<div class="goal-track" role="progressbar" aria-label="今日目标进度" aria-valuenow="${goalPct}" aria-valuemin="0" aria-valuemax="100"><div class="goal-fill" style="width:${goalPct}%"></div></div>` : ''}<small>今日完成 <b>${todayCount}</b> 题 · 背单词复习 <b>${vocabToday}</b> 词${streak ? ` · 连续学习 <b>${streak}</b> 天` : ''}</small></section>
+${courseRows ? `<section class="course-progress"><h2 class="section-title">按课程进度</h2>${courseRows}</section>` : ''}
+${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title">最近 7 天</h2><div class="bars">${bars}</div></section>` : ''}
+<h2 class="section-title">最近学习</h2>${recent.length ? `<div class="items">${recent.map(item => itemCard(item,'progress')).join('')}</div>` : empty('还没有学习记录','在网页题库中答题或展开答案后，这里会自动记录。')}<p class="note">网页端记录保存在当前浏览器中；更换设备或清理浏览器数据后不会自动同步。导出备份会包含网页题库、背单词、思政/计算机答题状态与查词收藏。</p>`;
   }
 
   function empty(title, text) { return `<section class="empty"><b>${escape(title)}</b><p>${escape(text)}</p><a href="../index.html">去选择题库</a></section>`; }
@@ -179,6 +282,14 @@
     if (action === 'export') exportData();
     if (action === 'import') document.getElementById('import-file')?.click();
     if (action === 'clear') clearData();
+    if (action === 'set-goal') {
+      const state = read();
+      const value = parseInt(document.getElementById('daily-goal-input')?.value, 10);
+      state.settings.dailyGoal = Number.isFinite(value) ? Math.min(Math.max(value, 0), 500) : 0;
+      write(state);
+      setStatus(`每日答题目标已设为 ${state.settings.dailyGoal || 0} 题。`, 'success');
+      render();
+    }
     if (action === 'remind') {
       const state = read();
       state.settings.remindOn = !state.settings.remindOn;

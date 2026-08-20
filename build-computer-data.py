@@ -5,7 +5,9 @@ from pathlib import Path
 from docx import Document
 
 SOURCE = Path(r"D:\study\学校课程开源项目\上学期入库试题.docx")
-OUTPUT = Path(__file__).parent / "计算机系列" / "data.js"
+# 2026-08-21 管线统一：产物一律由 scripts/build/build.js 从 source/*.json 生成，
+# 本脚本只负责把 docx 解析结果写入 source/computer.json。
+OUTPUT = Path(__file__).parent / "source" / "computer.json"
 
 
 def compact(text):
@@ -65,5 +67,5 @@ bank = [{
     "subtitle": "计算机基础与 Visual FoxPro 题库",
     "questions": questions,
 }]
-OUTPUT.write_text("window.POLITICS_BANKS=" + json.dumps(bank, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8")
-print(f"Wrote {OUTPUT} with {len(questions)} questions")
+OUTPUT.write_text(json.dumps(bank, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print(f"Wrote {OUTPUT} with {len(questions)} questions (run: node scripts/build/build.js)")

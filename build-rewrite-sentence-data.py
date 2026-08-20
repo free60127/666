@@ -17,7 +17,10 @@ from pypdf import PdfReader
 
 
 SOURCE_PDF = Path(r"D:\study\sb\《新编英语语法教程 学生用书 》第6版课后练习答案.pdf")
-OUTPUT_DIR = Path(__file__).parent / "专业课" / "语法（通用）" / "改写句子"
+# 2026-08-21 管线统一：产物一律由 scripts/build/build.js 从 source/*.json 生成，
+# 本脚本只负责把 PDF 解析结果写入 source/rewrite-sentences.json。
+OUTPUT_DIR = Path(__file__).parent / "source"
+OUTPUT_FILE = OUTPUT_DIR / "rewrite-sentences.json"
 
 
 def compact(text: str) -> str:
@@ -243,9 +246,8 @@ def main() -> None:
         "withheld": withheld,
     }
     serialized = json.dumps(payload, ensure_ascii=False, indent=2)
-    (OUTPUT_DIR / "data.json").write_text(serialized + "\n", encoding="utf-8")
-    (OUTPUT_DIR / "data.js").write_text(f"window.REWRITE_SENTENCE_DATA = {serialized};\n", encoding="utf-8")
-    print(f"Built {len(exercises)} exercises / {sum(len(item['questions']) for item in exercises)} questions")
+    OUTPUT_FILE.write_text(serialized + "\n", encoding="utf-8")
+    print(f"Wrote {OUTPUT_FILE} with {len(exercises)} exercises / {sum(len(item['questions']) for item in exercises)} questions (run: node scripts/build/build.js)")
     for item in exercises:
         print(f"{item['title']}: {len(item['questions'])} question-answer pairs")
     for item in withheld:

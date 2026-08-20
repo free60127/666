@@ -1,17 +1,19 @@
 /* ============================================================
    外院知识分享站 · Service Worker (PWA 离线缓存)
    缓存策略：
-   - install：预缓存核心入口资源（首页 + 6 个子页面入口）
+   - install：预缓存核心入口资源（首页 + 6 个子页面入口 + 思政/计算机题库）
    - fetch：
      ① 导航请求 network-first，离线回退缓存（子页面可离线打开壳）；
-     ② 带 ?v= 版本号的静态资源 cache-first（发布即换新 URL，永不过期），
+     ② 题库/词书/词典等数据文件：缓存 key 用「无版本号 URL」——
+        页面带 ?v= 请求命中缓存即回，同时后台刷新；离线时预缓存的
+        思政/计算机题库、访问过的词书/词典均可使用；
+     ③ 其他带 ?v= 静态资源 cache-first（发布即换新 URL，永不过期），
         命中时后台刷新并清理同一文件的旧版本条目（防无限累积）；
-     ③ 无版本号资源（theme.css/common.js/manifest/favicon 等）
-        stale-while-revalidate：先回缓存立即响应，同时后台拉新，
-        下次访问即新版本。
+     ④ 无版本号资源（theme.css/common.js/manifest/favicon 等）
+        stale-while-revalidate：先回缓存立即响应，同时后台拉新。
    版本号：更新本文件 CACHE 常量即可整体换新缓存。
    ============================================================ */
-const CACHE = 'waiyuan-v3';
+const CACHE = 'waiyuan-v4';
 
 const PRECACHE = [
   './',
@@ -36,8 +38,19 @@ const PRECACHE = [
   './计算机系列/index.html',
   './学习中心/index.html',
   './考证/index.html',
-  './专业课/index.html'
+  './专业课/index.html',
+  // 题库数据：思政/计算机为全站核心，离线可用；其余数据（泛读/基英/
+  // 词书/词典）访问过一次后自动进入运行时缓存
+  './思政系列/data.js',
+  './计算机系列/data.js'
 ];
+
+// 数据文件：以「无版本号 URL」作为缓存 key，页面带 ?v= 的请求也能命中
+function isDataFile(pathname) {
+  return /(思政系列|计算机系列|专业课\/英语系\/(泛读|基英)系列)\/data\.js$/.test(pathname)
+    || /背单词\/vocabulary-(meta|data-tem[48])\.js$/.test(pathname)
+    || /dictionary\/english-lookup-data\.js$/.test(pathname);
+}
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -83,6 +96,34 @@ self.addEventListener('fetch', event => {
           return res;
         })
         .catch(() => caches.match(req).then(hit => hit || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // 数据文件（题库/词书/词典）：缓存 key = 无版本号 URL
+  if (isDataFile(url.pathname)) {
+    const cleanUrl = url.origin + url.pathname;  // 去掉 ?v= 版本号
+    event.respondWith(
+      caches.match(cleanUrl).then(hit => {
+        if (hit) {
+          fetch(req)
+            .then(res => {
+              if (res.ok) {
+                const copy = res.clone();
+                caches.open(CACHE).then(cache => putWithClean(cache, cleanUrl, copy));
+              }
+            })
+            .catch(() => {});
+          return hit;
+        }
+        return fetch(req).then(res => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then(cache => putWithClean(cache, cleanUrl, copy));
+          }
+          return res;
+        });
+      })
     );
     return;
   }

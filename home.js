@@ -61,7 +61,46 @@ const copyShareLink = async button => {
   shareResetTimer = setTimeout(() => { button.textContent = '复制链接'; }, 2600);
 };
 
-// 添加到主屏幕（PWA 安装引导，兼容各类浏览器：iOS Safari / 安卓 Chrome·Edge /
+// 继续学习区块：从本地学习数据渲染「继续上次学习 / 复习错题 / 背单词」入口，
+// 无任何学习数据时整块保持隐藏，不打扰新用户。
+(function renderContinueLearning() {
+  const section = document.getElementById('continue-learning');
+  if (!section) return;
+  const readJson = key => {
+    try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; }
+  };
+  const unified = readJson('waiyuan-unified-web-study-v1');
+  const vocabulary = readJson('waiyuan-vocabulary-progress-v1');
+  const progress = unified && unified.progress ? Object.values(unified.progress) : [];
+  const answered = progress.filter(item => item.answered);
+  const wrong = progress.filter(item => item.wrong);
+  const setText = (id, text) => { const node = document.getElementById(id); if (node) node.textContent = text; };
+  const todayStamp = new Date().toISOString().slice(0, 10);
+  const todayCount = answered.filter(item => {
+    const t = new Date(item.updatedAt);
+    return Number.isFinite(t.getTime()) && t.toISOString().slice(0, 10) === todayStamp;
+  }).length;
+  const vocabHistory = vocabulary && vocabulary.history ? vocabulary.history[todayStamp] : null;
+  const vocabToday = vocabHistory && Number.isFinite(vocabHistory.reviews) ? vocabHistory.reviews : 0;
+  const vocabGoal = vocabulary && vocabulary.settings && vocabulary.settings.dailyGoal ? vocabulary.settings.dailyGoal : 10;
+  if (!answered.length && !wrong.length && !vocabToday) return;  // 无数据不打扰
+
+  const last = [...answered].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+  const lastLink = document.getElementById('continue-last');
+  if (lastLink && last) {
+    const path = String(last.path || '');
+    const target = path.startsWith('/') && !path.startsWith('//') ? path : '学习中心/index.html';
+    const separator = target.includes('?') ? '&' : '?';
+    lastLink.href = `${target}${separator}focus=${encodeURIComponent(last.key || '')}#quiz-focus`;
+    const title = String(last.title || '上次未完成的题目');
+    setText('continue-last-text', title.length > 22 ? `${title.slice(0, 22)}…` : title);
+  }
+  setText('continue-today', `今日已答 ${todayCount} 题 · 背词 ${vocabToday}/${vocabGoal}`);
+  setText('continue-mistakes', `${wrong.length} 道错题待复习`);
+  setText('continue-vocab', `今日 ${vocabToday} / ${vocabGoal} 词`);
+  section.hidden = false;
+})();
+// // 添加到主屏幕（PWA 安装引导，兼容各类浏览器：iOS Safari / 安卓 Chrome·Edge /
 // 国产浏览器 / 微信内置浏览器——无安装能力时给出对应菜单路径）
 const installSite = document.getElementById('install-site');
 const installBtn = document.getElementById('install-btn');

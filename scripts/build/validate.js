@@ -116,14 +116,24 @@ function validateDictionary(file, data) {
 }
 
 // ---- exercise format (translations / rewrite) ----
+// 2026-08-21 合并自 scripts/validate-quiz-data.js（原独立校验器已删除）：
+// number 必填、title/kind/id 必填、expectedAnswerCount 一致性警告。
 function validateExercises(file, data) {
   if (!isObject(data)) { fail(file, 'expected an object'); return; }
   if (!isNonEmptyString(data.source)) fail(file, 'source is empty');
   const groups = Array.isArray(data.sections) ? data.sections : Array.isArray(data.exercises) ? data.exercises : null;
   if (!groups) { fail(file, 'expected sections or exercises'); return; }
   const ids = new Set();
+  const hasValue = value => isNonEmptyString(value) || (typeof value === 'number' && Number.isInteger(value));
   for (const group of groups) {
     if (!isObject(group)) { fail(file, 'group must be an object'); continue; }
+    if (Array.isArray(data.exercises)) {
+      for (const field of ['id', 'title', 'kind']) {
+        if (!isNonEmptyString(group[field])) fail(file, `${field} is empty (group "${group.id ?? group.title ?? '?'}")`);
+      }
+    } else if (!isNonEmptyString(group.title)) {
+      fail(file, 'section title is empty');
+    }
     if (group.id !== undefined) {
       if (ids.has(group.id)) fail(file, `duplicate group id ${group.id}`);
       ids.add(group.id);
@@ -136,18 +146,73 @@ function validateExercises(file, data) {
       const text = item.question ?? item.text;
       if (!isNonEmptyString(text)) fail(file, `empty question text (number ${item.number ?? '?'})`);
       if (!isNonEmptyString(item.answer)) fail(file, `empty answer (number ${item.number ?? '?'})`);
+      if (!hasValue(item.number)) fail(file, `item number is missing: "${String(text || '').slice(0, 40)}…"`);
       if (item.number !== undefined) {
         const key = String(item.number);
         if (numbers.has(key)) fail(file, `duplicate question number ${key} in group "${group.title || group.id || '?'}"`);
         numbers.add(key);
       }
     }
+    if (group.expectedAnswerCount !== undefined && group.expectedAnswerCount !== items.length) {
+      warn(file, `${group.title || group.id}: expectedAnswerCount (${group.expectedAnswerCount}) differs from items.length (${items.length})`);
+    }
   }
+}
+
+// ---- content-book format (reading / basic-english) ----
+// {version, title, books:[{key, name, units:[{key, kind, name, questions:[{index,q,options?,answer,type}]}]}]}
+// type: choice（有选项 + 字母答案）/ text
+function validateContentBooks(file, data) {
+  if (!isObject(data)) { fail(file, 'expected an object'); return; }
+  if (!isNonEmptyString(data.title)) fail(file, 'title is empty');
+  if (!Array.isArray(data.books) || !data.books.length) { fail(file, 'books missing/empty'); return; }
+  const bookKeys = new Set();
+  let totalQuestions = 0;
+  for (const book of data.books) {
+    if (!isObject(book)) { fail(file, 'book must be an object'); continue; }
+    if (!isNonEmptyString(book.key)) fail(file, 'book.key missing/empty');
+    if (bookKeys.has(book.key)) fail(file, `duplicate book key ${book.key}`);
+    bookKeys.add(book.key);
+    if (!isNonEmptyString(book.name)) fail(file, `${book.key}: book.name empty`);
+    const units = Array.isArray(book.units) ? book.units : [];
+    const unitKeys = new Set();
+    for (const unit of units) {
+      if (!isObject(unit)) { fail(file, `${book.key}: unit must be an object`); continue; }
+      if (!isNonEmptyString(unit.key)) fail(file, `${book.key}: unit.key missing/empty`);
+      if (unitKeys.has(unit.key)) fail(file, `${book.key}: duplicate unit key ${unit.key}`);
+      unitKeys.add(unit.key);
+      if (!isNonEmptyString(unit.name)) fail(file, `${book.key}/${unit.key}: unit.name empty`);
+      const questions = Array.isArray(unit.questions) ? unit.questions : [];
+      const indices = new Set();
+      for (const question of questions) {
+        if (!isObject(question)) { fail(file, `${book.key}/${unit.key}: question must be an object`); continue; }
+        if (question.index === undefined) fail(file, `${book.key}/${unit.key}: question index missing: "${String(question.q || '').slice(0, 40)}…"`);
+        else if (indices.has(String(question.index))) fail(file, `${book.key}/${unit.key}: duplicate question index ${question.index}`);
+        indices.add(String(question.index));
+        if (!isNonEmptyString(question.q)) fail(file, `${book.key}/${unit.key}: empty question q (index ${question.index ?? '?'})`);
+        if (!isNonEmptyString(question.answer)) fail(file, `${book.key}/${unit.key}: empty answer (index ${question.index ?? '?'})`);
+        const type = String(question.type || '');
+        if (type !== 'choice' && type !== 'text') fail(file, `${book.key}/${unit.key}: invalid type "${type}" (index ${question.index ?? '?'})`);
+        const options = question.options || [];
+        if (type === 'choice') {
+          if (!Array.isArray(options) || options.length < 2) fail(file, `${book.key}/${unit.key}: choice question needs >=2 options (index ${question.index ?? '?'})`);
+          const answer = String(question.answer || '').trim().replace(/^参考答案[:：]\s*/i, '');
+          if (/^[A-Z]+$/i.test(answer)) {
+            for (const letter of answer.toUpperCase()) {
+              if (letter.charCodeAt(0) - 65 >= options.length) fail(file, `${book.key}/${unit.key}: answer "${answer}" out of range for index ${question.index}`);
+            }
+          }
+        }
+        totalQuestions++;
+      }
+    }
+  }
+  console.log(`  content books: ${data.books.length} books, ${totalQuestions} questions`);
 }
 
 const defaults = [
   'politics.json', 'computer.json', 'vocabulary.json', 'dictionary.json',
-  'translations.json', 'rewrite-sentences.json',
+  'translations.json', 'rewrite-sentences.json', 'reading.json', 'basic-english.json',
 ];
 const targets = args.length ? args : defaults.map(name => path.join(sourceDir, name));
 
@@ -158,6 +223,7 @@ for (const file of targets) {
   if (name === 'politics.json' || name === 'computer.json') validateBanks(path.relative(root, file), data);
   else if (name === 'vocabulary.json') validateVocabulary(path.relative(root, file), data);
   else if (name === 'dictionary.json') validateDictionary(path.relative(root, file), data);
+  else if (name === 'reading.json' || name === 'basic-english.json') validateContentBooks(path.relative(root, file), data);
   else validateExercises(path.relative(root, file), data);
 }
 

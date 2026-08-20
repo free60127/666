@@ -1465,7 +1465,7 @@ html[data-theme="dark"] .wrap .answer summary { background: #2c4036 !important; 
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-0124'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-0153'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;

@@ -29,6 +29,9 @@ try {
   // ---------- 1. 重建数据产物 ----------
   tryRun('重建数据产物', 'node scripts/build/build.js');
 
+  // ---------- 1.5 数据源全量校验（8 个 source/*.json，失败即中止发布）----------
+  tryRun('数据源校验', 'node scripts/build/validate.js');
+
   // ---------- 2. 全站 HTML + 运行时脚本版本号刷新 ----------
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
