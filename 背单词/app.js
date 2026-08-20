@@ -9,23 +9,29 @@
   const loadBook = (key, done) => {
     if (books.some(b => b.key === key)) return done();
     const script = document.createElement('script');
-    script.src = `vocabulary-data-${key}.js?v=20260820-split-1`;
-    script.onload = () => done();
-    script.onerror = () => { root.innerHTML = `${brand}<section class="hero"><h1>词库加载失败<span>。</span></h1><p>请检查网络后重新点击词书卡片。</p><button class="primary" data-action="home">返回首页</button></section>`; };
+    script.src = `vocabulary-data-${key}.js?v=20260820-2226`;
+    // 竞态保护：快速切换词书时，旧回调不得渲染（state.bookKey 已指向新书）
+    script.onload = () => { if (state.bookKey === key) done(); };
+    script.onerror = () => { if (state.bookKey !== key) return; root.innerHTML = `${brand}<section class="hero"><h1>词库加载失败<span>。</span></h1><p>请检查网络后重新点击词书卡片。</p><button class="primary" data-action="home">返回首页</button></section>`; };
     document.head.appendChild(script);
   };
   const fsrsApi = window.FSRS;
+  if (!fsrsApi) {
+    // vendor 脚本加载失败时给出可读提示，而不是在启动处抛异常白屏
+    document.addEventListener('DOMContentLoaded', () => { const app = document.querySelector('#app'); if (app) app.innerHTML = '<section class="hero"><h1>复习引擎加载失败</h1><p>请刷新页面重试；若仍失败请清除浏览器缓存后重新打开。</p></section>'; });
+    throw new Error('FSRS vendor not loaded');
+  }
   const scheduler = fsrsApi.fsrs({enable_fuzz: false, enable_short_term: false});
   const root = document.querySelector('#app');
   const storageKey = 'waiyuan-vocabulary-progress-v1';
   const load = () => { try { return JSON.parse(localStorage.getItem(storageKey)) || {}; } catch (_) { return {}; } };
   const progress = load();
-  progress.words ||= {};
-  progress.history ||= {};
-  progress.sequence ||= {};
-  progress.settings ||= {dailyGoal: 10, autoSpeak: true, remindTime: ''};
-  progress.settings.dailyGoal ||= 10;
-  progress.settings.remindTime ||= '';
+  if (!progress.words) progress.words = {};
+  if (!progress.history) progress.history = {};
+  if (!progress.sequence) progress.sequence = {};
+  if (!progress.settings) progress.settings = {dailyGoal: 10, autoSpeak: true, remindTime: ''};
+  if (!progress.settings.dailyGoal) progress.settings.dailyGoal = 10;
+  if (!progress.settings.remindTime) progress.settings.remindTime = '';
   if (progress.settings.autoSpeak === undefined) progress.settings.autoSpeak = true;
   const state = {view: 'home', bookKey: '', mode: 'card', queue: [], index: 0, initialTotal: 0, reviewed: 0, correct: 0, filter: 'all', listLimit: 200, listQuery: '', requeue: {}, recordedPositions: {}, advanceTimer: null};
   const save = () => { try { localStorage.setItem(storageKey, JSON.stringify(progress)); } catch (_) {} };
@@ -65,11 +71,16 @@
   function startStudy(mode) {
     state.mode = mode;
     const words = orderedWords(book());
-    const sequence = progress.sequence[state.bookKey] ||= {cursor: 0, orderVersion: 2};
+    if (!progress.sequence[state.bookKey]) progress.sequence[state.bookKey] = {cursor: 0, orderVersion: 2};
+    const sequence = progress.sequence[state.bookKey];
     if (sequence.orderVersion !== 2) { sequence.cursor = 0; sequence.orderVersion = 2; }
     const cursor = Math.max(0, Math.min(Number(sequence.cursor) || 0, Math.max(0, words.length - 1)));
     const ordered = [...words.slice(cursor), ...words.slice(0, cursor)];
-    const due = words.filter(word => isLearned(wordState(word)) && wordState(word).due <= day());
+    const dueAll = words.filter(word => isLearned(wordState(word)) && wordState(word).due <= day());
+    // 待复习词可能很多：单次会话封顶 60 个，剩余在列表/下次继续，避免超长会话
+    const DUE_SESSION_CAP = 60;
+    const due = dueAll.slice(0, DUE_SESSION_CAP);
+    state.dueNote = dueAll.length > DUE_SESSION_CAP ? `还有 ${dueAll.length - DUE_SESSION_CAP} 个待复习单词留在列表中，明天继续。` : '';
     const unseen = ordered.filter(word => !isLearned(wordState(word)));
     const remaining = Math.max(0, progress.settings.dailyGoal - due.length);
     state.queue = [...due, ...unseen.slice(0, remaining)];
@@ -118,7 +129,7 @@
   }
   function feedback(correct, text) { const node=document.querySelector('#feedback'); node.className=`result ${correct?'correct':'wrong'}`; node.textContent=text; document.querySelector('.word-card').insertAdjacentHTML('beforeend',answerHtml()); state.advanceTimer=setTimeout(()=>record(correct?2:0),700); }
   function previousWord() { if (state.index <= 0) return; clearTimeout(state.advanceTimer); state.index--; renderStudy(); }
-  function renderFinished(){state.view='finished';root.innerHTML=`${brand}<section class="finish"><div class="finish-icon">✓</div><section class="hero"><h1>今日任务<span>完成。</span></h1></section><section class="summary"><article><b>${state.reviewed}</b><small>复习次数</small></article><article><b>${state.correct}</b><small>记住次数</small></article></section><button class="primary" data-action="book-back">返回词书</button></section>`}
+  function renderFinished(){state.view='finished';root.innerHTML=`${brand}<section class="finish"><div class="finish-icon">✓</div><section class="hero"><h1>今日任务<span>完成。</span></h1></section><section class="summary"><article><b>${state.reviewed}</b><small>复习次数</small></article><article><b>${state.correct}</b><small>记住次数</small></article></section>${state.dueNote ? `<p style="color:var(--muted);font-size:14px;margin:14px 0 0">${escapeHtml(state.dueNote)}</p>` : ''}<button class="primary" data-action="book-back">返回词书</button></section>`}
   function renderList(filter,limit=200){state.view='list';state.filter=filter;state.listLimit=limit;const today=day(),query=state.listQuery.trim().toLowerCase();const rows=orderedWords(book()).map(word=>({...word,state:wordState(word)})).filter(x=>filter==='favorite'?x.state&&x.state.favorite:filter==='learned'?isLearned(x.state):filter==='due'?isLearned(x.state)&&x.state.due<=today:filter==='mastered'?x.state&&x.state.mastered:true).filter(x=>!query||x.word.toLowerCase().includes(query)||x.meaning.toLowerCase().includes(query));const shown=rows.slice(0,limit);root.innerHTML=`${brand}<button class="topline" data-action="book-back">‹ 返回词书</button><section class="hero"><h1>单词<span>列表。</span></h1></section><div class="word-search"><input id="word-search" value="${escapeHtml(state.listQuery)}" placeholder="搜索单词或中文释义"><button data-action="word-search">搜索</button></div><div class="list-count">共 ${rows.length} 词 · 已显示 ${shown.length}</div><div class="filters">${[['all','全部'],['learned','已学习'],['due','待复习'],['favorite','收藏'],['mastered','已掌握']].map(x=>`<button class="${filter===x[0]?'active':''}" data-action="list" data-filter="${x[0]}">${x[1]}</button>`).join('')}</div>${shown.length?shown.map(x=>`<div class="word-row"><div><b>${x.word}</b><small>${x.phonetic} · ${x.meaning}</small>${x.bookPage?`<small>词汇书第 ${x.bookPage} 页 · ${x.levelName||''}</small>`:''}</div><span>${!isLearned(x.state)?'未学习':x.state.mastered?'已掌握':x.state.due<=today?'待复习':'学习中'}</span></div>`).join(''):'<div class="empty">这里还没有单词</div>'}${shown.length<rows.length?'<button class="load-more" data-action="list-more">继续显示200词</button>':''}`}
   function renderStats(){state.view='stats';const s=summary(book()),days=Object.keys(progress.history).sort().slice(-7).map(key=>({day:key.slice(5),...progress.history[key]})),reviews=days.reduce((n,x)=>n+x.reviews,0),correct=days.reduce((n,x)=>n+x.correct,0);root.innerHTML=`${brand}<button class="topline" data-action="book-back">‹ 返回词书</button><section class="hero"><h1>学习<span>统计。</span></h1></section><section class="summary"><article><b>${s.learned}</b><small>累计学习</small></article><article><b>${s.mastered}</b><small>已掌握</small></article><article><b>${reviews}</b><small>近7天复习</small></article><article><b>${reviews?Math.round(correct/reviews*100)+'%':'—'}</b><small>近7天记住率</small></article></section><section class="history"><h2>最近学习记录</h2>${days.length?days.map(x=>`<div class="history-row"><span>${x.day}</span><span><b>${x.reviews}</b> 次复习 · <b>${x.correct}</b> 次记住</span></div>`).join(''):'<div class="empty">完成一次学习后，这里会出现记录</div>'}</section>`}
   function renderLicenses(){state.view='licenses';root.innerHTML=`${brand}<button class="topline" data-action="home">‹ 返回词书</button><section class="hero"><p class="kicker">OPEN SOURCE</p><h1>开源参考与<span>许可。</span></h1></section><section class="license-card"><b>Qwerty Learner</b><strong>RealKai42 及贡献者 · GPL-3.0</strong><p>仅参考交互与功能分类，未复制代码、词库或语音资源。</p></section><section class="license-card"><b>UnlearnableWord（学不会单词）</b><strong>Mint-green 及贡献者 · MIT License</strong><p>参考小程序学习、复习和统计流程；当前实现为独立编写。</p></section><section class="license-card"><b>ts-fsrs 5.4.1</b><strong>Open Spaced Repetition 社区 · MIT License</strong><p>已用于小程序端与网页端的智能间隔复习调度。</p></section><section class="license-card"><b>ECDICT</b><strong>skywind3000 / Linwei 及贡献者 · MIT License</strong><p>已筛选导入4115个专四词条的音标、释义、词形与标签字段。</p></section><p class="license-note">专四收词范围参考用户提供的HY2024版词汇书索引；完整声明保存在项目 THIRD_PARTY_NOTICES.md。</p>`}
@@ -143,9 +154,6 @@
       try { new Notification('外院 · 背单词', {body: '今天还没背单词，花几分钟复习一下吧 📖'}); } catch (_) {}
     }
   })();
-  // 启动：预加载上次使用的词书（无记忆则第一本），再渲染首页
-  let initialKey = '';
-  try { const remembered = localStorage.getItem(BOOK_MEMORY_KEY); if (meta.books.some(b => b.key === remembered)) initialKey = remembered; } catch (_) {}
-  if (!initialKey && meta.books.length) initialKey = meta.books[0].key;
-  if (initialKey) { loadBook(initialKey, renderHome); } else { renderHome(); }
+  // 启动：不预加载词书（tem4/tem8 各 2-5MB），进入词书时再按需加载
+  renderHome();
 })();

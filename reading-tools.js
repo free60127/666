@@ -332,7 +332,9 @@
           return entry;
         });
         const studyEntries = [];
-        (window.WAIYUAN_VOCABULARY?.books || []).forEach(book => {
+        // 词书补充条目：只取已按需加载的词书（背单词页拆分产物）。
+        // 其他页面不再回退拉取 4.88MB 整包——ECDICT 词典已覆盖大部分词汇。
+        (window.WAIYUAN_VOCABULARY_BOOKS || []).forEach(book => {
           (book.words || []).forEach(entry => {
             const record = {...entry, bookKey: book.key};
             dictionaryIndex.set(entry.word.toLocaleLowerCase('en'), record);
@@ -350,12 +352,12 @@
       const loadScript = source => new Promise(done => {
         const script = document.createElement('script');
         script.src = new URL(source, assetBaseUrl).href;
-        script.onload = script.onerror = done;
+        script.onload = done;
+        script.onerror = () => { console.warn(`[reading-tools] 词典资源加载失败：${source}`); done(); };
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260818-dict-2'));
-      if (!window.WAIYUAN_VOCABULARY) pending.push(loadScript('背单词/vocabulary-data.js?v=20260817-vocab-1'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260820-2226'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -398,7 +400,7 @@
     try {
       if (activeLookup.entry?.id && activeLookup.entry?.bookKey) {
         const progress = JSON.parse(localStorage.getItem(VOCABULARY_STORAGE_KEY)) || {};
-        progress.words ||= {};
+        if (!progress.words) progress.words = {};
         const current = progress.words[key] || {reps: 0, interval: 0, lapses: 0, due: new Date().toISOString().slice(0, 10)};
         progress.words[key] = {...current, favorite: !current.favorite};
         localStorage.setItem(VOCABULARY_STORAGE_KEY, JSON.stringify(progress));

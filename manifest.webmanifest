@@ -1,4 +1,5 @@
 {
+  "id": "./",
   "name": "外院知识分享站",
   "short_name": "外院分享站",
   "description": "课程题库 · 学习工具 · 专业资料",
@@ -21,6 +22,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

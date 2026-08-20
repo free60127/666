@@ -36,6 +36,7 @@ document.addEventListener('click', event => {
 });
 
 // 分享链接复制（微信分享卡片的入口）
+let shareResetTimer = null;
 const copyShareLink = async button => {
   const url = location.href;
   let ok = false;
@@ -53,7 +54,8 @@ const copyShareLink = async button => {
     } catch (_) {}
   }
   button.textContent = ok ? '已复制 ✓' : '复制失败，请手动复制地址栏链接';
-  setTimeout(() => { button.textContent = '复制链接'; }, 2600);
+  clearTimeout(shareResetTimer);
+  shareResetTimer = setTimeout(() => { button.textContent = '复制链接'; }, 2600);
 };
 
 // 添加到主屏幕（PWA 安装引导）

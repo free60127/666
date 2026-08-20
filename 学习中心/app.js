@@ -18,7 +18,15 @@
   const normalizeVocabulary = value => objectOrEmpty(value);
   const read = () => normalizeUnified(readJson(KEY));
   const readVocabulary = () => normalizeVocabulary(readJson(VOCABULARY_KEY));
-  const write = state => { try { localStorage.setItem(KEY, JSON.stringify(normalizeUnified(state))); } catch (_) {} };
+  const write = state => {
+    try { localStorage.setItem(KEY, JSON.stringify(normalizeUnified(state))); }
+    catch (error) {
+      console.warn('学习中心: 保存失败', error);
+      try {
+        if (error && error.name === 'QuotaExceededError') setStatus('本地存储空间已满，最新记录未能保存。请先「导出学习数据」备份，再清空或精简记录。', 'error');
+      } catch (_) {}
+    }
+  };
   const setStatus = (message, type = '') => {
     const node = document.getElementById('data-status');
     if (!node) return;
@@ -105,7 +113,12 @@
     const separator = target.includes('?') ? '&' : '?';
     return `${target}${separator}focus=${encodeURIComponent(item.key)}#quiz-focus`;
   };
-  const date = time => time ? new Intl.DateTimeFormat('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(time)) : '';
+  const date = time => {
+    if (!time) return '';
+    const value = new Date(time);
+    if (!Number.isFinite(value.getTime())) return '';  // 手改/损坏的时间戳不再崩渲染
+    return new Intl.DateTimeFormat('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(value);
+  };
   let view = new URLSearchParams(location.search).get('view') || 'overview';
 
   function itemCard(item, kind) {
@@ -159,7 +172,9 @@
       const state = read();
       state.settings.remindOn = !state.settings.remindOn;
       write(state);
-      if (state.settings.remindOn && 'Notification' in window && Notification.permission === 'default') {
+      if (state.settings.remindOn && !('Notification' in window)) {
+        setStatus('当前浏览器不支持系统通知，错题提醒只能在本页停留时展示。', 'error');
+      } else if (state.settings.remindOn && Notification.permission === 'default') {
         Notification.requestPermission().then(permission => {
           if (permission === 'granted') setStatus('已开启错题提醒，有错题待复习时会通知你。', 'success');
           else setStatus('浏览器未授予通知权限，可在地址栏旁重新授权。', 'error');

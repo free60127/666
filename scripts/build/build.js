@@ -11,7 +11,9 @@ const sourceDir = path.join(root, 'source');
 const targets = [
   {source:'politics.json', global:'POLITICS_BANKS', js:['思政系列/data.js'], json:['思政系列/data.json']},
   {source:'computer.json', global:'POLITICS_BANKS', js:['计算机系列/data.js'], json:['计算机系列/data.json']},
-  {source:'vocabulary.json', global:'WAIYUAN_VOCABULARY', js:['背单词/vocabulary-data.js'], json:['背单词/vocabulary-data.json']},
+  // vocabulary 整包 js 已移除（唯一消费者 reading-tools 查词回退已于 2026-08-21 改为
+  // 只使用拆分产物 + ECDICT），json 产物保留供外部工具引用。
+  {source:'vocabulary.json', global:'WAIYUAN_VOCABULARY', js:[], json:['背单词/vocabulary-data.json']},
   {source:'dictionary.json', global:'WAIYUAN_ENGLISH_LOOKUP', js:['dictionary/english-lookup-data.js'], json:['dictionary/english-lookup-data.json']},
   {source:'translations.json', global:'translationData', js:['专业课/语法（通用）/翻译句子/data.js'], json:['专业课/语法（通用）/翻译句子/data.json']},
   {source:'rewrite-sentences.json', global:'REWRITE_SENTENCE_DATA', js:['专业课/语法（通用）/改写句子/data.js'], json:['专业课/语法（通用）/改写句子/data.json']},

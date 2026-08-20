@@ -4,19 +4,19 @@
   // Bump whenever the source data is corrected so saved mock papers rebuild.
   const PAPER_VERSION = 1;
   const storeKey = 'computer-h5-state-v1';
-  const paymentQr = window.PAYMENT_QR_DATA_URL || 'payment-qr.jpg';
-  const welcomeCat = window.WELCOME_CAT_DATA_URL || 'welcome-cat.jpg';
+  const paymentQr = window.PAYMENT_QR_DATA_URL || '../payment-qr.jpg';
+  const welcomeCat = window.WELCOME_CAT_DATA_URL || '../welcome-cat.jpg';
   const app = document.getElementById('app');
   // Handles both /栏目/index.html and a directory-style /栏目 URL on GitHub Pages.
   // The latter otherwise makes ../index.html jump outside a project Pages site.
   const goToHub = () => {
     const parts = location.pathname.replace(/\/+$/, '').split('/');
-    if (parts.at(-1)?.toLowerCase() === 'index.html') parts.pop();
+    if (parts[parts.length - 1]?.toLowerCase() === 'index.html') parts.pop();
     parts.pop();
     parts.push('index.html');
     location.href = `${location.protocol}//${location.host}${parts.join('/')}`;
   };
-  let saved = JSON.parse(localStorage.getItem(storeKey) || '{}');
+  let saved = (() => { try { return JSON.parse(localStorage.getItem(storeKey) || '{}'); } catch (_) { return {}; } })();
   let screen = 'home';
   let bankKey = '';
   let paper = null;
@@ -31,7 +31,7 @@
   const questionKey = question => paper ? `paper-${paper.key}-${question.id}` : `${bankKey}-${question.type}-${question.id}`;
   const questionToken = question => paper ? String(question.id) : `${question.type}--${question.id}`;
   const stateFor = question => saved.progress?.[questionKey(question)] || {};
-  const ensure = () => { saved.progress ||= {}; saved.papers ||= {}; };
+  const ensure = () => { if (!saved.progress) saved.progress = {}; if (!saved.papers) saved.papers = {}; };
   // First-time visitors have no localStorage state yet.  Initialize it before
   // any option/answer interaction so the very first tap can be persisted.
   ensure();
@@ -120,14 +120,13 @@
   }
   const shuffle = list => { const copy = [...list]; for (let i = copy.length - 1; i; i--) { const j = Math.floor(Math.random() * (i + 1)); [copy[i], copy[j]] = [copy[j], copy[i]]; } return copy; };
   function accessOverlay() {
-    if (accessDialog === 'welcome') return `<div class="modal-mask" role="dialog" aria-modal="true"><section class="access-modal welcome-modal"><button class="modal-x" data-action="modal-close" aria-label="关闭">×</button><p class="access-kicker">WELCOME</p><h2>个人制作不易，老大如果觉得有帮助的话可以划到底部赞助一下吗喵 QAQ</h2><img class="welcome-cat" src="${escape(welcomeCat)}" alt="可爱猫咪"><button class="access-main" data-action="modal-close">开始刷题</button></section></div>`;
     if (accessDialog !== 'pay') return '';
     return `<div class="modal-mask" role="dialog" aria-modal="true"><section class="access-modal pay-modal"><button class="modal-x" data-action="modal-close" aria-label="关闭">×</button><p class="access-kicker">SUPPORT</p><h2>感谢你的赞助</h2><p>本题库永久免费使用。若它对你有帮助，欢迎微信扫码自愿赞助。</p><img class="payment-qr" src="${escape(paymentQr)}" alt="微信收款码"><p class="payment-note">赞助完全自愿，不影响题库、模拟卷和错题本的全部使用。</p></section></div>`;
   }
 
   function summary(bank) {
     const counts = bank.questions.reduce((out, question) => (out[question.type] = (out[question.type] || 0) + 1, out), {});
-    const progress = Object.entries(saved.progress || {}).filter(([key]) => key.startsWith(`${bank.key}-`));
+    const progress = Object.entries(saved.progress || {}).filter(([key]) => key.startsWith(`${bank.key}-`) || key.startsWith(`paper-${bank.key}-`));
     const correct = progress.filter(([, item]) => item.ok).length;
     return {...counts, total: bank.questions.length, done: progress.length, mistakes: progress.filter(([, item]) => item.wrong).length, accuracy: progress.length ? `${Math.round(correct / progress.length * 100)}%` : '—'};
   }
@@ -252,7 +251,7 @@
     if (action === 'more') { displayLimit += 30; render(); return; }
     if (action === 'top') { window.scrollTo({top: 0, behavior: 'smooth'}); return; }
     if (action === 'export') { exportCurrentQuestions(); return; }
-    if (action === 'random') { const list = bankQuestions().filter(question => (filter === 'all' || question.type === filter) && (!mistakes || stateFor(question).wrong)); const question = list[Math.floor(Math.random() * list.length)]; document.getElementById(`q-${questionToken(question)}`)?.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
+    if (action === 'random') { const list = bankQuestions().filter(question => (filter === 'all' || question.type === filter) && (!mistakes || stateFor(question).wrong)); if (!list.length) return; const question = list[Math.floor(Math.random() * list.length)]; document.getElementById(`q-${questionToken(question)}`)?.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
     if (action === 'clear') { if (confirm('确定清除这个题库的答题进度吗？')) { Object.keys(saved.progress || {}).filter(key => key.startsWith(`${bankKey}-`)).forEach(key => delete saved.progress[key]); persist(); } }
     if (action === 'clear-paper') { if (confirm('确定清空这套模拟卷的答题进度吗？题目不会重新随机。')) { Object.keys(saved.progress || {}).filter(key => key.startsWith(`paper-${paper.key}-`)).forEach(key => delete saved.progress[key]); persist(); } }
     if (action === 'answer') { const question = findQuestion(id); const key = questionKey(question); saved.progress[key] = {...(saved.progress[key] || {}), showAnswer: !stateFor(question).showAnswer}; persist(); }

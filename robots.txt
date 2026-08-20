@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://free60127.github.io/666/sitemap.xml

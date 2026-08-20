@@ -118,6 +118,18 @@ html[data-theme="dark"] .series-card.politics {
   background: linear-gradient(150deg, #1d2a24, #1e2a21) !important;
   border-color: #3a5248 !important;
 }
+html[data-theme="dark"] .study-link { background: #1d2823 !important; border-color: #2f3d36 !important; }
+html[data-theme="dark"] .study-link small { color: #8d9b94 !important; }
+html[data-theme="dark"] .study-link em { color: #d4a862 !important; }
+html[data-theme="dark"] .favorites-link { background: #3a3220 !important; border-color: #57492a !important; }
+html[data-theme="dark"] .support { background: #332b1d !important; border-color: #57492a !important; color: #f2e5c8 !important; }
+html[data-theme="dark"] .support b { color: #e0b44d !important; }
+html[data-theme="dark"] .support small { color: #c9b58a !important; }
+html[data-theme="dark"] .print-shop { background: #1c2a24 !important; border-color: #2f4a3c !important; }
+html[data-theme="dark"] .print-shop small { color: #8d9b94 !important; }
+html[data-theme="dark"] .search-box input { border-color: #3a4a42 !important; }
+html[data-theme="dark"] .search-result:hover { background: #1d2a24 !important; border-color: #3a5248 !important; }
+html[data-theme="dark"] .share-site, html[data-theme="dark"] .install-site { box-shadow: none !important; }
 html[data-theme="dark"] .modal,
 html[data-theme="dark"] .access-modal { background: #1e2622 !important; }
 html[data-theme="dark"] .study-link i,
@@ -212,7 +224,8 @@ html[data-theme="dark"] .answer[open] summary { background: #26342d !important; 
 html[data-theme="dark"] .answer p { background: #2a241e !important; color: #d9d2c8 !important; }
 html[data-theme="dark"] .status { background: #33281f !important; color: #e08a55 !important; }
 html[data-theme="dark"] .answer-toggle { background: #24302a !important; }
-html[data-theme="dark"] .answer {
+/* 语法模块（page-shell）答案块暖棕；思政/计算机答案块保持上方绿色覆盖 */
+html[data-theme="dark"] .page-shell .answer {
   background: #2a241d !important;
   color: #d8d2c8 !important;
   border-color: #4a3f30 !important;
@@ -284,6 +297,84 @@ html[data-theme="dark"] .unified-focus-notice { background: #3a3220 !important; 
 
 /* 学习提醒条（学习中心 / 背单词） */
 html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #dfe6e2 !important; border-color: #37423d !important; }
+
+/* ============================================================
+   2026-08-21 UI 复审追加：查词面板 P0 + 深色遗漏 P1/P2
+   ============================================================ */
+
+/* P0：查词面板释义正文（深色下 1.13:1 近乎隐形） */
+html[data-theme="dark"] .word-lookup__meaning { color: #dfe6e2 !important; }
+
+/* 悬浮工具栏遮挡「回到顶部」（语法两页 back-to-top 右置 22px，被 58px 工具条盖住） */
+.back-to-top { right: max(92px, calc(env(safe-area-inset-right) + 74px)) !important; }
+
+/* ---------- 学习中心 ---------- */
+html[data-theme="dark"] .item-actions a:not(.practice-link),
+html[data-theme="dark"] .item-actions button:not(.remove) { background: #26302b !important; color: #9fc4b0 !important; }
+html[data-theme="dark"] .item-actions .remove { background: #3d2a26 !important; color: #e8a296 !important; }
+html[data-theme="dark"] .practice-panel b { color: #e0b44d !important; }
+html[data-theme="dark"] .practice-panel small { color: #c9b58a !important; }
+html[data-theme="dark"] .empty { background: rgba(38, 48, 44, .6) !important; border-color: #37423d !important; }
+html[data-theme="dark"] .data-tools button { border-color: #37423d !important; }
+html[data-theme="dark"] .tabs button { color: #8d9b94 !important; }
+
+/* ---------- 背单词 ---------- */
+html[data-theme="dark"] .history-row { color: #b9c6bf !important; }
+html[data-theme="dark"] .book-card { border-color: #37423d !important; }
+html[data-theme="dark"] .word-card { border-color: #37423d !important; }
+html[data-theme="dark"] .spelling-input:focus { border-bottom-color: var(--orange) !important; }
+
+/* ---------- 语法改写 / 翻译 ---------- */
+html[data-theme="dark"] .instruction { color: #c2cfc8 !important; }
+html[data-theme="dark"] .answer summary { background: #24302a !important; color: #9fc4b0 !important; }
+html[data-theme="dark"] .filters button { border-color: #37423d !important; }
+html[data-theme="dark"] .section-nav a { background: #232a26 !important; }
+html[data-theme="dark"] .notice { color: #e08a55 !important; }
+html[data-theme="dark"] .status--plain { background: transparent !important; color: #8d9b94 !important; }
+html[data-theme="dark"] .page-shell .status { background: #33281f !important; color: #e08a55 !important; }
+
+/* ---------- 考证 ---------- */
+html[data-theme="dark"] .resource-card {
+  background: linear-gradient(150deg, #1d2a24, #1e2a21) !important;
+  border-color: #3a5248 !important;
+}
+html[data-theme="dark"] .password { color: #b9c6bf !important; }
+
+/* ---------- 许可页 ---------- */
+html[data-theme="dark"] .license-card strong { color: #7fd4a8 !important; }
+html[data-theme="dark"] .license-card p,
+html[data-theme="dark"] .license-note { color: #9db0a7 !important; }
+
+/* ---------- 查词面板细节 ---------- */
+html[data-theme="dark"] .word-lookup__content details p { color: #9db0a7 !important; }
+html[data-theme="dark"] .word-lookup__context small { color: #c9a26b !important; }
+html[data-theme="dark"] .word-lookup__loading,
+html[data-theme="dark"] .word-lookup__missing { color: #8d9b94 !important; }
+html[data-theme="dark"] .reading-tools__pdf-title { color: #8d9b94 !important; }
+html[data-theme="dark"] .reading-tools button { border-color: #3a4a42 !important; }
+html[data-theme="dark"] .word-lookup__sheet { border-color: #37423d !important; }
+html[data-theme="dark"] .word-lookup__sheet > header { border-color: #37423d !important; }
+html[data-theme="dark"] .word-lookup__content details { border-color: #37423d !important; }
+
+/* ---------- 思政 / 计算机 ---------- */
+html[data-theme="dark"] .radio,
+html[data-theme="dark"] .check { border-color: #4a5a52 !important; }
+
+/* ---------- 首页 ---------- */
+html[data-theme="dark"] .print-modal > p:last-child { color: #9db0a7 !important; }
+
+/* ---------- 基英 / 泛读系列（静态题库页内联样式，.wrap 容器） ---------- */
+html[data-theme="dark"] .wrap .nav a,
+html[data-theme="dark"] .wrap .book-nav a { background: #232d28 !important; color: #b9c6bf !important; }
+html[data-theme="dark"] .wrap details { background: #1e2622 !important; }
+html[data-theme="dark"] .wrap .word-target { background: #3a3026 !important; color: #e8a475 !important; }
+html[data-theme="dark"] .wrap .exercise-module h3 { background: #24302b !important; }
+html[data-theme="dark"] .wrap .word-bank { background: #232d28 !important; }
+html[data-theme="dark"] .wrap .options strong { color: #7fd4a8 !important; }
+html[data-theme="dark"] .wrap .answer summary { background: #2c4036 !important; color: #dceade !important; }
+
+/* ---------- 背单词长词防溢出（全模式） ---------- */
+.word { overflow-wrap: anywhere; word-break: break-word; }
 </style>
 <script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
 </head>
@@ -711,19 +802,19 @@ html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #df
   // Bump whenever the source data is corrected so saved mock papers rebuild.
   const PAPER_VERSION = 1;
   const storeKey = 'computer-h5-state-v1';
-  const paymentQr = window.PAYMENT_QR_DATA_URL || 'payment-qr.jpg';
-  const welcomeCat = window.WELCOME_CAT_DATA_URL || 'welcome-cat.jpg';
+  const paymentQr = window.PAYMENT_QR_DATA_URL || '../payment-qr.jpg';
+  const welcomeCat = window.WELCOME_CAT_DATA_URL || '../welcome-cat.jpg';
   const app = document.getElementById('app');
   // Handles both /栏目/index.html and a directory-style /栏目 URL on GitHub Pages.
   // The latter otherwise makes ../index.html jump outside a project Pages site.
   const goToHub = () => {
     const parts = location.pathname.replace(/\/+$/, '').split('/');
-    if (parts.at(-1)?.toLowerCase() === 'index.html') parts.pop();
+    if (parts[parts.length - 1]?.toLowerCase() === 'index.html') parts.pop();
     parts.pop();
     parts.push('index.html');
     location.href = `${location.protocol}//${location.host}${parts.join('/')}`;
   };
-  let saved = JSON.parse(localStorage.getItem(storeKey) || '{}');
+  let saved = (() => { try { return JSON.parse(localStorage.getItem(storeKey) || '{}'); } catch (_) { return {}; } })();
   let screen = 'home';
   let bankKey = '';
   let paper = null;
@@ -738,7 +829,7 @@ html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #df
   const questionKey = question => paper ? `paper-${paper.key}-${question.id}` : `${bankKey}-${question.type}-${question.id}`;
   const questionToken = question => paper ? String(question.id) : `${question.type}--${question.id}`;
   const stateFor = question => saved.progress?.[questionKey(question)] || {};
-  const ensure = () => { saved.progress ||= {}; saved.papers ||= {}; };
+  const ensure = () => { if (!saved.progress) saved.progress = {}; if (!saved.papers) saved.papers = {}; };
   // First-time visitors have no localStorage state yet.  Initialize it before
   // any option/answer interaction so the very first tap can be persisted.
   ensure();
@@ -827,14 +918,13 @@ html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #df
   }
   const shuffle = list => { const copy = [...list]; for (let i = copy.length - 1; i; i--) { const j = Math.floor(Math.random() * (i + 1)); [copy[i], copy[j]] = [copy[j], copy[i]]; } return copy; };
   function accessOverlay() {
-    if (accessDialog === 'welcome') return `<div class="modal-mask" role="dialog" aria-modal="true"><section class="access-modal welcome-modal"><button class="modal-x" data-action="modal-close" aria-label="关闭">×</button><p class="access-kicker">WELCOME</p><h2>个人制作不易，老大如果觉得有帮助的话可以划到底部赞助一下吗喵 QAQ</h2><img class="welcome-cat" src="${escape(welcomeCat)}" alt="可爱猫咪"><button class="access-main" data-action="modal-close">开始刷题</button></section></div>`;
     if (accessDialog !== 'pay') return '';
     return `<div class="modal-mask" role="dialog" aria-modal="true"><section class="access-modal pay-modal"><button class="modal-x" data-action="modal-close" aria-label="关闭">×</button><p class="access-kicker">SUPPORT</p><h2>感谢你的赞助</h2><p>本题库永久免费使用。若它对你有帮助，欢迎微信扫码自愿赞助。</p><img class="payment-qr" src="${escape(paymentQr)}" alt="微信收款码"><p class="payment-note">赞助完全自愿，不影响题库、模拟卷和错题本的全部使用。</p></section></div>`;
   }
 
   function summary(bank) {
     const counts = bank.questions.reduce((out, question) => (out[question.type] = (out[question.type] || 0) + 1, out), {});
-    const progress = Object.entries(saved.progress || {}).filter(([key]) => key.startsWith(`${bank.key}-`));
+    const progress = Object.entries(saved.progress || {}).filter(([key]) => key.startsWith(`${bank.key}-`) || key.startsWith(`paper-${bank.key}-`));
     const correct = progress.filter(([, item]) => item.ok).length;
     return {...counts, total: bank.questions.length, done: progress.length, mistakes: progress.filter(([, item]) => item.wrong).length, accuracy: progress.length ? `${Math.round(correct / progress.length * 100)}%` : '—'};
   }
@@ -959,7 +1049,7 @@ html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #df
     if (action === 'more') { displayLimit += 30; render(); return; }
     if (action === 'top') { window.scrollTo({top: 0, behavior: 'smooth'}); return; }
     if (action === 'export') { exportCurrentQuestions(); return; }
-    if (action === 'random') { const list = bankQuestions().filter(question => (filter === 'all' || question.type === filter) && (!mistakes || stateFor(question).wrong)); const question = list[Math.floor(Math.random() * list.length)]; document.getElementById(`q-${questionToken(question)}`)?.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
+    if (action === 'random') { const list = bankQuestions().filter(question => (filter === 'all' || question.type === filter) && (!mistakes || stateFor(question).wrong)); if (!list.length) return; const question = list[Math.floor(Math.random() * list.length)]; document.getElementById(`q-${questionToken(question)}`)?.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
     if (action === 'clear') { if (confirm('确定清除这个题库的答题进度吗？')) { Object.keys(saved.progress || {}).filter(key => key.startsWith(`${bankKey}-`)).forEach(key => delete saved.progress[key]); persist(); } }
     if (action === 'clear-paper') { if (confirm('确定清空这套模拟卷的答题进度吗？题目不会重新随机。')) { Object.keys(saved.progress || {}).filter(key => key.startsWith(`paper-${paper.key}-`)).forEach(key => delete saved.progress[key]); persist(); } }
     if (action === 'answer') { const question = findQuestion(id); const key = questionKey(question); saved.progress[key] = {...(saved.progress[key] || {}), showAnswer: !stateFor(question).showAnswer}; persist(); }
@@ -1304,7 +1394,9 @@ html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #df
           return entry;
         });
         const studyEntries = [];
-        (window.WAIYUAN_VOCABULARY?.books || []).forEach(book => {
+        // 词书补充条目：只取已按需加载的词书（背单词页拆分产物）。
+        // 其他页面不再回退拉取 4.88MB 整包——ECDICT 词典已覆盖大部分词汇。
+        (window.WAIYUAN_VOCABULARY_BOOKS || []).forEach(book => {
           (book.words || []).forEach(entry => {
             const record = {...entry, bookKey: book.key};
             dictionaryIndex.set(entry.word.toLocaleLowerCase('en'), record);
@@ -1322,12 +1414,12 @@ html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #df
       const loadScript = source => new Promise(done => {
         const script = document.createElement('script');
         script.src = new URL(source, assetBaseUrl).href;
-        script.onload = script.onerror = done;
+        script.onload = done;
+        script.onerror = () => { console.warn(`[reading-tools] 词典资源加载失败：${source}`); done(); };
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260818-dict-2'));
-      if (!window.WAIYUAN_VOCABULARY) pending.push(loadScript('背单词/vocabulary-data.js?v=20260817-vocab-1'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260820-2226'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -1370,7 +1462,7 @@ html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #df
     try {
       if (activeLookup.entry?.id && activeLookup.entry?.bookKey) {
         const progress = JSON.parse(localStorage.getItem(VOCABULARY_STORAGE_KEY)) || {};
-        progress.words ||= {};
+        if (!progress.words) progress.words = {};
         const current = progress.words[key] || {reps: 0, interval: 0, lapses: 0, due: new Date().toISOString().slice(0, 10)};
         progress.words[key] = {...current, favorite: !current.favorite};
         localStorage.setItem(VOCABULARY_STORAGE_KEY, JSON.stringify(progress));
@@ -1486,7 +1578,7 @@ html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #df
   const KEY = 'waiyuan-unified-web-study-v1';
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {version:1,progress:{},favorites:{}}; } catch (_) { return {version:1,progress:{},favorites:{}}; } };
   const save = state => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} };
-  const state = load(); state.progress ||= {}; state.favorites ||= {};
+  const state = load(); if (!state.progress) state.progress = {}; if (!state.favorites) state.favorites = {};
   const clean = text => String(text || '').replace(/\s+/g, ' ').trim();
   const hash = text => { let value = 2166136261; for (const char of text) value = Math.imul(value ^ char.charCodeAt(0), 16777619); return (value >>> 0).toString(36); };
   const pageKey = location.pathname.replace(/\/index\.html$/i, '').replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-');
@@ -1500,7 +1592,10 @@ html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #df
     const title = clean(questionNode.textContent);
     if (!title) return;
     const answer = clean(card.querySelector('.answer')?.textContent);
-    const key = `${pageKey}-${hash(`${index}-${title}`)}`;
+    // 稳定身份：优先卡片 id（题库题号如 q-single--87）；渲染顺序 index 会随
+    // 筛选/加载更多变化，导致同一道题在不同视图下拿到不同 key（进度/收藏碎片化）。
+    const stableId = card.id && card.id !== 'main' ? card.id : title;
+    const key = `${pageKey}-${hash(`${stableId}-${title}`)}`;
     card.dataset.unifiedReady = key;
     card.dataset.unifiedTitle = title;
     if (card.querySelector('.favorite-button,[data-action="favorite"]')) return;

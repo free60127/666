@@ -22,7 +22,8 @@ if (!fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) {
 const read = name => fs.readFileSync(path.join(folder, name), 'utf8');
 const readRoot = name => fs.readFileSync(path.join(root, name), 'utf8');
 const safeScript = text => text.replace(/<\/script/gi, '<\\/script');
-const base64 = name => fs.readFileSync(path.join(folder, name)).toString('base64');
+// 收款码/欢迎图只保留根目录一份（2026-08-21 单源化），单文件版从这里内联 base64
+const base64Root = name => fs.readFileSync(path.join(root, name)).toString('base64');
 
 // 目录 → 产物命名/标题映射（命名与内容必须一致，避免误发）
 const configs = {
@@ -47,8 +48,8 @@ ${readRoot('theme.css')}</style>
 <body data-reading-tools="true">
   <main id="app"></main>
   <script>${safeScript(read('data.js'))}</script>
-  <script>window.PAYMENT_QR_DATA_URL=${JSON.stringify('data:image/jpeg;base64,' + base64('payment-qr.jpg'))};</script>
-  <script>window.WELCOME_CAT_DATA_URL=${JSON.stringify('data:image/jpeg;base64,' + base64('welcome-cat.jpg'))};</script>
+  <script>window.PAYMENT_QR_DATA_URL=${JSON.stringify('data:image/jpeg;base64,' + base64Root('payment-qr.jpg'))};</script>
+  <script>window.WELCOME_CAT_DATA_URL=${JSON.stringify('data:image/jpeg;base64,' + base64Root('welcome-cat.jpg'))};</script>
   <script>${safeScript(readRoot('a4-print.js'))}</script>
   <script>${safeScript(read('app.js'))}</script>
   <script>${safeScript(readRoot('reading-tools.js'))}</script>

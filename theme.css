@@ -45,6 +45,18 @@ html[data-theme="dark"] .series-card.politics {
   background: linear-gradient(150deg, #1d2a24, #1e2a21) !important;
   border-color: #3a5248 !important;
 }
+html[data-theme="dark"] .study-link { background: #1d2823 !important; border-color: #2f3d36 !important; }
+html[data-theme="dark"] .study-link small { color: #8d9b94 !important; }
+html[data-theme="dark"] .study-link em { color: #d4a862 !important; }
+html[data-theme="dark"] .favorites-link { background: #3a3220 !important; border-color: #57492a !important; }
+html[data-theme="dark"] .support { background: #332b1d !important; border-color: #57492a !important; color: #f2e5c8 !important; }
+html[data-theme="dark"] .support b { color: #e0b44d !important; }
+html[data-theme="dark"] .support small { color: #c9b58a !important; }
+html[data-theme="dark"] .print-shop { background: #1c2a24 !important; border-color: #2f4a3c !important; }
+html[data-theme="dark"] .print-shop small { color: #8d9b94 !important; }
+html[data-theme="dark"] .search-box input { border-color: #3a4a42 !important; }
+html[data-theme="dark"] .search-result:hover { background: #1d2a24 !important; border-color: #3a5248 !important; }
+html[data-theme="dark"] .share-site, html[data-theme="dark"] .install-site { box-shadow: none !important; }
 html[data-theme="dark"] .modal,
 html[data-theme="dark"] .access-modal { background: #1e2622 !important; }
 html[data-theme="dark"] .study-link i,
@@ -139,7 +151,8 @@ html[data-theme="dark"] .answer[open] summary { background: #26342d !important; 
 html[data-theme="dark"] .answer p { background: #2a241e !important; color: #d9d2c8 !important; }
 html[data-theme="dark"] .status { background: #33281f !important; color: #e08a55 !important; }
 html[data-theme="dark"] .answer-toggle { background: #24302a !important; }
-html[data-theme="dark"] .answer {
+/* 语法模块（page-shell）答案块暖棕；思政/计算机答案块保持上方绿色覆盖 */
+html[data-theme="dark"] .page-shell .answer {
   background: #2a241d !important;
   color: #d8d2c8 !important;
   border-color: #4a3f30 !important;
@@ -211,3 +224,81 @@ html[data-theme="dark"] .unified-focus-notice { background: #3a3220 !important; 
 
 /* 学习提醒条（学习中心 / 背单词） */
 html[data-theme="dark"] .remind-bar { background: #2c3a33 !important; color: #dfe6e2 !important; border-color: #37423d !important; }
+
+/* ============================================================
+   2026-08-21 UI 复审追加：查词面板 P0 + 深色遗漏 P1/P2
+   ============================================================ */
+
+/* P0：查词面板释义正文（深色下 1.13:1 近乎隐形） */
+html[data-theme="dark"] .word-lookup__meaning { color: #dfe6e2 !important; }
+
+/* 悬浮工具栏遮挡「回到顶部」（语法两页 back-to-top 右置 22px，被 58px 工具条盖住） */
+.back-to-top { right: max(92px, calc(env(safe-area-inset-right) + 74px)) !important; }
+
+/* ---------- 学习中心 ---------- */
+html[data-theme="dark"] .item-actions a:not(.practice-link),
+html[data-theme="dark"] .item-actions button:not(.remove) { background: #26302b !important; color: #9fc4b0 !important; }
+html[data-theme="dark"] .item-actions .remove { background: #3d2a26 !important; color: #e8a296 !important; }
+html[data-theme="dark"] .practice-panel b { color: #e0b44d !important; }
+html[data-theme="dark"] .practice-panel small { color: #c9b58a !important; }
+html[data-theme="dark"] .empty { background: rgba(38, 48, 44, .6) !important; border-color: #37423d !important; }
+html[data-theme="dark"] .data-tools button { border-color: #37423d !important; }
+html[data-theme="dark"] .tabs button { color: #8d9b94 !important; }
+
+/* ---------- 背单词 ---------- */
+html[data-theme="dark"] .history-row { color: #b9c6bf !important; }
+html[data-theme="dark"] .book-card { border-color: #37423d !important; }
+html[data-theme="dark"] .word-card { border-color: #37423d !important; }
+html[data-theme="dark"] .spelling-input:focus { border-bottom-color: var(--orange) !important; }
+
+/* ---------- 语法改写 / 翻译 ---------- */
+html[data-theme="dark"] .instruction { color: #c2cfc8 !important; }
+html[data-theme="dark"] .answer summary { background: #24302a !important; color: #9fc4b0 !important; }
+html[data-theme="dark"] .filters button { border-color: #37423d !important; }
+html[data-theme="dark"] .section-nav a { background: #232a26 !important; }
+html[data-theme="dark"] .notice { color: #e08a55 !important; }
+html[data-theme="dark"] .status--plain { background: transparent !important; color: #8d9b94 !important; }
+html[data-theme="dark"] .page-shell .status { background: #33281f !important; color: #e08a55 !important; }
+
+/* ---------- 考证 ---------- */
+html[data-theme="dark"] .resource-card {
+  background: linear-gradient(150deg, #1d2a24, #1e2a21) !important;
+  border-color: #3a5248 !important;
+}
+html[data-theme="dark"] .password { color: #b9c6bf !important; }
+
+/* ---------- 许可页 ---------- */
+html[data-theme="dark"] .license-card strong { color: #7fd4a8 !important; }
+html[data-theme="dark"] .license-card p,
+html[data-theme="dark"] .license-note { color: #9db0a7 !important; }
+
+/* ---------- 查词面板细节 ---------- */
+html[data-theme="dark"] .word-lookup__content details p { color: #9db0a7 !important; }
+html[data-theme="dark"] .word-lookup__context small { color: #c9a26b !important; }
+html[data-theme="dark"] .word-lookup__loading,
+html[data-theme="dark"] .word-lookup__missing { color: #8d9b94 !important; }
+html[data-theme="dark"] .reading-tools__pdf-title { color: #8d9b94 !important; }
+html[data-theme="dark"] .reading-tools button { border-color: #3a4a42 !important; }
+html[data-theme="dark"] .word-lookup__sheet { border-color: #37423d !important; }
+html[data-theme="dark"] .word-lookup__sheet > header { border-color: #37423d !important; }
+html[data-theme="dark"] .word-lookup__content details { border-color: #37423d !important; }
+
+/* ---------- 思政 / 计算机 ---------- */
+html[data-theme="dark"] .radio,
+html[data-theme="dark"] .check { border-color: #4a5a52 !important; }
+
+/* ---------- 首页 ---------- */
+html[data-theme="dark"] .print-modal > p:last-child { color: #9db0a7 !important; }
+
+/* ---------- 基英 / 泛读系列（静态题库页内联样式，.wrap 容器） ---------- */
+html[data-theme="dark"] .wrap .nav a,
+html[data-theme="dark"] .wrap .book-nav a { background: #232d28 !important; color: #b9c6bf !important; }
+html[data-theme="dark"] .wrap details { background: #1e2622 !important; }
+html[data-theme="dark"] .wrap .word-target { background: #3a3026 !important; color: #e8a475 !important; }
+html[data-theme="dark"] .wrap .exercise-module h3 { background: #24302b !important; }
+html[data-theme="dark"] .wrap .word-bank { background: #232d28 !important; }
+html[data-theme="dark"] .wrap .options strong { color: #7fd4a8 !important; }
+html[data-theme="dark"] .wrap .answer summary { background: #2c4036 !important; color: #dceade !important; }
+
+/* ---------- 背单词长词防溢出（全模式） ---------- */
+.word { overflow-wrap: anywhere; word-break: break-word; }

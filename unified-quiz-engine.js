@@ -2,7 +2,7 @@
   const KEY = 'waiyuan-unified-web-study-v1';
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {version:1,progress:{},favorites:{}}; } catch (_) { return {version:1,progress:{},favorites:{}}; } };
   const save = state => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} };
-  const state = load(); state.progress ||= {}; state.favorites ||= {};
+  const state = load(); if (!state.progress) state.progress = {}; if (!state.favorites) state.favorites = {};
   const clean = text => String(text || '').replace(/\s+/g, ' ').trim();
   const hash = text => { let value = 2166136261; for (const char of text) value = Math.imul(value ^ char.charCodeAt(0), 16777619); return (value >>> 0).toString(36); };
   const pageKey = location.pathname.replace(/\/index\.html$/i, '').replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-');
@@ -16,7 +16,10 @@
     const title = clean(questionNode.textContent);
     if (!title) return;
     const answer = clean(card.querySelector('.answer')?.textContent);
-    const key = `${pageKey}-${hash(`${index}-${title}`)}`;
+    // 稳定身份：优先卡片 id（题库题号如 q-single--87）；渲染顺序 index 会随
+    // 筛选/加载更多变化，导致同一道题在不同视图下拿到不同 key（进度/收藏碎片化）。
+    const stableId = card.id && card.id !== 'main' ? card.id : title;
+    const key = `${pageKey}-${hash(`${stableId}-${title}`)}`;
     card.dataset.unifiedReady = key;
     card.dataset.unifiedTitle = title;
     if (card.querySelector('.favorite-button,[data-action="favorite"]')) return;

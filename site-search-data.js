@@ -21,6 +21,5 @@ window.WAIYUAN_SITE_SEARCH = [
   {title:'俄语专四、专八、ТРКИ', category:'考证', path:'考证/俄语专四、专八、ТРКИ/index.html', keywords:'俄语 专四 专八 ТРКИ', description:'俄语考试资料入口。'},
   {title:'日语专四、专八', category:'考证', path:'考证/日语专四、专八/index.html', keywords:'日语 专四 专八', description:'日语考试资料入口。'},
   {title:'专四专八背单词', category:'背单词', path:'背单词/index.html', keywords:'背单词 专四 专八 词汇 FSRS 复习', description:'英语专四、专八词汇与智能复习。'},
-  {title:'统一学习中心', category:'个人学习', path:'学习中心/index.html', keywords:'学习中心 收藏 错题 学习记录 正确率', description:'查看网页题库学习进度、收藏和统一错题。'},
-  {title:'泛读系列题库预览', category:'预览', path:'最新预览.html', keywords:'泛读 题库预览 阅读', description:'泛读系列页面预览。'}
+  {title:'统一学习中心', category:'个人学习', path:'学习中心/index.html', keywords:'学习中心 收藏 错题 学习记录 正确率', description:'查看网页题库学习进度、收藏和统一错题。'}
 ];
