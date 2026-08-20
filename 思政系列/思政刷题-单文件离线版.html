@@ -433,6 +433,16 @@ html[data-theme="dark"] .option.selected {
   border-color: #3f8f72 !important;
   box-shadow: 0 0 0 2px rgba(63,143,114,.28);
 }
+
+/* ---------- 统一引擎：填空判题 + 答案自评（深色） ---------- */
+html[data-theme="dark"] .fill-input-wrap .fill-input { background: #232a2e !important; color: #dfe6e2 !important; border-color: #3a4541 !important; }
+html[data-theme="dark"] .fill-input-wrap .fill-submit { background: #3f8f72 !important; }
+html[data-theme="dark"] .fill-feedback.correct { color: #7fc39a !important; }
+html[data-theme="dark"] .fill-feedback.wrong { color: #e0948b !important; }
+html[data-theme="dark"] .unified-self-assess .usa-label { color: #8d9b94 !important; }
+html[data-theme="dark"] .unified-self-assess.done .usa-label { color: #7fc39a !important; }
+html[data-theme="dark"] .unified-self-assess button { background: #24312b !important; border-color: #3a4541 !important; color: #cfd8d3 !important; }
+html[data-theme="dark"] .unified-self-assess button:hover { background: #2d4038 !important; }
 </style>
 <script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
 </head>
@@ -981,10 +991,15 @@ html[data-theme="dark"] .option.selected {
 
   function summary(bank) {
     const counts = bank.questions.reduce((out, question) => (out[question.type] = (out[question.type] || 0) + 1, out), {});
-    const progress = Object.entries(saved.progress || {}).filter(([key]) => key.startsWith(`${bank.key}-`) || key.startsWith(`paper-${bank.key}-`));
+    // 只统计普通题库进度：模拟卷使用独立 key（paper-…），不得混入
+    const progress = Object.entries(saved.progress || {}).filter(([key]) => key.startsWith(`${bank.key}-`) && !key.startsWith('paper-'));
     const correct = progress.filter(([, item]) => item.ok).length;
     return {...counts, total: bank.questions.length, done: progress.length, mistakes: progress.filter(([, item]) => item.wrong).length, accuracy: progress.length ? `${Math.round(correct / progress.length * 100)}%` : '—'};
   }
+
+  // 题库内容指纹：任一题题干/答案变化都会改变指纹，
+  // 使旧模拟卷自动重建（随机抽题结果不变时仍可保留进度）。
+  const bankFingerprint = bank => { let value = 2166136261; for (const question of bank.questions) { const t = String(question.title || '') + String(question.answer || ''); for (const char of t) value = Math.imul(value ^ char.charCodeAt(0), 16777619); } return (value >>> 0).toString(36); };
 
   function paperPlan(bank) {
     const defaults = bank.key === 'marx' ? {short: 5, essay: 2} : bank.key === 'xi' ? {single: 20, multi: 20, short: 5, essay: 2, material: 2} : {single: 20, multi: 20, short: 5, essay: 2};
@@ -994,17 +1009,25 @@ html[data-theme="dark"] .option.selected {
   function createPaper(bank, number) {
     let id = 0;
     const plan = paperPlan(bank);
-    return {key: `${bank.key}-${number}`, bankKey: bank.key, number, version: PAPER_VERSION, questions: Object.entries(plan).flatMap(([type, count]) => shuffle(bank.questions.filter(question => question.type === type)).slice(0, count).map(question => ({...question, id: ++id, sourceId: question.id, sourceType: type})))};
+    return {key: `${bank.key}-${number}`, bankKey: bank.key, number, version: PAPER_VERSION, fingerprint: bankFingerprint(bank), questions: Object.entries(plan).flatMap(([type, count]) => shuffle(bank.questions.filter(question => question.type === type)).slice(0, count).map(question => ({...question, id: ++id, sourceId: question.id, sourceType: type})))};
   }
 
   function loadPaper(key, number) {
     ensure();
     const bank = getBank(key);
-    const expected = paperPlan(bank);
     const old = saved.papers[`${key}-${number}`];
-    paper = old && old.version === PAPER_VERSION && Object.entries(expected).every(([type, count]) => old.questions.filter(question => question.sourceType === type).length === count) ? old : createPaper(bank, number);
+    paper = old && old.version === PAPER_VERSION && old.fingerprint === bankFingerprint(bank) ? old : createPaper(bank, number);
     saved.papers[paper.key] = paper;
     persist(); bankKey = key; screen = 'questions'; mistakes = false; filter = 'all'; displayLimit = 30; render();
+  }
+
+  // 模拟卷自身统计（与普通题库进度分离）
+  function paperSummary() {
+    if (!paper) return null;
+    const entries = Object.entries(saved.progress || {}).filter(([key]) => key.startsWith(`paper-${paper.key}-`));
+    const attempted = entries.filter(([, item]) => item.answered || item.ok || item.wrong);
+    const correct = entries.filter(([, item]) => item.ok).length;
+    return {total: paper.questions.length, done: attempted.length, accuracy: attempted.length ? `${Math.round(correct / attempted.length * 100)}%` : '—', mistakes: entries.filter(([, item]) => item.wrong).length};
   }
 
   function card(question) {
@@ -1017,7 +1040,7 @@ html[data-theme="dark"] .option.selected {
       const selected = state.selected?.includes(index) ? 'selected' : '';
       return `<button class="option ${feedback} ${selected}" data-action="choose" data-id="${token}" data-index="${index}"><span class="${question.type === 'multi' ? 'check' : 'radio'} ${selected}"></span><span>${String.fromCharCode(65 + index)}．${escape(optionText(option))}</span></button>`;
     }).join('');
-    return `<article class="card" id="q-${token}">
+    return `<article class="card" id="q-${token}"${paper ? ' data-unified-ignore="1"' : ''}>
       <div class="qrow"><span class="qindex">${question.id}</span><div><h2>${escape(question.title)}</h2><span class="tag">${labels[question.type] || question.type}</span>${question.hint ? `<span class="hint">记忆 · ${escape(question.hint)}</span>` : ''}</div></div>
       ${choices.length ? `<div class="options">${options}${question.type === 'multi' && answer ? `<button class="confirm" data-action="confirm" data-id="${token}">确认答案</button>` : ''}</div>` : ''}
       <button class="answer-toggle" data-action="answer" data-id="${token}">${state.showAnswer ? '收起答案' : '点击展开答案'}</button>
@@ -1047,7 +1070,7 @@ html[data-theme="dark"] .option.selected {
     const types = ['all', ...Object.keys(labels).filter(type => type !== 'all' && questions.some(question => question.type === type))];
     const matching = questions.filter(question => filter === 'all' || question.type === filter);
     const visible = matching.slice(0, displayLimit);
-    const s = summary(bank);
+    const s = paper ? paperSummary() : summary(bank);
     app.innerHTML = `<button class="back" data-action="back">‹ 返回题库</button><section class="hero compact"><small>${mistakes ? '错题本 · ' : ''}${escape(paper ? `${bank.name} · 模拟卷${paper.number}` : bank.name)}</small><div class="stats"><span><b>${paper || mistakes ? questions.length : s.total}</b>题目</span><span><b>${s.done}</b>已完成</span><span><b>${s.accuracy}</b>正确率</span></div></section>
       <nav class="tabs">${types.map(type => `<button class="${filter === type ? 'active' : ''}" data-action="filter" data-filter="${type}">${labels[type]}</button>`).join('')}</nav>
       <div class="actions"><button data-action="random">↻ 随机一题</button><button data-action="export">导出当前题目 A4 PDF</button>${paper ? '<button data-action="clear-paper">清空本模拟卷进度</button>' : (!mistakes ? '<button data-action="clear">清除本题库进度</button>' : '')}</div><p class="notice">${mistakes ? '错题答对后将自动移出错题本。' : '选择题支持判题；简答、论述和材料题可展开参考答案。'}</p>
@@ -1105,6 +1128,25 @@ html[data-theme="dark"] .option.selected {
     if (action === 'choose') { const question = findQuestion(id); if (!question?.answer) return; const key = questionKey(question); const item = {...(saved.progress[key] || {})}; const choice = Number(index); const picked = [...(item.selected || [])]; if (question.type === 'multi') { const at = picked.indexOf(choice); at < 0 ? picked.push(choice) : picked.splice(at, 1); item.feedback = []; } else { picked.splice(0, picked.length, choice); } item.selected = picked; saved.progress[key] = item; if (question.type !== 'multi') judge(question); persist(); }
     if (action === 'confirm') { const question = findQuestion(id); judge(question); }
     render();
+  });
+
+  // focus 定位：统一引擎在目标题卡未渲染时广播 waiyuan:focus（学习中心「重新练习」跳转），
+  // 这里反查题目所在题库并直接打开（目标题可能在第 30 题之后，需扩大显示范围）
+  window.addEventListener('waiyuan:focus', event => {
+    const targetKey = event.detail && event.detail.key;
+    const compute = window.WaiyuanQuizEngine && window.WaiyuanQuizEngine.computeKey;
+    if (!targetKey || !compute) return;
+    for (const bank of banks) {
+      for (const question of bank.questions) {
+        if (compute(`q-${question.type}--${question.id}`, question.title) !== targetKey) continue;
+        if (screen !== 'questions' || bankKey !== bank.key || paper || mistakes) {
+          bankKey = bank.key; screen = 'questions'; paper = null; mistakes = false; filter = 'all';
+          displayLimit = Math.max(30, bank.questions.indexOf(question) + 1);
+        }
+        render();
+        return;
+      }
+    }
   });
   render();
 })();
@@ -1468,7 +1510,7 @@ html[data-theme="dark"] .option.selected {
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-0641'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-0706'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -1907,6 +1949,12 @@ html[data-theme="dark"] .option.selected {
   const pageKey = location.pathname.replace(/\/index\.html$/i, '').replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-');
   const focusKey = new URLSearchParams(location.search).get('focus');
   let focusHandled = false;
+  let focusEmitted = false;
+  let focusRetryTimer = null;
+
+  // 页面（思政/计算机/泛读/基英）反查定位时使用同一 key 算法
+  const computeKey = (stableId, title) => `${pageKey}-${hash(`${stableId}-${clean(title)}`)}`;
+  const findCardByKey = key => [...document.querySelectorAll('.question-card,.card')].find(item => item.dataset.unifiedReady === key);
 
   function copyText(text) {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
@@ -1945,6 +1993,7 @@ html[data-theme="dark"] .option.selected {
 
   function enhanceCard(card, index) {
     if (card.dataset.unifiedReady) return;
+    if (card.dataset.unifiedIgnore) return;  // 模拟卷等由页面自身管理进度的卡片
     const questionNode = card.querySelector('.question,h2,.qbody');
     if (!questionNode) return;
     const title = clean(questionNode.textContent);
@@ -1956,7 +2005,7 @@ html[data-theme="dark"] .option.selected {
     const key = `${pageKey}-${hash(`${stableId}-${title}`)}`;
     card.dataset.unifiedReady = key;
     card.dataset.unifiedTitle = title;
-    // 纠错反馈：收集题目上下文，复制后发送给站长（零后端方案）
+    // 纠错反馈：收集题目上下文，复制后发送给站长（有云端 API 时优先提交）
     if (!card.querySelector('.unified-feedback')) {
       const feedback = document.createElement('button');
       feedback.type = 'button';
@@ -1965,7 +2014,6 @@ html[data-theme="dark"] .option.selected {
       feedback.addEventListener('click', async event => {
         event.stopPropagation();
         const apiBase = window.WAIYUAN_API_BASE;
-        // 优先提交到云端反馈 API（域名/网络不可达时自动回退到复制）
         if (apiBase) {
           try {
             const controller = new AbortController();
@@ -2003,22 +2051,104 @@ html[data-theme="dark"] .option.selected {
     card.appendChild(button);
   }
 
-  function record(card, result) {
-    if (!card?.dataset.unifiedReady) return;
+  // —— 浏览记录：题目进入视口停留约 1 秒记为「已浏览」（viewed），
+  //    快速划过不算；5 分钟内重复浏览不重复计数 ——
+  function markViewed(card) {
     const key = card.dataset.unifiedReady;
+    if (!key) return;
     const old = state.progress[key] || {};
     const now = Date.now();
     state.progress[key] = {
       ...old,
       key,
-      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody')?.textContent),
+      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody')?.textContent) || old.title || '',
+      page: document.title,
+      path: location.pathname,
+      viewed: true,
+      viewCount: (old.viewCount || 0) + (old.lastViewedAt && now - old.lastViewedAt < 5 * 60 * 1000 ? 0 : 1),
+      lastViewedAt: now,
+      updatedAt: now
+    };
+    save(state);
+  }
+  const viewTimers = new WeakMap();
+  const viewObserver = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      const card = entry.target;
+      if (!entry.isIntersecting) {
+        const timer = viewTimers.get(card);
+        if (timer) { clearTimeout(timer); viewTimers.delete(card); }
+        continue;
+      }
+      if (card.dataset.viewRecorded || viewTimers.has(card)) continue;
+      viewTimers.set(card, setTimeout(() => {
+        card.dataset.viewRecorded = '1';
+        markViewed(card);
+      }, 1000));
+    }
+  }, {threshold: 0.6});
+
+  // —— 自评系统：简答/论述/材料/翻译等非选择题，展开答案后可自评 ——
+  const SELF_LABELS = {correct: '自评：答对 ✓', partial: '自评：部分掌握', wrong: '自评：需复习'};
+  function injectSelfAssess(card) {
+    if (card.querySelector('.unified-self-assess')) return;
+    if (card.querySelector('.option,.fill-input-wrap')) return;  // 选择题/填空题走自动判题
+    const key = card.dataset.unifiedReady;
+    const current = key ? state.progress[key] : null;
+    const picked = current && current.result ? current.result : '';
+    const wrap = document.createElement('div');
+    wrap.className = 'unified-self-assess' + (picked ? ' done' : '');
+    const label = document.createElement('span');
+    label.className = 'usa-label';
+    label.textContent = picked ? SELF_LABELS[picked] : '自评：';
+    wrap.appendChild(label);
+    if (!picked) {
+      [['correct', '我答对了'], ['partial', '部分掌握'], ['wrong', '需要复习']].forEach(([value, text]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.self = value;
+        button.textContent = text;
+        button.addEventListener('click', event => {
+          event.stopPropagation();
+          record(card, {self: value});
+          label.textContent = SELF_LABELS[value];
+          wrap.classList.add('done');
+          [...wrap.querySelectorAll('button')].forEach(btn => btn.remove());
+        });
+        wrap.appendChild(button);
+      });
+    }
+    card.appendChild(wrap);
+  }
+  function prepareCard(card) {
+    if (!card || !card.dataset.unifiedReady) return;
+    const answerNode = card.querySelector('.answer');
+    const answerShown = answerNode && !answerNode.hidden;
+    if (answerShown || state.progress[card.dataset.unifiedReady]?.result) injectSelfAssess(card);
+    if (!card.dataset.viewRecorded) viewObserver.observe(card);
+  }
+
+  function record(card, result) {
+    if (!card?.dataset.unifiedReady) return;
+    const key = card.dataset.unifiedReady;
+    const old = state.progress[key] || {};
+    const now = Date.now();
+    const self = result && typeof result === 'object' ? result.self : null;
+    const auto = result === true || result === false;
+    const answeredNow = auto || !!self;
+    state.progress[key] = {
+      ...old,
+      key,
+      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody')?.textContent) || old.title || '',
       page: document.title,
       path: location.pathname,
       reviewed: true,
-      answered: result === true || result === false || old.answered || false,
-      ok: result === true ? true : result === false ? false : old.ok,
-      wrong: result === false ? true : result === true ? false : old.wrong,
-      attempts: (old.attempts || 0) + (result === true || result === false ? 1 : 0),
+      viewed: old.viewed || answeredNow || true,  // 作答必然看过
+      answered: answeredNow || old.answered || false,
+      ok: auto ? (result === true) : self ? (self === 'correct') : old.ok,
+      wrong: auto ? (result === false) : self ? (self === 'wrong') : old.wrong,
+      result: self ? self : auto ? undefined : old.result,
+      attempts: (old.attempts || 0) + (answeredNow ? 1 : 0),
       updatedAt: now
     };
     save(state);
@@ -2032,8 +2162,42 @@ html[data-theme="dark"] .option.selected {
     return null;
   }
 
+  // —— 填空判题：规范化比较（大小写/全角半角/首尾与连续空白/中英文标点），
+  //    题库答案可含多个合法值（用 /；|、或中英文逗号分隔），命中任一即算答对 ——
+  const normalizeAnswer = text => String(text || '')
+    .replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))  // 全角→半角
+    .replace(/\u3000/g, ' ')
+    .replace(/[，。；：！？、]/g, ch => ({'，': ',', '。': '.', '；': ';', '：': ':', '！': '!', '？': '?', '、': ','}[ch]))
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  function judgeFill(card, inputValue) {
+    const raw = card.dataset.fillAnswers || '';
+    if (!raw) return null;
+    const input = normalizeAnswer(inputValue);
+    const whole = normalizeAnswer(raw);
+    if (!input || !whole) return null;
+    if (whole === input) return true;
+    return whole.split(/\s*[\/;|，,、]\s*/).some(part => part && part === input);
+  }
+  function handleFillSubmit(target) {
+    const card = target.closest('.question-card,.card');
+    if (!card) return;
+    const input = card.querySelector('.fill-input');
+    const value = input ? input.value : '';
+    const result = judgeFill(card, value);
+    if (result === null) { if (input) input.focus(); return; }
+    let feedback = card.querySelector('.fill-feedback');
+    if (!feedback) { feedback = document.createElement('div'); feedback.className = 'fill-feedback'; card.appendChild(feedback); }
+    if (result) { feedback.textContent = '✓ 回答正确'; feedback.className = 'fill-feedback correct'; }
+    else { feedback.textContent = '✗ 未完全正确，可展开答案对照后重试'; feedback.className = 'fill-feedback wrong'; }
+    record(card, result);
+  }
+
   document.addEventListener('click', event => {
     const target = event.target.closest('button,[data-action]');
+    if (!target) return;
+    if (target.dataset.action === 'fill-submit') { handleFillSubmit(target); return; }
     const card = target?.closest('.question-card,.card');
     if (!card || target?.classList.contains('unified-favorite')) return;
     const action = target.dataset.action || '';
@@ -2045,6 +2209,7 @@ html[data-theme="dark"] .option.selected {
       const current = [...document.querySelectorAll('.question-card,.card')].find(item => item.dataset.unifiedReady === key) || card;
       const result = resultFromCard(current);
       record(current, result === null ? undefined : result);
+      prepareCard(current);  // 展开答案后挂自评按钮
     }, 0);
   });
 
@@ -2060,22 +2225,42 @@ html[data-theme="dark"] .option.selected {
     document.body.appendChild(notice);
   }
 
+  // —— focus 定位：卡片未渲染时（题库首页/折叠单元）先广播给页面应用，
+  //    由页面打开目标题库/单元；随后轮询等待卡片出现（约 12 秒），仍无则提示 ——
   function focusQuestion() {
     if (focusHandled || !focusKey) return;
-    const card = [...document.querySelectorAll('.question-card,.card')].find(item => item.dataset.unifiedReady === focusKey);
-    if (!card) {
-      console.warn(`unified-quiz-engine: 未找到 focus 目标题目（${focusKey}）。题库可能已更新，旧的学习记录定位失效。`);
-      showFocusNotice();
+    const card = findCardByKey(focusKey);
+    if (card) {
       focusHandled = true;
+      card.classList.add('unified-review-target');
+      card.scrollIntoView({behavior:'smooth',block:'center'});
       return;
     }
-    focusHandled = true;
-    card.classList.add('unified-review-target');
-    card.scrollIntoView({behavior:'smooth',block:'center'});
+    if (!focusEmitted) {
+      focusEmitted = true;
+      window.dispatchEvent(new CustomEvent('waiyuan:focus', {detail: {key: focusKey}}));
+    }
+    if (!focusRetryTimer) {
+      let attempts = 0;
+      focusRetryTimer = setInterval(() => {
+        attempts++;
+        const retry = findCardByKey(focusKey);
+        if (retry) {
+          clearInterval(focusRetryTimer); focusRetryTimer = null;
+          focusHandled = true;
+          retry.classList.add('unified-review-target');
+          retry.scrollIntoView({behavior:'smooth',block:'center'});
+        } else if (attempts >= 6) {
+          clearInterval(focusRetryTimer); focusRetryTimer = null;
+          focusHandled = true;
+          showFocusNotice();
+        }
+      }, 2000);
+    }
   }
   function enhance() {
     const cards = [...document.querySelectorAll('.question-card,.card')];
-    cards.forEach(enhanceCard);
+    cards.forEach(card => { enhanceCard(card); prepareCard(card); });
     // Only show the floating random-question button on pages that actually
     // contain question cards (the homepage has none and must not show it).
     randomButton.style.display = cards.length ? '' : 'none';
@@ -2084,12 +2269,12 @@ html[data-theme="dark"] .option.selected {
   function randomQuestion() { const cards = [...document.querySelectorAll('.question-card,.card')].filter(card => card.offsetParent !== null); if (!cards.length) return; cards[Math.floor(Math.random()*cards.length)].scrollIntoView({behavior:'smooth',block:'center'}); }
 
   const style = document.createElement('style');
-  style.textContent = '.unified-favorite{margin-top:14px;padding:8px 14px;border:1px solid #d7dce5;border-radius:999px;background:#f7f8fa;color:#697386;cursor:pointer}.unified-favorite.active{background:#fff3c4;border-color:#e4b84a;color:#8a6200}.unified-feedback{margin-top:14px;margin-left:8px;padding:8px 14px;border:1px solid #e8d5c8;border-radius:999px;background:#fdf6f0;color:#a05a3a;cursor:pointer}.unified-review-target{outline:3px solid #d97845;outline-offset:5px;scroll-margin-block:24px}.unified-random-web{position:fixed;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(18px,env(safe-area-inset-bottom));z-index:30;max-width:calc(100vw - 100px);padding:11px 16px;border:0;border-radius:999px;background:#28634f;color:#fff;box-shadow:0 8px 25px rgba(0,0,0,.18);cursor:pointer;white-space:nowrap}@media(max-width:560px){.unified-random-web{left:12px;bottom:14px;padding:10px 13px;font-size:13px}}.unified-focus-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center}.unified-focus-notice button{flex:none;border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-feedback-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff4ec;border:1px solid #e8b48f;color:#6b3d1d;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.unified-feedback-notice a{color:#b05f2e;font-weight:700;text-decoration:none;border-bottom:1px dashed #b05f2e}.unified-feedback-notice button{flex:none;border:0;background:#e8b48f;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}';
+  style.textContent = '.unified-favorite{margin-top:14px;padding:8px 14px;border:1px solid #d7dce5;border-radius:999px;background:#f7f8fa;color:#697386;cursor:pointer}.unified-favorite.active{background:#fff3c4;border-color:#e4b84a;color:#8a6200}.unified-feedback{margin-top:14px;margin-left:8px;padding:8px 14px;border:1px solid #e8d5c8;border-radius:999px;background:#fdf6f0;color:#a05a3a;cursor:pointer}.unified-review-target{outline:3px solid #d97845;outline-offset:5px;scroll-margin-block:24px}.unified-random-web{position:fixed;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(18px,env(safe-area-inset-bottom));z-index:30;max-width:calc(100vw - 100px);padding:11px 16px;border:0;border-radius:999px;background:#28634f;color:#fff;box-shadow:0 8px 25px rgba(0,0,0,.18);cursor:pointer;white-space:nowrap}@media(max-width:560px){.unified-random-web{left:12px;bottom:14px;padding:10px 13px;font-size:13px}}.unified-focus-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center}.unified-focus-notice button{flex:none;border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-feedback-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff4ec;border:1px solid #e8b48f;color:#6b3d1d;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.unified-feedback-notice a{color:#b05f2e;font-weight:700;text-decoration:none;border-bottom:1px dashed #b05f2e}.unified-feedback-notice button{flex:none;border:0;background:#e8b48f;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-self-assess{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.unified-self-assess .usa-label{color:#73817b;font-size:14px}.unified-self-assess.done .usa-label{color:#28634f;font-weight:700}.unified-self-assess button{padding:7px 13px;border:1px solid #dfe6df;border-radius:999px;background:#f1f7f3;color:#44584f;cursor:pointer;font-size:13px}.unified-self-assess button:hover{background:#e2efe7}.unified-self-assess.done button{display:none}.fill-input-wrap{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fill-input-wrap .fill-input{flex:1;min-width:160px;padding:9px 12px;border:1px solid #c9d6cd;border-radius:10px;background:#fffefa;color:#17211f;font-size:15px}.fill-input-wrap .fill-submit{padding:8px 16px;border:0;border-radius:10px;background:#28634f;color:#fff;cursor:pointer;font-size:14px}.fill-feedback{margin-top:10px;font-size:13px;font-weight:700}.fill-feedback.correct{color:#276545}.fill-feedback.wrong{color:#a04b44}';
   document.head.appendChild(style);
   const randomButton = document.createElement('button'); randomButton.className='unified-random-web'; randomButton.textContent='↻ 随机一题'; randomButton.addEventListener('click',randomQuestion); randomButton.style.display='none'; document.body.appendChild(randomButton);
   new MutationObserver(enhance).observe(document.body,{childList:true,subtree:true});
   enhance(); save(state);
-  window.WaiyuanQuizEngine = {state, save, enhance, randomQuestion, record};
+  window.WaiyuanQuizEngine = {state, save, enhance, randomQuestion, record, computeKey, focusKey};
 })();
 </script>
 </body>

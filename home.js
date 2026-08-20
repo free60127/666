@@ -75,10 +75,12 @@ const copyShareLink = async button => {
   const answered = progress.filter(item => item.answered);
   const wrong = progress.filter(item => item.wrong);
   const setText = (id, text) => { const node = document.getElementById(id); if (node) node.textContent = text; };
-  const todayStamp = new Date().toISOString().slice(0, 10);
+  // 本地日期（背单词 history 用本地日期做 key，统一口径，避免 00:00-08:00 跨日错配）
+  const localDay = (date = new Date()) => { const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60000); return copy.toISOString().slice(0, 10); };
+  const todayStamp = localDay();
   const todayCount = answered.filter(item => {
     const t = new Date(item.updatedAt);
-    return Number.isFinite(t.getTime()) && t.toISOString().slice(0, 10) === todayStamp;
+    return Number.isFinite(t.getTime()) && localDay(t) === todayStamp;
   }).length;
   const vocabHistory = vocabulary && vocabulary.history ? vocabulary.history[todayStamp] : null;
   const vocabToday = vocabHistory && Number.isFinite(vocabHistory.reviews) ? vocabHistory.reviews : 0;

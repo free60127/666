@@ -17,17 +17,18 @@ scripts.forEach((code, i) => {
 });
 console.log(pass ? '语法检查: 全部通过 ✓' : '语法检查: 有错误 ✗');
 
-// 提取数据块并解析题库
-const dataScript = scripts.find(code => code.includes('POLITICS_BANKS'));
+// 提取数据块并解析题库（思政版 window.POLITICS_BANKS / 计算机版 window.COMPUTER_BANKS）
+const dataScript = scripts.find(code => code.includes('POLITICS_BANKS') || code.includes('COMPUTER_BANKS'));
 if (dataScript) {
   const ctx = { window: {} };
   vm.createContext(ctx);
   vm.runInContext(dataScript, ctx);
-  const banks = ctx.window.POLITICS_BANKS;
+  const globalName = dataScript.includes('COMPUTER_BANKS') ? 'COMPUTER_BANKS' : 'POLITICS_BANKS';
+  const banks = ctx.window[globalName];
   if (Array.isArray(banks)) {
     console.log('内嵌题库: ' + banks.map(b => `${b.key}=${b.questions.length}`).join(' '));
   } else {
-    pass = false; console.log('  ✗ POLITICS_BANKS 非数组');
+    pass = false; console.log(`  ✗ ${globalName} 非数组`);
   }
   // 与同目录 data.js 对比（path 归一化，兼容 Windows 反斜杠参数）
   const dir = path.dirname(file);
@@ -35,7 +36,7 @@ if (dataScript) {
   if (dataScript.trim() === dataJs.trim()) console.log('题库数据与 data.js 一致 ✓');
   else { pass = false; console.log('  ✗ 题库数据与 data.js 不一致!'); }
 } else {
-  pass = false; console.log('  ✗ 未找到 POLITICS_BANKS 数据块');
+  pass = false; console.log('  ✗ 未找到 POLITICS_BANKS / COMPUTER_BANKS 数据块');
 }
 
 // 确认关键功能内联

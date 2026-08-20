@@ -125,10 +125,15 @@
 
   function summary(bank) {
     const counts = bank.questions.reduce((out, question) => (out[question.type] = (out[question.type] || 0) + 1, out), {});
-    const progress = Object.entries(saved.progress || {}).filter(([key]) => key.startsWith(`${bank.key}-`) || key.startsWith(`paper-${bank.key}-`));
+    // 只统计普通题库进度：模拟卷使用独立 key（paper-…），不得混入
+    const progress = Object.entries(saved.progress || {}).filter(([key]) => key.startsWith(`${bank.key}-`) && !key.startsWith('paper-'));
     const correct = progress.filter(([, item]) => item.ok).length;
     return {...counts, total: bank.questions.length, done: progress.length, mistakes: progress.filter(([, item]) => item.wrong).length, accuracy: progress.length ? `${Math.round(correct / progress.length * 100)}%` : '—'};
   }
+
+  // 题库内容指纹：任一题题干/答案变化都会改变指纹，
+  // 使旧模拟卷自动重建（随机抽题结果不变时仍可保留进度）。
+  const bankFingerprint = bank => { let value = 2166136261; for (const question of bank.questions) { const t = String(question.title || '') + String(question.answer || ''); for (const char of t) value = Math.imul(value ^ char.charCodeAt(0), 16777619); } return (value >>> 0).toString(36); };
 
   function paperPlan(bank) {
     const defaults = bank.key === 'marx' ? {short: 5, essay: 2} : bank.key === 'xi' ? {single: 20, multi: 20, short: 5, essay: 2, material: 2} : {single: 20, multi: 20, short: 5, essay: 2};
@@ -138,17 +143,25 @@
   function createPaper(bank, number) {
     let id = 0;
     const plan = paperPlan(bank);
-    return {key: `${bank.key}-${number}`, bankKey: bank.key, number, version: PAPER_VERSION, questions: Object.entries(plan).flatMap(([type, count]) => shuffle(bank.questions.filter(question => question.type === type)).slice(0, count).map(question => ({...question, id: ++id, sourceId: question.id, sourceType: type})))};
+    return {key: `${bank.key}-${number}`, bankKey: bank.key, number, version: PAPER_VERSION, fingerprint: bankFingerprint(bank), questions: Object.entries(plan).flatMap(([type, count]) => shuffle(bank.questions.filter(question => question.type === type)).slice(0, count).map(question => ({...question, id: ++id, sourceId: question.id, sourceType: type})))};
   }
 
   function loadPaper(key, number) {
     ensure();
     const bank = getBank(key);
-    const expected = paperPlan(bank);
     const old = saved.papers[`${key}-${number}`];
-    paper = old && old.version === PAPER_VERSION && Object.entries(expected).every(([type, count]) => old.questions.filter(question => question.sourceType === type).length === count) ? old : createPaper(bank, number);
+    paper = old && old.version === PAPER_VERSION && old.fingerprint === bankFingerprint(bank) ? old : createPaper(bank, number);
     saved.papers[paper.key] = paper;
     persist(); bankKey = key; screen = 'questions'; mistakes = false; filter = 'all'; displayLimit = 30; render();
+  }
+
+  // 模拟卷自身统计（与普通题库进度分离）
+  function paperSummary() {
+    if (!paper) return null;
+    const entries = Object.entries(saved.progress || {}).filter(([key]) => key.startsWith(`paper-${paper.key}-`));
+    const attempted = entries.filter(([, item]) => item.answered || item.ok || item.wrong);
+    const correct = entries.filter(([, item]) => item.ok).length;
+    return {total: paper.questions.length, done: attempted.length, accuracy: attempted.length ? `${Math.round(correct / attempted.length * 100)}%` : '—', mistakes: entries.filter(([, item]) => item.wrong).length};
   }
 
   function card(question) {
@@ -161,7 +174,7 @@
       const selected = state.selected?.includes(index) ? 'selected' : '';
       return `<button class="option ${feedback} ${selected}" data-action="choose" data-id="${token}" data-index="${index}"><span class="${question.type === 'multi' ? 'check' : 'radio'} ${selected}"></span><span>${String.fromCharCode(65 + index)}．${escape(optionText(option))}</span></button>`;
     }).join('');
-    return `<article class="card" id="q-${token}">
+    return `<article class="card" id="q-${token}"${paper ? ' data-unified-ignore="1"' : ''}>
       <div class="qrow"><span class="qindex">${question.id}</span><div><h2>${escape(question.title)}</h2><span class="tag">${labels[question.type] || question.type}</span>${question.hint ? `<span class="hint">记忆 · ${escape(question.hint)}</span>` : ''}</div></div>
       ${choices.length ? `<div class="options">${options}${question.type === 'multi' && answer ? `<button class="confirm" data-action="confirm" data-id="${token}">确认答案</button>` : ''}</div>` : ''}
       <button class="answer-toggle" data-action="answer" data-id="${token}">${state.showAnswer ? '收起答案' : '点击展开答案'}</button>
@@ -191,7 +204,7 @@
     const types = ['all', ...Object.keys(labels).filter(type => type !== 'all' && questions.some(question => question.type === type))];
     const matching = questions.filter(question => filter === 'all' || question.type === filter);
     const visible = matching.slice(0, displayLimit);
-    const s = summary(bank);
+    const s = paper ? paperSummary() : summary(bank);
     app.innerHTML = `<button class="back" data-action="back">‹ 返回题库</button><section class="hero compact"><small>${mistakes ? '错题本 · ' : ''}${escape(paper ? `${bank.name} · 模拟卷${paper.number}` : bank.name)}</small><div class="stats"><span><b>${paper || mistakes ? questions.length : s.total}</b>题目</span><span><b>${s.done}</b>已完成</span><span><b>${s.accuracy}</b>正确率</span></div></section>
       <nav class="tabs">${types.map(type => `<button class="${filter === type ? 'active' : ''}" data-action="filter" data-filter="${type}">${labels[type]}</button>`).join('')}</nav>
       <div class="actions"><button data-action="random">↻ 随机一题</button><button data-action="export">导出当前题目 A4 PDF</button>${paper ? '<button data-action="clear-paper">清空本模拟卷进度</button>' : (!mistakes ? '<button data-action="clear">清除本题库进度</button>' : '')}</div><p class="notice">${mistakes ? '错题答对后将自动移出错题本。' : '选择题支持判题；简答、论述和材料题可展开参考答案。'}</p>
@@ -249,6 +262,25 @@
     if (action === 'choose') { const question = findQuestion(id); if (!question?.answer) return; const key = questionKey(question); const item = {...(saved.progress[key] || {})}; const choice = Number(index); const picked = [...(item.selected || [])]; if (question.type === 'multi') { const at = picked.indexOf(choice); at < 0 ? picked.push(choice) : picked.splice(at, 1); item.feedback = []; } else { picked.splice(0, picked.length, choice); } item.selected = picked; saved.progress[key] = item; if (question.type !== 'multi') judge(question); persist(); }
     if (action === 'confirm') { const question = findQuestion(id); judge(question); }
     render();
+  });
+
+  // focus 定位：统一引擎在目标题卡未渲染时广播 waiyuan:focus（学习中心「重新练习」跳转），
+  // 这里反查题目所在题库并直接打开（目标题可能在第 30 题之后，需扩大显示范围）
+  window.addEventListener('waiyuan:focus', event => {
+    const targetKey = event.detail && event.detail.key;
+    const compute = window.WaiyuanQuizEngine && window.WaiyuanQuizEngine.computeKey;
+    if (!targetKey || !compute) return;
+    for (const bank of banks) {
+      for (const question of bank.questions) {
+        if (compute(`q-${question.type}--${question.id}`, question.title) !== targetKey) continue;
+        if (screen !== 'questions' || bankKey !== bank.key || paper || mistakes) {
+          bankKey = bank.key; screen = 'questions'; paper = null; mistakes = false; filter = 'all';
+          displayLimit = Math.max(30, bank.questions.indexOf(question) + 1);
+        }
+        render();
+        return;
+      }
+    }
   });
   render();
 })();

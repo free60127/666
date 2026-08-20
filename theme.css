@@ -306,3 +306,13 @@ html[data-theme="dark"] .option.selected {
   border-color: #3f8f72 !important;
   box-shadow: 0 0 0 2px rgba(63,143,114,.28);
 }
+
+/* ---------- 统一引擎：填空判题 + 答案自评（深色） ---------- */
+html[data-theme="dark"] .fill-input-wrap .fill-input { background: #232a2e !important; color: #dfe6e2 !important; border-color: #3a4541 !important; }
+html[data-theme="dark"] .fill-input-wrap .fill-submit { background: #3f8f72 !important; }
+html[data-theme="dark"] .fill-feedback.correct { color: #7fc39a !important; }
+html[data-theme="dark"] .fill-feedback.wrong { color: #e0948b !important; }
+html[data-theme="dark"] .unified-self-assess .usa-label { color: #8d9b94 !important; }
+html[data-theme="dark"] .unified-self-assess.done .usa-label { color: #7fc39a !important; }
+html[data-theme="dark"] .unified-self-assess button { background: #24312b !important; border-color: #3a4541 !important; color: #cfd8d3 !important; }
+html[data-theme="dark"] .unified-self-assess button:hover { background: #2d4038 !important; }

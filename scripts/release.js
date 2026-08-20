@@ -31,6 +31,8 @@ try {
 
   // ---------- 1.5 数据源全量校验（8 个 source/*.json，失败即中止发布）----------
   tryRun('数据源校验', 'node scripts/build/validate.js');
+  // 题型统计（解析思政/计算机 data.js，失败同样中止——防止发布损坏产物）
+  tryRun('题型统计', 'node scripts/count-types.js');
 
   // ---------- 2. 全站 HTML + 运行时脚本版本号刷新 ----------
   const now = new Date();

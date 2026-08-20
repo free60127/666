@@ -8,6 +8,12 @@
   const pageKey = location.pathname.replace(/\/index\.html$/i, '').replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-');
   const focusKey = new URLSearchParams(location.search).get('focus');
   let focusHandled = false;
+  let focusEmitted = false;
+  let focusRetryTimer = null;
+
+  // 页面（思政/计算机/泛读/基英）反查定位时使用同一 key 算法
+  const computeKey = (stableId, title) => `${pageKey}-${hash(`${stableId}-${clean(title)}`)}`;
+  const findCardByKey = key => [...document.querySelectorAll('.question-card,.card')].find(item => item.dataset.unifiedReady === key);
 
   function copyText(text) {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
@@ -46,6 +52,7 @@
 
   function enhanceCard(card, index) {
     if (card.dataset.unifiedReady) return;
+    if (card.dataset.unifiedIgnore) return;  // 模拟卷等由页面自身管理进度的卡片
     const questionNode = card.querySelector('.question,h2,.qbody');
     if (!questionNode) return;
     const title = clean(questionNode.textContent);
@@ -57,7 +64,7 @@
     const key = `${pageKey}-${hash(`${stableId}-${title}`)}`;
     card.dataset.unifiedReady = key;
     card.dataset.unifiedTitle = title;
-    // 纠错反馈：收集题目上下文，复制后发送给站长（零后端方案）
+    // 纠错反馈：收集题目上下文，复制后发送给站长（有云端 API 时优先提交）
     if (!card.querySelector('.unified-feedback')) {
       const feedback = document.createElement('button');
       feedback.type = 'button';
@@ -66,7 +73,6 @@
       feedback.addEventListener('click', async event => {
         event.stopPropagation();
         const apiBase = window.WAIYUAN_API_BASE;
-        // 优先提交到云端反馈 API（域名/网络不可达时自动回退到复制）
         if (apiBase) {
           try {
             const controller = new AbortController();
@@ -104,22 +110,104 @@
     card.appendChild(button);
   }
 
-  function record(card, result) {
-    if (!card?.dataset.unifiedReady) return;
+  // —— 浏览记录：题目进入视口停留约 1 秒记为「已浏览」（viewed），
+  //    快速划过不算；5 分钟内重复浏览不重复计数 ——
+  function markViewed(card) {
     const key = card.dataset.unifiedReady;
+    if (!key) return;
     const old = state.progress[key] || {};
     const now = Date.now();
     state.progress[key] = {
       ...old,
       key,
-      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody')?.textContent),
+      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody')?.textContent) || old.title || '',
+      page: document.title,
+      path: location.pathname,
+      viewed: true,
+      viewCount: (old.viewCount || 0) + (old.lastViewedAt && now - old.lastViewedAt < 5 * 60 * 1000 ? 0 : 1),
+      lastViewedAt: now,
+      updatedAt: now
+    };
+    save(state);
+  }
+  const viewTimers = new WeakMap();
+  const viewObserver = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      const card = entry.target;
+      if (!entry.isIntersecting) {
+        const timer = viewTimers.get(card);
+        if (timer) { clearTimeout(timer); viewTimers.delete(card); }
+        continue;
+      }
+      if (card.dataset.viewRecorded || viewTimers.has(card)) continue;
+      viewTimers.set(card, setTimeout(() => {
+        card.dataset.viewRecorded = '1';
+        markViewed(card);
+      }, 1000));
+    }
+  }, {threshold: 0.6});
+
+  // —— 自评系统：简答/论述/材料/翻译等非选择题，展开答案后可自评 ——
+  const SELF_LABELS = {correct: '自评：答对 ✓', partial: '自评：部分掌握', wrong: '自评：需复习'};
+  function injectSelfAssess(card) {
+    if (card.querySelector('.unified-self-assess')) return;
+    if (card.querySelector('.option,.fill-input-wrap')) return;  // 选择题/填空题走自动判题
+    const key = card.dataset.unifiedReady;
+    const current = key ? state.progress[key] : null;
+    const picked = current && current.result ? current.result : '';
+    const wrap = document.createElement('div');
+    wrap.className = 'unified-self-assess' + (picked ? ' done' : '');
+    const label = document.createElement('span');
+    label.className = 'usa-label';
+    label.textContent = picked ? SELF_LABELS[picked] : '自评：';
+    wrap.appendChild(label);
+    if (!picked) {
+      [['correct', '我答对了'], ['partial', '部分掌握'], ['wrong', '需要复习']].forEach(([value, text]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.self = value;
+        button.textContent = text;
+        button.addEventListener('click', event => {
+          event.stopPropagation();
+          record(card, {self: value});
+          label.textContent = SELF_LABELS[value];
+          wrap.classList.add('done');
+          [...wrap.querySelectorAll('button')].forEach(btn => btn.remove());
+        });
+        wrap.appendChild(button);
+      });
+    }
+    card.appendChild(wrap);
+  }
+  function prepareCard(card) {
+    if (!card || !card.dataset.unifiedReady) return;
+    const answerNode = card.querySelector('.answer');
+    const answerShown = answerNode && !answerNode.hidden;
+    if (answerShown || state.progress[card.dataset.unifiedReady]?.result) injectSelfAssess(card);
+    if (!card.dataset.viewRecorded) viewObserver.observe(card);
+  }
+
+  function record(card, result) {
+    if (!card?.dataset.unifiedReady) return;
+    const key = card.dataset.unifiedReady;
+    const old = state.progress[key] || {};
+    const now = Date.now();
+    const self = result && typeof result === 'object' ? result.self : null;
+    const auto = result === true || result === false;
+    const answeredNow = auto || !!self;
+    state.progress[key] = {
+      ...old,
+      key,
+      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody')?.textContent) || old.title || '',
       page: document.title,
       path: location.pathname,
       reviewed: true,
-      answered: result === true || result === false || old.answered || false,
-      ok: result === true ? true : result === false ? false : old.ok,
-      wrong: result === false ? true : result === true ? false : old.wrong,
-      attempts: (old.attempts || 0) + (result === true || result === false ? 1 : 0),
+      viewed: old.viewed || answeredNow || true,  // 作答必然看过
+      answered: answeredNow || old.answered || false,
+      ok: auto ? (result === true) : self ? (self === 'correct') : old.ok,
+      wrong: auto ? (result === false) : self ? (self === 'wrong') : old.wrong,
+      result: self ? self : auto ? undefined : old.result,
+      attempts: (old.attempts || 0) + (answeredNow ? 1 : 0),
       updatedAt: now
     };
     save(state);
@@ -133,8 +221,42 @@
     return null;
   }
 
+  // —— 填空判题：规范化比较（大小写/全角半角/首尾与连续空白/中英文标点），
+  //    题库答案可含多个合法值（用 /；|、或中英文逗号分隔），命中任一即算答对 ——
+  const normalizeAnswer = text => String(text || '')
+    .replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))  // 全角→半角
+    .replace(/\u3000/g, ' ')
+    .replace(/[，。；：！？、]/g, ch => ({'，': ',', '。': '.', '；': ';', '：': ':', '！': '!', '？': '?', '、': ','}[ch]))
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  function judgeFill(card, inputValue) {
+    const raw = card.dataset.fillAnswers || '';
+    if (!raw) return null;
+    const input = normalizeAnswer(inputValue);
+    const whole = normalizeAnswer(raw);
+    if (!input || !whole) return null;
+    if (whole === input) return true;
+    return whole.split(/\s*[\/;|，,、]\s*/).some(part => part && part === input);
+  }
+  function handleFillSubmit(target) {
+    const card = target.closest('.question-card,.card');
+    if (!card) return;
+    const input = card.querySelector('.fill-input');
+    const value = input ? input.value : '';
+    const result = judgeFill(card, value);
+    if (result === null) { if (input) input.focus(); return; }
+    let feedback = card.querySelector('.fill-feedback');
+    if (!feedback) { feedback = document.createElement('div'); feedback.className = 'fill-feedback'; card.appendChild(feedback); }
+    if (result) { feedback.textContent = '✓ 回答正确'; feedback.className = 'fill-feedback correct'; }
+    else { feedback.textContent = '✗ 未完全正确，可展开答案对照后重试'; feedback.className = 'fill-feedback wrong'; }
+    record(card, result);
+  }
+
   document.addEventListener('click', event => {
     const target = event.target.closest('button,[data-action]');
+    if (!target) return;
+    if (target.dataset.action === 'fill-submit') { handleFillSubmit(target); return; }
     const card = target?.closest('.question-card,.card');
     if (!card || target?.classList.contains('unified-favorite')) return;
     const action = target.dataset.action || '';
@@ -146,6 +268,7 @@
       const current = [...document.querySelectorAll('.question-card,.card')].find(item => item.dataset.unifiedReady === key) || card;
       const result = resultFromCard(current);
       record(current, result === null ? undefined : result);
+      prepareCard(current);  // 展开答案后挂自评按钮
     }, 0);
   });
 
@@ -161,22 +284,42 @@
     document.body.appendChild(notice);
   }
 
+  // —— focus 定位：卡片未渲染时（题库首页/折叠单元）先广播给页面应用，
+  //    由页面打开目标题库/单元；随后轮询等待卡片出现（约 12 秒），仍无则提示 ——
   function focusQuestion() {
     if (focusHandled || !focusKey) return;
-    const card = [...document.querySelectorAll('.question-card,.card')].find(item => item.dataset.unifiedReady === focusKey);
-    if (!card) {
-      console.warn(`unified-quiz-engine: 未找到 focus 目标题目（${focusKey}）。题库可能已更新，旧的学习记录定位失效。`);
-      showFocusNotice();
+    const card = findCardByKey(focusKey);
+    if (card) {
       focusHandled = true;
+      card.classList.add('unified-review-target');
+      card.scrollIntoView({behavior:'smooth',block:'center'});
       return;
     }
-    focusHandled = true;
-    card.classList.add('unified-review-target');
-    card.scrollIntoView({behavior:'smooth',block:'center'});
+    if (!focusEmitted) {
+      focusEmitted = true;
+      window.dispatchEvent(new CustomEvent('waiyuan:focus', {detail: {key: focusKey}}));
+    }
+    if (!focusRetryTimer) {
+      let attempts = 0;
+      focusRetryTimer = setInterval(() => {
+        attempts++;
+        const retry = findCardByKey(focusKey);
+        if (retry) {
+          clearInterval(focusRetryTimer); focusRetryTimer = null;
+          focusHandled = true;
+          retry.classList.add('unified-review-target');
+          retry.scrollIntoView({behavior:'smooth',block:'center'});
+        } else if (attempts >= 6) {
+          clearInterval(focusRetryTimer); focusRetryTimer = null;
+          focusHandled = true;
+          showFocusNotice();
+        }
+      }, 2000);
+    }
   }
   function enhance() {
     const cards = [...document.querySelectorAll('.question-card,.card')];
-    cards.forEach(enhanceCard);
+    cards.forEach(card => { enhanceCard(card); prepareCard(card); });
     // Only show the floating random-question button on pages that actually
     // contain question cards (the homepage has none and must not show it).
     randomButton.style.display = cards.length ? '' : 'none';
@@ -185,10 +328,10 @@
   function randomQuestion() { const cards = [...document.querySelectorAll('.question-card,.card')].filter(card => card.offsetParent !== null); if (!cards.length) return; cards[Math.floor(Math.random()*cards.length)].scrollIntoView({behavior:'smooth',block:'center'}); }
 
   const style = document.createElement('style');
-  style.textContent = '.unified-favorite{margin-top:14px;padding:8px 14px;border:1px solid #d7dce5;border-radius:999px;background:#f7f8fa;color:#697386;cursor:pointer}.unified-favorite.active{background:#fff3c4;border-color:#e4b84a;color:#8a6200}.unified-feedback{margin-top:14px;margin-left:8px;padding:8px 14px;border:1px solid #e8d5c8;border-radius:999px;background:#fdf6f0;color:#a05a3a;cursor:pointer}.unified-review-target{outline:3px solid #d97845;outline-offset:5px;scroll-margin-block:24px}.unified-random-web{position:fixed;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(18px,env(safe-area-inset-bottom));z-index:30;max-width:calc(100vw - 100px);padding:11px 16px;border:0;border-radius:999px;background:#28634f;color:#fff;box-shadow:0 8px 25px rgba(0,0,0,.18);cursor:pointer;white-space:nowrap}@media(max-width:560px){.unified-random-web{left:12px;bottom:14px;padding:10px 13px;font-size:13px}}.unified-focus-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center}.unified-focus-notice button{flex:none;border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-feedback-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff4ec;border:1px solid #e8b48f;color:#6b3d1d;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.unified-feedback-notice a{color:#b05f2e;font-weight:700;text-decoration:none;border-bottom:1px dashed #b05f2e}.unified-feedback-notice button{flex:none;border:0;background:#e8b48f;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}';
+  style.textContent = '.unified-favorite{margin-top:14px;padding:8px 14px;border:1px solid #d7dce5;border-radius:999px;background:#f7f8fa;color:#697386;cursor:pointer}.unified-favorite.active{background:#fff3c4;border-color:#e4b84a;color:#8a6200}.unified-feedback{margin-top:14px;margin-left:8px;padding:8px 14px;border:1px solid #e8d5c8;border-radius:999px;background:#fdf6f0;color:#a05a3a;cursor:pointer}.unified-review-target{outline:3px solid #d97845;outline-offset:5px;scroll-margin-block:24px}.unified-random-web{position:fixed;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(18px,env(safe-area-inset-bottom));z-index:30;max-width:calc(100vw - 100px);padding:11px 16px;border:0;border-radius:999px;background:#28634f;color:#fff;box-shadow:0 8px 25px rgba(0,0,0,.18);cursor:pointer;white-space:nowrap}@media(max-width:560px){.unified-random-web{left:12px;bottom:14px;padding:10px 13px;font-size:13px}}.unified-focus-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center}.unified-focus-notice button{flex:none;border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-feedback-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff4ec;border:1px solid #e8b48f;color:#6b3d1d;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.unified-feedback-notice a{color:#b05f2e;font-weight:700;text-decoration:none;border-bottom:1px dashed #b05f2e}.unified-feedback-notice button{flex:none;border:0;background:#e8b48f;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-self-assess{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.unified-self-assess .usa-label{color:#73817b;font-size:14px}.unified-self-assess.done .usa-label{color:#28634f;font-weight:700}.unified-self-assess button{padding:7px 13px;border:1px solid #dfe6df;border-radius:999px;background:#f1f7f3;color:#44584f;cursor:pointer;font-size:13px}.unified-self-assess button:hover{background:#e2efe7}.unified-self-assess.done button{display:none}.fill-input-wrap{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fill-input-wrap .fill-input{flex:1;min-width:160px;padding:9px 12px;border:1px solid #c9d6cd;border-radius:10px;background:#fffefa;color:#17211f;font-size:15px}.fill-input-wrap .fill-submit{padding:8px 16px;border:0;border-radius:10px;background:#28634f;color:#fff;cursor:pointer;font-size:14px}.fill-feedback{margin-top:10px;font-size:13px;font-weight:700}.fill-feedback.correct{color:#276545}.fill-feedback.wrong{color:#a04b44}';
   document.head.appendChild(style);
   const randomButton = document.createElement('button'); randomButton.className='unified-random-web'; randomButton.textContent='↻ 随机一题'; randomButton.addEventListener('click',randomQuestion); randomButton.style.display='none'; document.body.appendChild(randomButton);
   new MutationObserver(enhance).observe(document.body,{childList:true,subtree:true});
   enhance(); save(state);
-  window.WaiyuanQuizEngine = {state, save, enhance, randomQuestion, record};
+  window.WaiyuanQuizEngine = {state, save, enhance, randomQuestion, record, computeKey, focusKey};
 })();

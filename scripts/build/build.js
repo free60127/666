@@ -10,7 +10,7 @@ const sourceDir = path.join(root, 'source');
 // subdirectory outputs are produced here.
 const targets = [
   {source:'politics.json', global:'POLITICS_BANKS', js:['思政系列/data.js'], json:['思政系列/data.json']},
-  {source:'computer.json', global:'POLITICS_BANKS', js:['计算机系列/data.js'], json:['计算机系列/data.json']},
+  {source:'computer.json', global:'COMPUTER_BANKS', js:['计算机系列/data.js'], json:['计算机系列/data.json']},
   // vocabulary 整包 js 已移除（唯一消费者 reading-tools 查词回退已于 2026-08-21 改为
   // 只使用拆分产物 + ECDICT），json 产物保留供外部工具引用。
   {source:'vocabulary.json', global:'WAIYUAN_VOCABULARY', js:[], json:['背单词/vocabulary-data.json']},
@@ -22,10 +22,7 @@ const targets = [
 ];
 
 function compact(value) { return JSON.stringify(value); }
-function prefixFor(global) {
-  if (global === 'POLITICS_BANKS') return `window.${global}=`;
-  return `window.${global} = `;
-}
+function prefixFor(global) { return `window.${global}=`; }
 function write(file, text) {
   const target = path.join(root, file);
   fs.mkdirSync(path.dirname(target), {recursive:true});

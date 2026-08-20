@@ -13,7 +13,7 @@
         stale-while-revalidate：先回缓存立即响应，同时后台拉新。
    版本号：更新本文件 CACHE 常量即可整体换新缓存。
    ============================================================ */
-const CACHE = 'waiyuan-v4';
+const CACHE = 'waiyuan-v5';
 
 const PRECACHE = [
   './',
@@ -34,6 +34,12 @@ const PRECACHE = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './背单词/index.html',
+  './背单词/style.css',
+  './背单词/licenses.css',
+  './背单词/vocabulary-extra.css',
+  './背单词/app.js',
+  './背单词/vocabulary-meta.js',
+  './背单词/vendor/ts-fsrs/index.umd.js?v=5.4.1',
   './思政系列/index.html',
   './计算机系列/index.html',
   './学习中心/index.html',
@@ -128,10 +134,13 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // 带版本号资源：缓存优先 + 后台刷新 + 清理旧版本
+  // 带版本号资源：缓存优先 + 后台刷新 + 清理旧版本。
+  // 预缓存条目按「无版本 URL」存放（发布换版本号后不失效），
+  // 因此先按完整请求匹配，miss 时再回退到无版本条目。
   if (url.searchParams.has('v')) {
+    const cleanUrl = url.origin + url.pathname;
     event.respondWith(
-      caches.match(req).then(hit => {
+      caches.match(req).then(hit => hit || caches.match(cleanUrl)).then(hit => {
         if (hit) {
           fetch(req)
             .then(res => {

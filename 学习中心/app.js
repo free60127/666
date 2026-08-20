@@ -86,7 +86,9 @@
       if (result && typeof result.then === 'function') result.then(done).catch(() => done('denied'));  // Promise 式
     } catch (_) { done('denied'); }
   });
-  const dateStamp = () => new Date().toISOString().slice(0, 10);
+  // 本地日期（非 UTC）：跨日统计/导出文件名/提醒去重都用中国时区当天，
+  // 否则 00:00-08:00 之间会把今天算成昨天。
+  const dateStamp = (date = new Date()) => { const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60000); return copy.toISOString().slice(0, 10); };
   const download = (content, filename) => {
     const blob = new Blob([content], {type:'application/json;charset=utf-8'});
     const url = URL.createObjectURL(blob);
@@ -166,7 +168,7 @@
   }
 
   // —— 统计增强（2026-08-21）：按课程进度 / 连续天数 / 近 7 天曲线 / 每日目标 ——
-  const dayOf = time => { const v = new Date(time); return Number.isFinite(v.getTime()) ? v.toISOString().slice(0, 10) : ''; };
+  const dayOf = time => { const v = new Date(time); return Number.isFinite(v.getTime()) ? dateStamp(v) : ''; };
   const courseOf = item => {
     const p = String(item.path || '');
     const page = String(item.page || '');
@@ -186,14 +188,13 @@
       if (d) days.add(d);
     }
     if (!days.size) return 0;
-    const list = [...days].sort();
     // 从今天或昨天开始向前数连续
     const date = new Date();
-    const today = date.toISOString().slice(0, 10);
-    if (!days.has(today)) { date.setDate(date.getDate() - 1); if (!days.has(date.toISOString().slice(0, 10))) return 0; }
+    const today = dateStamp(date);
+    if (!days.has(today)) { date.setDate(date.getDate() - 1); if (!days.has(dateStamp(date))) return 0; }
     let streak = 0;
     while (true) {
-      const key = date.toISOString().slice(0, 10);
+      const key = dateStamp(date);
       if (!days.has(key)) break;
       streak++;
       date.setDate(date.getDate() - 1);
@@ -204,7 +205,7 @@
     const out = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date(); date.setDate(date.getDate() - i);
-      const key = date.toISOString().slice(0, 10);
+      const key = dateStamp(date);
       const count = progress.filter(item => dayOf(item.updatedAt) === key && item.answered).length;
       out.push({ day: key.slice(5), count });
     }
@@ -214,10 +215,12 @@
 
   function renderOverview(state) {
     const progress = Object.values(state.progress);
+    const viewed = progress.filter(item => item.viewed && !item.answered);
     const answered = progress.filter(item => item.answered);
     const correct = answered.filter(item => item.ok === true).length;
-    const wrong = answered.filter(item => item.wrong === true).length;
-    const accuracy = answered.length ? `${Math.round(correct / answered.length * 100)}%` : '—';
+    const review = progress.filter(item => item.wrong === true || item.result === 'partial');
+    const selfOk = answered.filter(item => item.result === 'correct').length;
+    const selfPartial = answered.filter(item => item.result === 'partial').length;
     const recent = [...progress].sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0,5);
     const today = dateStamp();
     const todayCount = answered.filter(item => dayOf(item.updatedAt) === today).length;
@@ -233,7 +236,7 @@
     }
     const courseRows = [...groups.entries()].sort((a,b) => b[1].length - a[1].length).map(([name, items]) => {
       const ok = items.filter(i => i.ok === true).length;
-      const wrongIn = items.filter(i => i.wrong === true).length;
+      const wrongIn = items.filter(i => i.wrong === true || i.result === 'partial').length;
       return `<div class="course-row"><span>${escape(name)}</span><b>${items.length} 题</b><small>答对 ${ok} · 正确率 ${items.length ? Math.round(ok / items.length * 100) : 0}%</small>${wrongIn ? `<em>${wrongIn} 待复习</em>` : ''}</div>`;
     }).join('');
     // 近 7 天
@@ -242,7 +245,7 @@
     const bars = days.map(d => `<div class="bar" title="${d.day} 答题 ${d.count}"><div class="bar-inner" ${barStyle(d.count, maxDay)}></div><small>${d.day}</small></div>`).join('');
     const streak = computeStreak(progress);
     const goalPct = dailyGoal ? Math.min(100, Math.round(todayCount / dailyGoal * 100)) : 0;
-    app.innerHTML = `<section class="stats"><div class="stat"><small>已学习</small><b>${progress.length}</b></div><div class="stat"><small>答对</small><b>${correct}</b></div><div class="stat"><small>统一错题</small><b>${wrong}</b></div><div class="stat"><small>正确率</small><b>${accuracy}</b></div></section>
+    app.innerHTML = `<section class="stats"><div class="stat"><small>已浏览</small><b>${viewed.length}</b></div><div class="stat"><small>已作答</small><b>${answered.length}</b></div><div class="stat"><small>答对</small><b>${correct}</b></div><div class="stat"><small>待复习</small><b>${review.length}</b></div></section>${selfOk || selfPartial ? `<p class="note">自评：答对 ${selfOk} · 部分掌握 ${selfPartial}（简答/论述/材料/翻译类题目展开答案后可自评）</p>` : ''}
 <section class="goal-card"><div class="goal-row"><b>每日答题目标</b><input id="daily-goal-input" type="number" min="0" max="500" value="${dailyGoal}" inputmode="numeric" aria-label="每日答题目标"><button type="button" data-action="set-goal">保存</button></div>${dailyGoal ? `<div class="goal-track" role="progressbar" aria-label="今日目标进度" aria-valuenow="${goalPct}" aria-valuemin="0" aria-valuemax="100"><div class="goal-fill" style="width:${goalPct}%"></div></div>` : ''}<small>今日完成 <b>${todayCount}</b> 题 · 背单词复习 <b>${vocabToday}</b> 词${streak ? ` · 连续学习 <b>${streak}</b> 天` : ''}</small></section>
 ${courseRows ? `<section class="course-progress"><h2 class="section-title">按课程进度</h2>${courseRows}</section>` : ''}
 ${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title">最近 7 天</h2><div class="bars">${bars}</div></section>` : ''}
@@ -257,14 +260,14 @@ ${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title
   }
 
   function renderMistakes(state) {
-    const items = Object.values(state.progress).filter(item => item.wrong).sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    app.innerHTML = items.length ? `<section class="practice-panel"><div><b>准备复习错题？</b><small>${items.length} 道题待练习</small></div><a href="${escape(practiceUrl(items[0]))}">开始复习错题</a></section><div class="items">${items.map(item => itemCard(item,'mistake')).join('')}</div>` : empty('暂无统一错题','作答错误的题目会自动汇总到这里，答对后会移出。');
+    const items = Object.values(state.progress).filter(item => item.wrong || item.result === 'partial').sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    app.innerHTML = items.length ? `<section class="practice-panel"><div><b>准备复习错题？</b><small>${items.length} 道题待练习</small></div><a href="${escape(practiceUrl(items[0]))}">开始复习错题</a></section><div class="items">${items.map(item => itemCard(item,'mistake')).join('')}</div>` : empty('暂无待复习题目','作答错误或自评「需要复习」「部分掌握」的题目会自动汇总到这里，答对后会移出。');
   }
 
   function render() {
     const state = read();
     const favoriteCount = Object.keys(state.favorites).length;
-    const mistakeCount = Object.values(state.progress).filter(item => item.wrong).length;
+    const mistakeCount = Object.values(state.progress).filter(item => item.wrong || item.result === 'partial').length;
     document.getElementById('favorite-count').textContent = favoriteCount;
     document.getElementById('mistake-count').textContent = mistakeCount;
     const remindButton = document.getElementById('remind-toggle');
@@ -321,7 +324,7 @@ ${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title
   (function checkMistakeReminder() {
     const state = read();
     if (!state.settings.remindOn || !('Notification' in window) || Notification.permission !== 'granted') return;
-    const wrongCount = Object.values(state.progress).filter(item => item.wrong).length;
+    const wrongCount = Object.values(state.progress).filter(item => item.wrong || item.result === 'partial').length;
     if (!wrongCount) return;
     const REMIND_MEMO = 'waiyuan-study-remind-memo-v1';
     let memo = '';

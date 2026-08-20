@@ -15,14 +15,19 @@
   const unitOf = key => { const b = getBook(bookKey); return b && b.units.find(u => u.key === key); };
   const totalQ = book => book.units.reduce((n, u) => n + u.questions.length, 0);
 
-  function card(question, unitKey, index) {
+  function card(question, unitKey, index, unitKind) {
     const hasOptions = Array.isArray(question.options) && question.options.length;
     const multi = hasOptions && (String(question.answer || '').match(/[A-E]/g) || []).length > 1;
     const options = hasOptions ? question.options.map((opt, i) =>
       `<button class="option" data-action="choose" data-u="${unitKey}" data-index="${index}" data-opt="${i}"><span class="radio"></span><span>${letterOf(i)}．${escape(opt)}</span></button>`).join('') : '';
-    return `<article class="card" id="${unitKey}-q${index}">
-      <div class="qrow"><span class="qindex">${index + 1}</span><div><h2>${question.q || ''}</h2><span class="tag">${question.type === 'choice' ? (multi ? '多选' : '选择') : '填空/翻译'}</span></div></div>
+    // 填空类单元（选词填空/词汇/单词/填空）的文本题渲染输入框，由统一引擎自动判题；
+    // 汉译英等开放题型保留「展开答案 + 自评」。
+    const fillable = !hasOptions && ['wordFill', 'vocabulary', 'word', 'fill'].includes(unitKind);
+    const fillInput = fillable ? `<div class="fill-input-wrap"><input class="fill-input" type="text" placeholder="输入答案后点击提交" autocomplete="off"><button class="fill-submit" type="button" data-action="fill-submit" data-u="${unitKey}" data-index="${index}">提交</button></div>` : '';
+    return `<article class="card" id="${unitKey}-q${index}"${fillable ? ` data-fill-answers="${escape(question.answer || '')}"` : ''}>
+      <div class="qrow"><span class="qindex">${index + 1}</span><div><h2>${escape(question.q || '')}</h2><span class="tag">${question.type === 'choice' ? (multi ? '多选' : '选择') : '填空/翻译'}</span></div></div>
       ${options ? `<div class="options">${options}</div>` : ''}
+      ${fillInput}
       <button class="answer-toggle" data-action="answer" data-u="${unitKey}" data-index="${index}">点击展开答案</button>
       <div class="answer" hidden></div>
     </article>`;
@@ -59,7 +64,7 @@
     const body = detailsEl.querySelector('.unit-body');
     const modules = (unit.modules || []).map(m => `<div class="module-title">${escape(m)}</div>`).join('');
     const instruction = unit.instruction ? `<p class="module-instruction">${escape(unit.instruction)}</p>` : '';
-    body.innerHTML = modules + instruction + unit.questions.map((q, i) => card(q, unit.key, i)).join('');
+    body.innerHTML = modules + instruction + unit.questions.map((q, i) => card(q, unit.key, i, unit.kind)).join('');
   }
 
   function showAnswer(cardNode, q, right) {
@@ -184,4 +189,27 @@
   });
 
   renderHome();
+
+  // focus 定位：统一引擎在目标题卡未渲染时广播 waiyuan:focus（学习中心「重新练习」跳转）。
+  // 目标题可能在折叠单元里（惰性渲染），这里反查并展开对应单元，随后引擎轮询自动高亮。
+  window.addEventListener('waiyuan:focus', event => {
+    const targetKey = event.detail && event.detail.key;
+    const compute = window.WaiyuanQuizEngine && window.WaiyuanQuizEngine.computeKey;
+    if (!targetKey || !compute) return;
+    for (const book of data) {
+      for (const unit of book.units) {
+        for (let i = 0; i < unit.questions.length; i++) {
+          const q = unit.questions[i];
+          if (compute(`${unit.key}-q${i}`, clean(q.q || '')) !== targetKey) continue;
+          if (bookKey !== book.key) renderBook(book.key);
+          const details = app.querySelector(`details.unit[data-unit="${unit.key}"]`);
+          if (details) {
+            if (!details.dataset.rendered) { details.dataset.rendered = '1'; renderUnit(details); }
+            details.open = true;
+          }
+          return;
+        }
+      }
+    }
+  });
 })();
