@@ -357,7 +357,7 @@
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260820-2226'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260820-2236'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -420,6 +420,14 @@
     const utterance = new SpeechSynthesisUtterance(activeLookup.entry?.word || activeLookup.word);
     utterance.lang = activeLookup.language === 'en' ? 'en-US' : activeLookup.language;
     utterance.rate = .86;
+    // iOS 默认语音可能不发声：英文词显式挑选英文语音（优先常见英文名，兜底任意 en）
+    if (utterance.lang === 'en-US') {
+      try {
+        const voices = speechSynthesis.getVoices() || [];
+        utterance.voice = voices.find(v => /en[-_]us/i.test(v.lang) && /samantha|google us english|microsoft/i.test(v.name || ''))
+          || voices.find(v => /^en/i.test(v.lang)) || null;
+      } catch (_) {}
+    }
     speechSynthesis.speak(utterance);
   }
 

@@ -27,7 +27,7 @@
     if (src) {
       const swUrl = new URL('sw.js', src);
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register(swUrl).catch(() => { /* 注册失败不打扰用户 */ });
+        navigator.serviceWorker.register(swUrl).catch(err => { console.warn('Service Worker 注册失败（不影响页面使用）：', err); });
       });
     }
   }

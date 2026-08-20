@@ -33,6 +33,17 @@
     node.textContent = message;
     node.className = `data-status ${type}`.trim();
   };
+  // 通知权限请求兼容包装：旧 iOS Safari（<16）只支持回调式且不返回 Promise，
+  // 统一转为 Promise 以安全地使用 .then 反馈结果。
+  const requestNotifyPermission = () => new Promise(resolve => {
+    if (!('Notification' in window) || typeof Notification.requestPermission !== 'function') { resolve('unsupported'); return; }
+    let settled = false;
+    const done = result => { if (!settled) { settled = true; resolve(result || 'denied'); } };
+    try {
+      const result = Notification.requestPermission(done);  // 回调式（旧 iOS）
+      if (result && typeof result.then === 'function') result.then(done).catch(() => done('denied'));  // Promise 式
+    } catch (_) { done('denied'); }
+  });
   const dateStamp = () => new Date().toISOString().slice(0, 10);
   const download = (content, filename) => {
     const blob = new Blob([content], {type:'application/json;charset=utf-8'});
@@ -175,7 +186,7 @@
       if (state.settings.remindOn && !('Notification' in window)) {
         setStatus('当前浏览器不支持系统通知，错题提醒只能在本页停留时展示。', 'error');
       } else if (state.settings.remindOn && Notification.permission === 'default') {
-        Notification.requestPermission().then(permission => {
+        requestNotifyPermission().then(permission => {
           if (permission === 'granted') setStatus('已开启错题提醒，有错题待复习时会通知你。', 'success');
           else setStatus('浏览器未授予通知权限，可在地址栏旁重新授权。', 'error');
         }).catch(() => {});

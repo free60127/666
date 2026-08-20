@@ -58,20 +58,26 @@ const copyShareLink = async button => {
   shareResetTimer = setTimeout(() => { button.textContent = '复制链接'; }, 2600);
 };
 
-// 添加到主屏幕（PWA 安装引导）
+// 添加到主屏幕（PWA 安装引导，兼容各类浏览器：iOS Safari / 安卓 Chrome·Edge /
+// 国产浏览器 / 微信内置浏览器——无安装能力时给出对应菜单路径）
 const installSite = document.getElementById('install-site');
 const installBtn = document.getElementById('install-btn');
 const installHint = document.getElementById('install-hint');
 let deferredPrompt = null;
 if (installSite && installBtn) {
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
   if (!isStandalone) {
     if (isIOS) {
       // iOS Safari 无 beforeinstallprompt 事件，直接显示引导文案
       installSite.hidden = false;
-      installHint.textContent = '用 Safari 打开本站，点底部「分享」→「添加到主屏幕」';
+      installHint.textContent = '用 Safari 打开，点底部「分享」→「添加到主屏幕」';
+    } else if (isWeChat) {
+      // 微信内置浏览器无法安装，引导到系统浏览器
+      installSite.hidden = false;
+      installHint.textContent = '点右上角「···」→「在浏览器打开」，再从浏览器菜单添加到桌面';
     }
     window.addEventListener('beforeinstallprompt', event => {
       event.preventDefault();
@@ -83,11 +89,15 @@ if (installSite && installBtn) {
 
     installBtn.addEventListener('click', async () => {
       if (isIOS && !deferredPrompt) {
-        alert('请使用 Safari 浏览器打开本站，点击底部「分享」按钮，选择「添加到主屏幕」即可。');
+        alert('请打开 Safari 浏览器访问本站，点底部「分享」按钮，选择「添加到主屏幕」即可。');
+        return;
+      }
+      if (isWeChat && !deferredPrompt) {
+        alert('微信内置浏览器不支持添加到桌面：请点微信右上角「···」，选择「在浏览器打开」，再从浏览器菜单（右上角 ⋮）选择「添加到主屏幕/桌面」。');
         return;
       }
       if (!deferredPrompt) {
-        alert('浏览器暂未提供安装入口：请确认使用 Chrome / Edge，并访问本站 2 次以上（间隔几分钟）后刷新页面，地址栏右侧会出现安装图标。');
+        alert('当前浏览器未显示安装按钮。请在浏览器菜单（右上角 ⋮ 或 ⌄）中找「添加到主屏幕」或「添加到桌面」；Chrome、Edge 通常会自动出现安装图标（首次访问可能需再次访问后出现）。');
         return;
       }
       deferredPrompt.prompt();

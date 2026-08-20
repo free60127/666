@@ -9,7 +9,7 @@
   const loadBook = (key, done) => {
     if (books.some(b => b.key === key)) return done();
     const script = document.createElement('script');
-    script.src = `vocabulary-data-${key}.js?v=20260820-2226`;
+    script.src = `vocabulary-data-${key}.js?v=20260820-2236`;
     // 竞态保护：快速切换词书时，旧回调不得渲染（state.bookKey 已指向新书）
     script.onload = () => { if (state.bookKey === key) done(); };
     script.onerror = () => { if (state.bookKey !== key) return; root.innerHTML = `${brand}<section class="hero"><h1>词库加载失败<span>。</span></h1><p>请检查网络后重新点击词书卡片。</p><button class="primary" data-action="home">返回首页</button></section>`; };
@@ -35,6 +35,17 @@
   if (progress.settings.autoSpeak === undefined) progress.settings.autoSpeak = true;
   const state = {view: 'home', bookKey: '', mode: 'card', queue: [], index: 0, initialTotal: 0, reviewed: 0, correct: 0, filter: 'all', listLimit: 200, listQuery: '', requeue: {}, recordedPositions: {}, advanceTimer: null};
   const save = () => { try { localStorage.setItem(storageKey, JSON.stringify(progress)); } catch (_) {} };
+  // 通知权限请求兼容包装：旧 iOS Safari（<16）只支持回调式且不返回 Promise，
+  // 直接 .then/.catch 会抛 TypeError 中断交互。
+  const requestNotifyPermission = () => {
+    try {
+      if (!('Notification' in window) || typeof Notification.requestPermission !== 'function') return;
+      let settled = false;
+      const done = () => { settled = true; };
+      const result = Notification.requestPermission(done);  // 回调式（旧 iOS）
+      if (result && typeof result.then === 'function') result.then(done).catch(done);  // Promise 式
+    } catch (_) {}
+  };
   const day = (date = new Date()) => { const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60000); return copy.toISOString().slice(0, 10); };
   const addDays = count => { const date = new Date(); date.setHours(12,0,0,0); date.setDate(date.getDate() + count); return day(date); };
   const shuffle = values => { const list = [...values]; for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; } return list; };
@@ -103,7 +114,7 @@
     if (progress.settings.autoSpeak) setTimeout(speakWord, 160);
   }
 
-  function speakWord() { if (!state.current || !('speechSynthesis' in window)) return; speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(state.current.word); utterance.lang = 'en-US'; utterance.rate = .85; speechSynthesis.speak(utterance); }
+  function speakWord() { if (!state.current || !('speechSynthesis' in window)) return; speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(state.current.word); utterance.lang = 'en-US'; utterance.rate = .85; try{const voices=speechSynthesis.getVoices()||[];utterance.voice=voices.find(v=>/en[-_]us/i.test(v.lang)&&/samantha|google us english|microsoft/i.test(v.name||''))||voices.find(v=>/^en/i.test(v.lang))||null}catch(_){} speechSynthesis.speak(utterance); }
 
   const answerHtml = () => `<div class="answer"><div class="meaning">${state.current.meaning}</div><div class="example">${state.current.example}</div></div>`;
   function reveal() { document.querySelector('#answer').innerHTML = answerHtml(); document.querySelector('.reveal').remove(); document.querySelector('#rating').innerHTML = `<div class="rating">${[['0','忘记','重新学习'],['1','模糊','较短间隔'],['2','认识','标准间隔'],['3','熟练','较长间隔']].map(x=>`<button data-action="rate" data-grade="${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></button>`).join('')}</div>`; }
@@ -137,7 +148,7 @@
   root.addEventListener('click', event => {
     const button=event.target.closest('[data-action]'); if(!button)return; const action=button.dataset.action;
     if(action==='home')renderHome(); else if(action==='licenses')renderLicenses(); else if(action==='book'){const key=button.dataset.book;state.bookKey=key;try{localStorage.setItem(BOOK_MEMORY_KEY,key)}catch(_){}
-      if(books.some(b=>b.key===key)){renderBook()}else{root.innerHTML=`${brand}<section class="hero"><h1>正在加载词库<span>…</span></h1><p>${meta.books.find(b=>b.key===key)?.name||key}</p></section>`;loadBook(key,renderBook)}} else if(action==='book-back'){clearTimeout(state.advanceTimer);renderBook()} else if(action==='previous')previousWord(); else if(action==='goal'){progress.settings.dailyGoal=Number(button.dataset.goal);save();renderBook()} else if(action==='remind'){progress.settings.remindTime=button.dataset.time;save();if(button.dataset.time&&'Notification' in window&&Notification.permission==='default')Notification.requestPermission().catch(()=>{});renderBook()} else if(action==='study')startStudy(button.dataset.mode); else if(action==='reveal')reveal(); else if(action==='rate')record(Number(button.dataset.grade)); else if(action==='choice'){if(document.querySelector('#feedback').textContent)return;feedback(button.dataset.id===state.current.id,button.dataset.id===state.current.id?'回答正确':'再记一次，正确释义见下方')} else if(action==='spell'){const value=document.querySelector('#spelling').value.trim().toLowerCase();if(document.querySelector('#feedback').textContent)return;feedback(value===state.current.word.toLowerCase(),value===state.current.word.toLowerCase()?'拼写正确':`正确答案：${state.current.word}`)} else if(action==='favorite'){const key=`${state.bookKey}:${state.current.id}`,item=progress.words[key]||{reps:0,interval:0,lapses:0,due:day()};item.favorite=!item.favorite;progress.words[key]=item;save();button.textContent=item.favorite?'★':'☆'} else if(action==='list'){state.listQuery='';renderList(button.dataset.filter)} else if(action==='word-search'){state.listQuery=document.querySelector('#word-search').value;renderList(state.filter,200)} else if(action==='list-more')renderList(state.filter,state.listLimit+200); else if(action==='stats')renderStats(); else if(action==='speak')speakWord()
+      if(books.some(b=>b.key===key)){renderBook()}else{root.innerHTML=`${brand}<section class="hero"><h1>正在加载词库<span>…</span></h1><p>${meta.books.find(b=>b.key===key)?.name||key}</p></section>`;loadBook(key,renderBook)}} else if(action==='book-back'){clearTimeout(state.advanceTimer);renderBook()} else if(action==='previous')previousWord(); else if(action==='goal'){progress.settings.dailyGoal=Number(button.dataset.goal);save();renderBook()} else if(action==='remind'){progress.settings.remindTime=button.dataset.time;save();if(button.dataset.time&&'Notification' in window&&Notification.permission==='default')requestNotifyPermission();renderBook()} else if(action==='study')startStudy(button.dataset.mode); else if(action==='reveal')reveal(); else if(action==='rate')record(Number(button.dataset.grade)); else if(action==='choice'){if(document.querySelector('#feedback').textContent)return;feedback(button.dataset.id===state.current.id,button.dataset.id===state.current.id?'回答正确':'再记一次，正确释义见下方')} else if(action==='spell'){const value=document.querySelector('#spelling').value.trim().toLowerCase();if(document.querySelector('#feedback').textContent)return;feedback(value===state.current.word.toLowerCase(),value===state.current.word.toLowerCase()?'拼写正确':`正确答案：${state.current.word}`)} else if(action==='favorite'){const key=`${state.bookKey}:${state.current.id}`,item=progress.words[key]||{reps:0,interval:0,lapses:0,due:day()};item.favorite=!item.favorite;progress.words[key]=item;save();button.textContent=item.favorite?'★':'☆'} else if(action==='list'){state.listQuery='';renderList(button.dataset.filter)} else if(action==='word-search'){state.listQuery=document.querySelector('#word-search').value;renderList(state.filter,200)} else if(action==='list-more')renderList(state.filter,state.listLimit+200); else if(action==='stats')renderStats(); else if(action==='speak')speakWord()
     if (['home','licenses','book','book-back','list','stats'].includes(action)) requestAnimationFrame(() => window.scrollTo(0, 0));
   });
   root.addEventListener('keydown',event=>{if(event.key!=='Enter')return;if(state.view==='study'&&state.mode==='spelling')document.querySelector('[data-action="spell"]')?.click();else if(state.view==='list'&&event.target.id==='word-search')document.querySelector('[data-action="word-search"]')?.click()});
