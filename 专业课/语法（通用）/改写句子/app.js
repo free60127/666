@@ -19,7 +19,7 @@ function render() {
       <p class="instruction">${escapeHtml(item.instruction)}</p>
       <button class="print-button" data-print="${escapeHtml(item.id)}">导出 A4 PDF / 打印</button>
     </header>
-    <ol class="questions">${item.questions.map(question => `<li><p class="question-text">${escapeHtml(question.text)}</p><details class="answer"><summary>查看参考答案</summary><p>${escapeHtml(question.answer)}</p></details></li>`).join('')}</ol>
+    <ol class="questions">${item.questions.map(question => `<li class="question-card"><p class="question-text">${escapeHtml(question.text)}</p><details class="answer"><summary>查看参考答案</summary><p>${escapeHtml(question.answer)}</p></details></li>`).join('')}</ol>
   </article>`).join('');
 }
 

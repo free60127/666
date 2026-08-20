@@ -29,7 +29,7 @@
   const getBank = key => banks.find(bank => bank.key === key);
   const bankQuestions = () => paper ? paper.questions : (getBank(bankKey)?.questions || []);
   const questionKey = question => paper ? `paper-${paper.key}-${question.id}` : `${bankKey}-${question.type}-${question.id}`;
-  const questionToken = question => paper ? String(question.id) : `${question.type}--${question.id}`;
+  const questionToken = question => paper ? `${paper.key}--${question.id}` : `${question.type}--${question.id}`;
   const stateFor = question => saved.progress?.[questionKey(question)] || {};
   const ensure = () => { if (!saved.progress) saved.progress = {}; if (!saved.papers) saved.papers = {}; };
   // First-time visitors have no localStorage state yet.  Initialize it before
@@ -175,7 +175,7 @@
       const selected = state.selected?.includes(index) ? 'selected' : '';
       return `<button class="option ${feedback} ${selected}" data-action="choose" data-id="${token}" data-index="${index}"><span class="${question.type === 'multi' ? 'check' : 'radio'} ${selected}"></span><span>${String.fromCharCode(65 + index)}．${displayText(optionText(option))}</span></button>`;
     }).join('');
-    return `<article class="card" id="q-${token}"${paper ? ' data-unified-ignore="1"' : ''}>
+    return `<article class="card" id="q-${token}"${paper ? ' data-unified-scope="paper"' : ''}>
       <div class="qrow"><span class="qindex">${question.displayNumber || question.id}</span><div><h2>${displayText(question.title)}</h2><span class="tag">${labels[question.type] || question.type}</span>${question.hint ? `<span class="hint">记忆 · ${escape(question.hint)}</span>` : ''}</div></div>
       ${choices.length ? `<div class="options">${options}${question.type === 'multi' && answer ? `<button class="confirm" data-action="confirm" data-id="${token}">确认答案</button>` : ''}</div>` : ''}
       <button class="answer-toggle" data-action="answer" data-id="${token}">${state.showAnswer ? '收起答案' : '点击展开答案'}</button>

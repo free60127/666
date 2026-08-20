@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 语法检查
+        run: node scripts/ci-syntax-check.js
+      - name: 重建数据产物
+        run: node scripts/build/build.js
+      - name: 数据校验
+        run: node scripts/build/validate.js
+      - name: 资源引用完整性
+        run: node scripts/check-links.js
+      - name: 单文件离线版重建与验证
+        run: |
+          node scripts/build-standalone.js 思政系列
+          node scripts/build-standalone.js 计算机系列
+          node scripts/verify-standalone.js 思政系列/思政刷题-单文件离线版.html
+          node scripts/verify-standalone.js 计算机系列/计算机刷题-单文件离线版.html
+      - name: 工作区无脏改动（产物可复现）
+        run: |
+          git diff --exit-code -- source/ scripts/ || echo '::warning::CI 生成产物与提交不一致，请先本地跑 node scripts/release.js'

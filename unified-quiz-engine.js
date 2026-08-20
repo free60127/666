@@ -11,9 +11,10 @@
   let focusEmitted = false;
   let focusRetryTimer = null;
 
-  // 页面（思政/计算机/泛读/基英）反查定位时使用同一 key 算法
+  // 页面（思政/计算机/泛读/基英/翻译/改写）反查定位时使用同一 key 算法
   const computeKey = (stableId, title) => `${pageKey}-${hash(`${stableId}-${clean(title)}`)}`;
-  const findCardByKey = key => [...document.querySelectorAll('.question-card,.card')].find(item => item.dataset.unifiedReady === key);
+  const cardSelector = '.question-card,.card,.question';
+  const findCardByKey = key => [...document.querySelectorAll(cardSelector)].find(item => item.dataset.unifiedReady === key);
 
   function copyText(text) {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
@@ -52,12 +53,20 @@
 
   function enhanceCard(card, index) {
     if (card.dataset.unifiedReady) return;
-    if (card.dataset.unifiedIgnore) return;  // 模拟卷等由页面自身管理进度的卡片
-    const questionNode = card.querySelector('.question,h2,.qbody');
+    if (card.dataset.unifiedIgnore) return;  // 页面自身管理进度的卡片（预留）
+    const questionNode = card.querySelector('.question,h2,.qbody,.question-text');
     if (!questionNode) return;
     const title = clean(questionNode.textContent);
     if (!title) return;
-    const answer = clean(card.querySelector('.answer')?.textContent);
+    // 答案提取：<details class="answer"> 的 summary（如「查看参考答案」）不算答案内容，先剥掉
+    const answerNode = card.querySelector('.answer');
+    let answer = '';
+    if (answerNode) {
+      const clone = answerNode.cloneNode(true);
+      clone.querySelector('summary')?.remove();
+      answer = clean(clone.textContent);
+    }
+    const scope = card.dataset.unifiedScope || 'bank';  // 'bank'（普通题库）| 'paper'（模拟卷）
     // 稳定身份：优先卡片 id（题库题号如 q-single--87）；渲染顺序 index 会随
     // 筛选/加载更多变化，导致同一道题在不同视图下拿到不同 key（进度/收藏碎片化）。
     const stableId = card.id && card.id !== 'main' ? card.id : title;
@@ -104,7 +113,7 @@
     button.addEventListener('click', event => {
       event.stopPropagation();
       if (state.favorites[key]) delete state.favorites[key];
-      else state.favorites[key] = {key,title,answer,page:document.title,path:location.pathname,updatedAt:Date.now()};
+      else state.favorites[key] = {key,title,answer,page:document.title,path:location.pathname,scope,updatedAt:Date.now()};
       save(state); button.classList.toggle('active', !!state.favorites[key]); button.textContent = state.favorites[key] ? '★ 已收藏' : '☆ 收藏题目';
     });
     card.appendChild(button);
@@ -120,9 +129,10 @@
     state.progress[key] = {
       ...old,
       key,
-      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody')?.textContent) || old.title || '',
+      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody,.question-text')?.textContent) || old.title || '',
       page: document.title,
       path: location.pathname,
+      scope: card.dataset.unifiedScope || old.scope || 'bank',
       viewed: true,
       viewCount: (old.viewCount || 0) + (old.lastViewedAt && now - old.lastViewedAt < 5 * 60 * 1000 ? 0 : 1),
       lastViewedAt: now,
@@ -182,10 +192,23 @@
   function prepareCard(card) {
     if (!card || !card.dataset.unifiedReady) return;
     const answerNode = card.querySelector('.answer');
-    const answerShown = answerNode && !answerNode.hidden;
+    // 答案是否已展开：改写题 details 看 open；翻译题看 .show（translation-item 标记）；思政/计算机渲染即展开
+    const answerShown = answerNode && (
+      typeof answerNode.open === 'boolean' ? answerNode.open
+      : card.classList.contains('translation-item') ? answerNode.classList.contains('show')
+      : true
+    );
     if (answerShown || state.progress[card.dataset.unifiedReady]?.result) injectSelfAssess(card);
     if (!card.dataset.viewRecorded) viewObserver.observe(card);
   }
+  // 改写题用原生 <details> 展开答案（无按钮可委托），监听 toggle 事件挂自评
+  document.addEventListener('toggle', event => {
+    const details = event.target;
+    if (!details || details.tagName !== 'DETAILS') return;
+    const card = details.closest(cardSelector);
+    if (!card || !card.dataset.unifiedReady || !details.open) return;
+    setTimeout(() => { record(card, undefined); prepareCard(card); }, 0);
+  }, true);
 
   function record(card, result) {
     if (!card?.dataset.unifiedReady) return;
@@ -198,9 +221,10 @@
     state.progress[key] = {
       ...old,
       key,
-      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody')?.textContent) || old.title || '',
+      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody,.question-text')?.textContent) || old.title || '',
       page: document.title,
       path: location.pathname,
+      scope: card.dataset.unifiedScope || old.scope || 'bank',
       reviewed: true,
       viewed: old.viewed || answeredNow || true,  // 作答必然看过
       answered: answeredNow || old.answered || false,
@@ -240,7 +264,7 @@
     return whole.split(/\s*[\/;|，,、]\s*/).some(part => part && part === input);
   }
   function handleFillSubmit(target) {
-    const card = target.closest('.question-card,.card');
+    const card = target.closest(cardSelector);
     if (!card) return;
     const input = card.querySelector('.fill-input');
     const value = input ? input.value : '';
@@ -257,7 +281,7 @@
     const target = event.target.closest('button,[data-action]');
     if (!target) return;
     if (target.dataset.action === 'fill-submit') { handleFillSubmit(target); return; }
-    const card = target?.closest('.question-card,.card');
+    const card = target?.closest(cardSelector);
     if (!card || target?.classList.contains('unified-favorite')) return;
     const action = target.dataset.action || '';
     const isAnswer = target.matches('.answer-toggle,[data-action="answer"],[data-action="toggle-answer"]');
@@ -265,7 +289,7 @@
     if (!isAnswer && !isAttempt && !/answer|choose|confirm/i.test(action)) return;
     setTimeout(() => {
       const key = card.dataset.unifiedReady;
-      const current = [...document.querySelectorAll('.question-card,.card')].find(item => item.dataset.unifiedReady === key) || card;
+      const current = [...document.querySelectorAll(cardSelector)].find(item => item.dataset.unifiedReady === key) || card;
       const result = resultFromCard(current);
       record(current, result === null ? undefined : result);
       prepareCard(current);  // 展开答案后挂自评按钮
@@ -318,14 +342,14 @@
     }
   }
   function enhance() {
-    const cards = [...document.querySelectorAll('.question-card,.card')];
+    const cards = [...document.querySelectorAll(cardSelector)];
     cards.forEach(card => { enhanceCard(card); prepareCard(card); });
     // Only show the floating random-question button on pages that actually
     // contain question cards (the homepage has none and must not show it).
     randomButton.style.display = cards.length ? '' : 'none';
     focusQuestion();
   }
-  function randomQuestion() { const cards = [...document.querySelectorAll('.question-card,.card')].filter(card => card.offsetParent !== null); if (!cards.length) return; cards[Math.floor(Math.random()*cards.length)].scrollIntoView({behavior:'smooth',block:'center'}); }
+  function randomQuestion() { const cards = [...document.querySelectorAll(cardSelector)].filter(card => card.offsetParent !== null); if (!cards.length) return; cards[Math.floor(Math.random()*cards.length)].scrollIntoView({behavior:'smooth',block:'center'}); }
 
   const style = document.createElement('style');
   style.textContent = '.unified-favorite{margin-top:14px;padding:8px 14px;border:1px solid #d7dce5;border-radius:999px;background:#f7f8fa;color:#697386;cursor:pointer}.unified-favorite.active{background:#fff3c4;border-color:#e4b84a;color:#8a6200}.unified-feedback{margin-top:14px;margin-left:8px;padding:8px 14px;border:1px solid #e8d5c8;border-radius:999px;background:#fdf6f0;color:#a05a3a;cursor:pointer}.unified-review-target{outline:3px solid #d97845;outline-offset:5px;scroll-margin-block:24px}.unified-random-web{position:fixed;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(18px,env(safe-area-inset-bottom));z-index:30;max-width:calc(100vw - 100px);padding:11px 16px;border:0;border-radius:999px;background:#28634f;color:#fff;box-shadow:0 8px 25px rgba(0,0,0,.18);cursor:pointer;white-space:nowrap}@media(max-width:560px){.unified-random-web{left:12px;bottom:14px;padding:10px 13px;font-size:13px}}.unified-focus-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center}.unified-focus-notice button{flex:none;border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-feedback-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff4ec;border:1px solid #e8b48f;color:#6b3d1d;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.unified-feedback-notice a{color:#b05f2e;font-weight:700;text-decoration:none;border-bottom:1px dashed #b05f2e}.unified-feedback-notice button{flex:none;border:0;background:#e8b48f;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-self-assess{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.unified-self-assess .usa-label{color:#73817b;font-size:14px}.unified-self-assess.done .usa-label{color:#28634f;font-weight:700}.unified-self-assess button{padding:7px 13px;border:1px solid #dfe6df;border-radius:999px;background:#f1f7f3;color:#44584f;cursor:pointer;font-size:13px}.unified-self-assess button:hover{background:#e2efe7}.unified-self-assess.done button{display:none}.fill-input-wrap{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fill-input-wrap .fill-input{flex:1;min-width:160px;padding:9px 12px;border:1px solid #c9d6cd;border-radius:10px;background:#fffefa;color:#17211f;font-size:15px}.fill-input-wrap .fill-submit{padding:8px 16px;border:0;border-radius:10px;background:#28634f;color:#fff;cursor:pointer;font-size:14px}.fill-feedback{margin-top:10px;font-size:13px;font-weight:700}.fill-feedback.correct{color:#276545}.fill-feedback.wrong{color:#a04b44}';

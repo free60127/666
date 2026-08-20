@@ -164,7 +164,7 @@
   let view = new URLSearchParams(location.search).get('view') || 'overview';
 
   function itemCard(item, kind) {
-    return `<article class="item"><div class="item-head"><h2>${escape(item.title || '未命名题目')}</h2><span class="source">${escape(sourceName(item))}${item.updatedAt ? ` · ${escape(date(item.updatedAt))}` : ''}</span></div>${item.answer ? `<div class="answer"><b>参考答案</b><br>${escape(item.answer)}</div>` : ''}<div class="item-actions"><a href="${escape(sourceUrl(item))}">返回原题页面</a>${kind === 'mistake' ? `<a class="practice-link" href="${escape(practiceUrl(item))}">重新练习</a>` : ''}${kind === 'favorite' ? `<button class="remove" data-remove="${escape(item.key)}">取消收藏</button>` : ''}</div></article>`;
+    return `<article class="item"><div class="item-head"><h2>${escape(item.title || '未命名题目')}</h2><span class="source">${escape(sourceName(item))}${item.scope === 'paper' ? ' · <b class="tag-paper">模拟卷</b>' : ''}${item.updatedAt ? ` · ${escape(date(item.updatedAt))}` : ''}</span></div>${item.answer ? `<div class="answer"><b>参考答案</b><br>${escape(item.answer)}</div>` : ''}<div class="item-actions"><a href="${escape(sourceUrl(item))}">返回原题页面</a>${kind === 'mistake' && item.scope !== 'paper' ? `<a class="practice-link" href="${escape(practiceUrl(item))}">重新练习</a>` : ''}${kind === 'favorite' ? `<button class="remove" data-remove="${escape(item.key)}">取消收藏</button>` : ''}</div></article>`;
   }
 
   // —— 统计增强（2026-08-21）：按课程进度 / 连续天数 / 近 7 天曲线 / 每日目标 ——
@@ -215,13 +215,15 @@
 
   function renderOverview(state) {
     const progress = Object.values(state.progress);
-    const viewed = progress.filter(item => item.viewed && !item.answered);
-    const answered = progress.filter(item => item.answered);
+    const bank = progress.filter(item => item.scope !== 'paper');  // 统计口径：普通题库（模拟卷为随机抽题，单独在错题本展示）
+    const viewedAll = bank.filter(item => item.viewed);
+    const viewedOnly = bank.filter(item => item.viewed && !item.answered);
+    const answered = bank.filter(item => item.answered);
     const correct = answered.filter(item => item.ok === true).length;
-    const review = progress.filter(item => item.wrong === true || item.result === 'partial');
+    const review = bank.filter(item => item.wrong === true || item.result === 'partial');
     const selfOk = answered.filter(item => item.result === 'correct').length;
     const selfPartial = answered.filter(item => item.result === 'partial').length;
-    const recent = [...progress].sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0,5);
+    const recent = [...bank].sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0,5);
     const today = dateStamp();
     const todayCount = answered.filter(item => dayOf(item.updatedAt) === today).length;
     const dailyGoal = Number(state.settings.dailyGoal) || 0;
@@ -240,12 +242,12 @@
       return `<div class="course-row"><span>${escape(name)}</span><b>${items.length} 题</b><small>答对 ${ok} · 正确率 ${items.length ? Math.round(ok / items.length * 100) : 0}%</small>${wrongIn ? `<em>${wrongIn} 待复习</em>` : ''}</div>`;
     }).join('');
     // 近 7 天
-    const days = last7Days(progress);
+    const days = last7Days(bank);
     const maxDay = Math.max(1, ...days.map(d => d.count));
     const bars = days.map(d => `<div class="bar" title="${d.day} 答题 ${d.count}"><div class="bar-inner" ${barStyle(d.count, maxDay)}></div><small>${d.day}</small></div>`).join('');
-    const streak = computeStreak(progress);
+    const streak = computeStreak(bank);
     const goalPct = dailyGoal ? Math.min(100, Math.round(todayCount / dailyGoal * 100)) : 0;
-    app.innerHTML = `<section class="stats"><div class="stat"><small>已浏览</small><b>${viewed.length}</b></div><div class="stat"><small>已作答</small><b>${answered.length}</b></div><div class="stat"><small>答对</small><b>${correct}</b></div><div class="stat"><small>待复习</small><b>${review.length}</b></div></section>${selfOk || selfPartial ? `<p class="note">自评：答对 ${selfOk} · 部分掌握 ${selfPartial}（简答/论述/材料/翻译类题目展开答案后可自评）</p>` : ''}
+    app.innerHTML = `<section class="stats"><div class="stat"><small>已浏览</small><b>${viewedAll.length}</b></div><div class="stat"><small>未作答</small><b>${viewedOnly.length}</b></div><div class="stat"><small>已作答</small><b>${answered.length}</b></div><div class="stat"><small>答对</small><b>${correct}</b></div><div class="stat"><small>待复习</small><b>${review.length}</b></div></section><p class="note">已浏览含已作答；「未作答」= 看过但没答/没自评的题。模拟卷随机抽题不计入上述统计，模拟卷错题在「错题本」中查看。</p>${selfOk || selfPartial ? `<p class="note">自评：答对 ${selfOk} · 部分掌握 ${selfPartial}（简答/论述/材料/翻译类题目展开答案后可自评）</p>` : ''}
 <section class="goal-card"><div class="goal-row"><b>每日答题目标</b><input id="daily-goal-input" type="number" min="0" max="500" value="${dailyGoal}" inputmode="numeric" aria-label="每日答题目标"><button type="button" data-action="set-goal">保存</button></div>${dailyGoal ? `<div class="goal-track" role="progressbar" aria-label="今日目标进度" aria-valuenow="${goalPct}" aria-valuemin="0" aria-valuemax="100"><div class="goal-fill" style="width:${goalPct}%"></div></div>` : ''}<small>今日完成 <b>${todayCount}</b> 题 · 背单词复习 <b>${vocabToday}</b> 词${streak ? ` · 连续学习 <b>${streak}</b> 天` : ''}</small></section>
 ${courseRows ? `<section class="course-progress"><h2 class="section-title">按课程进度</h2>${courseRows}</section>` : ''}
 ${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title">最近 7 天</h2><div class="bars">${bars}</div></section>` : ''}
@@ -261,7 +263,10 @@ ${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title
 
   function renderMistakes(state) {
     const items = Object.values(state.progress).filter(item => item.wrong || item.result === 'partial').sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    app.innerHTML = items.length ? `<section class="practice-panel"><div><b>准备复习错题？</b><small>${items.length} 道题待练习</small></div><a href="${escape(practiceUrl(items[0]))}">开始复习错题</a></section><div class="items">${items.map(item => itemCard(item,'mistake')).join('')}</div>` : empty('暂无待复习题目','作答错误或自评「需要复习」「部分掌握」的题目会自动汇总到这里，答对后会移出。');
+    // 复习入口优先取普通题库错题（模拟卷为随机抽题，无法按题定位，需回到对应题库）
+    const practiceTarget = items.find(item => item.scope !== 'paper');
+    const panel = practiceTarget ? `<section class="practice-panel"><div><b>准备复习错题？</b><small>${items.length} 道题待练习</small></div><a href="${escape(practiceUrl(practiceTarget))}">开始复习错题</a></section>` : (items.length ? `<section class="practice-panel"><div><b>准备复习错题？</b><small>${items.length} 道题待练习</small></div><span>模拟卷错题请进入对应题库页面复习</span></section>` : '');
+    app.innerHTML = items.length ? `${panel}<div class="items">${items.map(item => itemCard(item,'mistake')).join('')}</div>` : empty('暂无待复习题目','作答错误或自评「需要复习」「部分掌握」的题目会自动汇总到这里，答对后会移出。');
   }
 
   function render() {

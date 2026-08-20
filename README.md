@@ -54,8 +54,7 @@ scripts 下常用命令（在项目根目录执行）：
 
 ```bash
 node scripts/build/build.js          # 从 source/*.json 重建全部 data.js/data.json 产物
-node scripts/build/extract.js        # 从原始素材提取题库（入库用）
-node scripts/build/validate.js       # 校验题库一致性（答案格式、选项、重复题等）
+node scripts/build/validate.js       # 校验题库一致性（答案格式、选项、重复题等，覆盖全部 8 个源文件）
 node scripts/build/report.js         # 生成数据治理报告
 node scripts/build/verify-docx.js    # 与《大一上思政.docx》核对
 node scripts/build/dedupe-history.js # 近代史去重（331→215）
@@ -66,8 +65,19 @@ node scripts/quiz-schema.js          # 题库校验规则（Node/浏览器双端
 node scripts/count-types.js          # 统计各题库题型分布
 node scripts/check-links.js          # 全站 HTML 资源引用完整性检查
 node scripts/inject-common.js        # 全站注入主题防闪烁脚本 + theme.css + common.js（幂等）
-node scripts/make-brand-assets.ps1   # 生成 PWA 图标与分享图（需在项目根用 PowerShell 执行）
+node scripts/build-standalone.js 思政系列   # 重建单文件离线版（见「单文件离线版」）
+node scripts/verify-standalone.js <文件>   # 验证单文件离线版内嵌完整性
+node scripts/check-online.js         # 线上资源可用性核验（部署后执行）
+node scripts/release.js              # 一键发布（见「部署」）
 ```
+
+PowerShell 生成 PWA 图标与分享图（非 Node）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/make-brand-assets.ps1
+```
+
+> 注：`scripts/build/extract.js` 与 `scripts/build/validate-quiz-data.js` 等旧工具已归档至 `archive/legacy/`，不再维护；请以本清单为准。
 
 ## 题库导入工具
 
@@ -114,6 +124,10 @@ node scripts/release.js
 `release.js` 自动完成：重建数据产物 → 全站版本号刷新为 `v=YYYYMMDD-HHMM`（强制缓存更新）→ 重建两份单文件离线版 → 引用与单文件校验 → `git add/commit/push`（推送后自动核验远程 HEAD）。等 1-3 分钟 Pages 构建后执行 `node scripts/check-online.js` 确认线上可用。
 
 ⚠️ 每次改完必须重新部署，否则线上仍是旧版（历史教训：线上曾停留在 8/18 版本，首页搜索与新版答题引擎全部 404）。
+
+## 云同步（未启用）
+
+后端 Worker（`workers/`）已部署 `/api/sync` 匿名同步接口与 `/api/feedback` 纠错接口（纠错已接入前端）。**云同步尚未在前端启用**：匿名 `deviceId` 目前等同访问密钥，可能被猜测后读取、覆盖或删除进度。在实现配对码/恢复码、payload 加密、冲突合并与设备解绑之前，不会开放自动云同步；学习数据仍保存在浏览器本地，可用学习中心的「导出/导入」备份迁移。
 
 ## 自愿赞助
 

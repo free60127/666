@@ -13,7 +13,15 @@
         stale-while-revalidate：先回缓存立即响应，同时后台拉新。
    版本号：更新本文件 CACHE 常量即可整体换新缓存。
    ============================================================ */
-const CACHE = 'waiyuan-v5';
+const CACHE = 'waiyuan-v6';
+
+// 导航离线且未缓存时返回的提示页（明确告知「该模块尚未下载」，不再静默回退首页壳）
+function offlinePage() {
+  return new Response(
+    '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#28634f"><title>离线 · 外院知识分享站</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#f7f8f3;color:#17211f;display:grid;place-items:center;min-height:100vh;margin:0;text-align:center;padding:24px}h1{font-size:22px;margin:0 0 10px}p{color:#6b7a73;line-height:1.7;margin:0 0 18px}a{display:inline-block;color:#fff;background:#28634f;border-radius:999px;padding:11px 22px;text-decoration:none;font-weight:800}</style></head><body><div><h1>当前处于离线状态</h1><p>这个模块还没有离线缓存，联网后即可正常访问。<br>已打开过的页面（首页、学习中心、题库等）在断网时仍可使用。</p><p><a href="./">返回首页</a></p></div></body></html>',
+    {headers: {'content-type': 'text/html;charset=utf-8', 'cache-control': 'no-store'}}
+  );
+}
 
 const PRECACHE = [
   './',
@@ -92,7 +100,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // 导航请求：网络优先，离线回退缓存
+  // 导航请求：网络优先，离线回退到已缓存页面；未缓存页面给出明确提示（不回退首页壳）
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
@@ -101,7 +109,7 @@ self.addEventListener('fetch', event => {
           caches.open(CACHE).then(cache => cache.put(req, copy));
           return res;
         })
-        .catch(() => caches.match(req).then(hit => hit || caches.match('./index.html')))
+        .catch(() => caches.match(req).then(hit => hit || offlinePage()))
     );
     return;
   }

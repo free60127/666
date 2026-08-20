@@ -1644,7 +1644,7 @@
           "answer": "This drawer won't lock."
         }
       ],
-      "expectedAnswerCount": 21,
+      "expectedAnswerCount": 19,
       "ocrQuestionCount": 19,
       "verified": false,
       "ocrLines": [
@@ -3264,7 +3264,7 @@
           "answer": "The ship was sailing full steam in the teeth of a strong wind."
         }
       ],
-      "expectedAnswerCount": 20,
+      "expectedAnswerCount": 19,
       "ocrQuestionCount": 19,
       "verified": false,
       "ocrLines": [

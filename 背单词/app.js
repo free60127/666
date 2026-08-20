@@ -9,7 +9,7 @@
   const loadBook = (key, done) => {
     if (books.some(b => b.key === key)) return done();
     const script = document.createElement('script');
-    script.src = `vocabulary-data-${key}.js?v=20260821-0737`;
+    script.src = `vocabulary-data-${key}.js?v=20260821-0755`;
     // 竞态保护：快速切换词书时，旧回调不得渲染（state.bookKey 已指向新书）
     script.onload = () => { if (state.bookKey === key) done(); };
     script.onerror = () => { if (state.bookKey !== key) return; root.innerHTML = `${brand}<section class="hero"><h1>词库加载失败<span>。</span></h1><p>请检查网络后重新点击词书卡片。</p><button class="primary" data-action="home">返回首页</button></section>`; };
@@ -70,7 +70,37 @@
       const s = loaded ? summary(loaded) : {total: item.total, learned: '—', due: '—', percent: 0};
       return `<button class="book-card" data-action="book" data-book="${item.key}"><span class="book-code">${item.shortName}</span><span class="book-main"><h2>${item.name}</h2><p>${item.description}</p><span class="progress"><i style="width:${s.percent}%"></i></span><span class="meta"><span>共 ${s.total} 词</span><span>已学 ${s.learned}</span><span>待复习 ${s.due}</span></span>${loaded ? '' : '<small class="load-hint">词库未加载 · 点击后自动加载</small>'}</span><span class="arrow">›</span></button>`;
     }).join('');
-    root.innerHTML = `${brand}<a class="back" href="../index.html">‹ 返回考证资料</a><section class="hero"><p class="kicker">SPACED REPETITION</p><h1>每天一点，<span>记得更久。</span></h1><div>支持卡片、选义、拼写、浏览器朗读和FSRS智能复习；进度保存在当前设备。</div></section><section class="books">${cards}</section><button class="license-button" data-action="licenses">开源参考与许可 ›</button>`;
+    root.innerHTML = `${brand}<a class="back" href="../index.html">‹ 返回考证资料</a><section class="hero"><p class="kicker">SPACED REPETITION</p><h1>每天一点，<span>记得更久。</span></h1><div>支持卡片、选义、拼写、浏览器朗读和FSRS智能复习；进度保存在当前设备。</div></section><section class="books">${cards}</section><div class="offline-actions"><button class="license-button" data-action="licenses">开源参考与许可 ›</button><button class="offline-button" data-action="offline" id="offline-download">${offlineLabel()}</button></div>`;
+  }
+  // —— 离线词书下载：预拉取词书数据文件，经 Service Worker 缓存为无版本 key，
+  //    断网后仍可正常背词（仅 SW 已接管时可用）——
+  const OFFLINE_MEMO = 'waiyuan-vocab-offline-v1';
+  const offlineLabel = () => {
+    let memo = null;
+    try { memo = JSON.parse(localStorage.getItem(OFFLINE_MEMO) || 'null'); } catch (_) {}
+    if (!('serviceWorker' in navigator)) return '离线词书：当前浏览器不支持';
+    return memo ? `✓ 离线词书已下载（${new Date(memo.at).toLocaleDateString()}）· 点此更新` : '下载词书离线包';
+  };
+  async function downloadOffline(button) {
+    if (!('serviceWorker' in navigator)) { alert('当前浏览器不支持离线缓存，请使用较新的浏览器（Chrome / Edge / Safari 11.4+）。'); return; }
+    if (!navigator.serviceWorker.controller) { alert('离线缓存尚未就绪：请刷新一次页面（Service Worker 接管后）再下载。'); return; }
+    const targets = meta.books.map(item => `vocabulary-data-${item.key}.js`);
+    let totalBytes = 0;
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        button.textContent = `下载中 ${i + 1}/${targets.length}：${targets[i].replace('vocabulary-data-', '').replace('.js', '')}…`;
+        const res = await fetch(targets[i], {cache: 'no-store'});
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        totalBytes += (await res.blob()).size;
+      }
+      try { localStorage.setItem(OFFLINE_MEMO, JSON.stringify({at: Date.now()})); } catch (_) {}
+      button.textContent = `✓ 已缓存 ${(totalBytes / 1048576).toFixed(1)} MB，可离线背词`;
+      setTimeout(() => { button.textContent = offlineLabel(); }, 3000);
+    } catch (error) {
+      button.textContent = '下载失败，请检查网络后重试';
+      console.warn('离线词书下载失败', error);
+      setTimeout(() => { button.textContent = offlineLabel(); }, 3000);
+    }
   }
 
   function renderBook() {
@@ -147,7 +177,7 @@
 
   root.addEventListener('click', event => {
     const button=event.target.closest('[data-action]'); if(!button)return; const action=button.dataset.action;
-    if(action==='home')renderHome(); else if(action==='licenses')renderLicenses(); else if(action==='book'){const key=button.dataset.book;state.bookKey=key;try{localStorage.setItem(BOOK_MEMORY_KEY,key)}catch(_){}
+    if(action==='home')renderHome(); else if(action==='licenses')renderLicenses(); else if(action==='offline'){const offline=document.getElementById('offline-download');if(offline){offline.disabled=true;downloadOffline(offline).finally(()=>{offline.disabled=false})}} else if(action==='book'){const key=button.dataset.book;state.bookKey=key;try{localStorage.setItem(BOOK_MEMORY_KEY,key)}catch(_){}
       if(books.some(b=>b.key===key)){renderBook()}else{root.innerHTML=`${brand}<section class="hero"><h1>正在加载词库<span>…</span></h1><p>${meta.books.find(b=>b.key===key)?.name||key}</p></section>`;loadBook(key,renderBook)}} else if(action==='book-back'){clearTimeout(state.advanceTimer);renderBook()} else if(action==='previous')previousWord(); else if(action==='goal'){progress.settings.dailyGoal=Number(button.dataset.goal);save();renderBook()} else if(action==='remind'){progress.settings.remindTime=button.dataset.time;save();if(button.dataset.time&&'Notification' in window&&Notification.permission==='default')requestNotifyPermission();renderBook()} else if(action==='study')startStudy(button.dataset.mode); else if(action==='reveal')reveal(); else if(action==='rate')record(Number(button.dataset.grade)); else if(action==='choice'){if(document.querySelector('#feedback').textContent)return;feedback(button.dataset.id===state.current.id,button.dataset.id===state.current.id?'回答正确':'再记一次，正确释义见下方')} else if(action==='spell'){const value=document.querySelector('#spelling').value.trim().toLowerCase();if(document.querySelector('#feedback').textContent)return;feedback(value===state.current.word.toLowerCase(),value===state.current.word.toLowerCase()?'拼写正确':`正确答案：${state.current.word}`)} else if(action==='favorite'){const key=`${state.bookKey}:${state.current.id}`,item=progress.words[key]||{reps:0,interval:0,lapses:0,due:day()};item.favorite=!item.favorite;progress.words[key]=item;save();button.textContent=item.favorite?'★':'☆'} else if(action==='list'){state.listQuery='';renderList(button.dataset.filter)} else if(action==='word-search'){state.listQuery=document.querySelector('#word-search').value;renderList(state.filter,200)} else if(action==='list-more')renderList(state.filter,state.listLimit+200); else if(action==='stats')renderStats(); else if(action==='speak')speakWord()
     if (['home','licenses','book','book-back','list','stats'].includes(action)) requestAnimationFrame(() => window.scrollTo(0, 0));
   });

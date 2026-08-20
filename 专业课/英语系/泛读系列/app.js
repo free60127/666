@@ -6,6 +6,9 @@
   const pageTitle = (document.getElementById('app')?.dataset.pageTitle) || '教材系列';
   const app = document.getElementById('app');
   const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  // 题干白名单渲染：源数据（旧 HTML 教材）含 <mark>/<em>/<strong> 高亮标记，
+  // 先全量转义再仅还原这三个白名单标签，其余标签一律按纯文本显示。
+  const safeHtml = text => escape(text).replace(/&lt;(\/?(?:mark|em|strong))&gt;/gi, '<$1>');
   const clean = text => String(text || '').replace(/\s+/g, ' ').trim();
   const letterOf = i => String.fromCharCode(65 + i);
   const kindLabel = kind => ({word:'单词', fill:'填空', grammar:'语法', vocabulary:'词汇', wordFill:'选词填空', translation:'汉译英', '':''}[kind] || kind);
@@ -25,7 +28,7 @@
     const fillable = !hasOptions && ['wordFill', 'vocabulary', 'word', 'fill'].includes(unitKind);
     const fillInput = fillable ? `<div class="fill-input-wrap"><input class="fill-input" type="text" placeholder="输入答案后点击提交" autocomplete="off"><button class="fill-submit" type="button" data-action="fill-submit" data-u="${unitKey}" data-index="${index}">提交</button></div>` : '';
     return `<article class="card" id="${unitKey}-q${index}"${fillable ? ` data-fill-answers="${escape(question.answer || '')}"` : ''}>
-      <div class="qrow"><span class="qindex">${index + 1}</span><div><h2>${escape(question.q || '')}</h2><span class="tag">${question.type === 'choice' ? (multi ? '多选' : '选择') : '填空/翻译'}</span></div></div>
+      <div class="qrow"><span class="qindex">${index + 1}</span><div><h2>${safeHtml(question.q || '')}</h2><span class="tag">${question.type === 'choice' ? (multi ? '多选' : '选择') : '填空/翻译'}</span></div></div>
       ${options ? `<div class="options">${options}</div>` : ''}
       ${fillInput}
       <button class="answer-toggle" data-action="answer" data-u="${unitKey}" data-index="${index}">点击展开答案</button>
