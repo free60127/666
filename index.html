@@ -21,8 +21,8 @@
   <meta name="apple-mobile-web-app-title" content="外院分享站">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>外院知识分享站</title>
-  <link rel="stylesheet" href="home.css?v=20260820-2140">
-<link rel="stylesheet" href="reading-tools.css?v=20260820-2140" data-reading-tools-asset><script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
+  <link rel="stylesheet" href="home.css?v=20260820-2156">
+<link rel="stylesheet" href="reading-tools.css?v=20260820-2156" data-reading-tools-asset><script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
 </head>
 <body data-reading-tools="true">
   <main class="site-shell">
@@ -48,6 +48,17 @@
       <a class="study-link favorites-link" href="学习中心/index.html?view=favorites"><i>★</i><span><b>我的收藏</b><small>查看和复习已收藏的题目</small></span><em>进入 ›</em></a>
       <a class="study-link center-link" href="学习中心/index.html"><i>统</i><span><b>统一学习中心</b><small>全部题库进度、正确率与统一错题</small></span><em>进入 ›</em></a>
     </section>
+    <section class="site-actions" aria-label="分享与安装">
+      <div class="share-site">
+        <img src="og-image.png" alt="分享卡片预览：外院知识分享站" loading="lazy">
+        <div class="share-site-text"><b>分享给同学</b><small>复制链接发到微信，对方会看到这张分享卡片</small></div>
+        <button type="button" data-action="copy-share" aria-label="复制站点链接">复制链接</button>
+      </div>
+      <div class="install-site" id="install-site" hidden>
+        <div class="install-site-text"><b>📱 添加到主屏幕</b><small id="install-hint">像 App 一样从桌面直接打开</small></div>
+        <button type="button" id="install-btn">立即安装</button>
+      </div>
+    </section>
     <button class="support" data-action="sponsor"><span>赞助支持</span><b>♥</b><small>自愿支持资料持续整理与更新</small></button>
     <button class="print-shop" data-action="print-shop"><span>打印小店</span><b>🖨️</b><small>黑白 0.2 元、彩色 0.3 元／张</small></button>
     <p class="footnote">外院知识分享站 · 免费分享，持续完善</p>
@@ -55,8 +66,8 @@
   <div class="modal-mask" id="welcome"><section class="modal welcome-modal"><button class="close" data-action="close" aria-label="关闭">×</button><p class="kicker">WELCOME</p><h2>个人制作不易，老大如果觉得有帮助的话可以划到底部赞助一下吗喵QAQ</h2><img src="welcome-cat.jpg" alt="可爱猫咪"><button class="main-button" data-action="close">开始使用</button></section></div>
   <div class="modal-mask hidden" id="sponsor"><section class="modal pay-modal"><button class="close" data-action="close-pay" aria-label="关闭">×</button><p class="kicker">SUPPORT</p><h2>感谢你的赞助</h2><p>本站所有内容均可免费使用。若资料对你有帮助，欢迎扫码自愿赞助。</p><img src="payment-qr.jpg" alt="微信收款码"><small>赞助完全自愿，不影响任何功能使用。</small></section></div>
   <div class="modal-mask hidden" id="print-shop"><section class="modal print-modal"><button class="close" data-action="close-print-shop" aria-label="关闭">×</button><p class="kicker">PRINT SHOP</p><h2>打印小店</h2><img src="print-shop.jpg" alt="宿舍打印店微信二维码，黑白 0.2 元、彩色 0.3 元每张"><p>长期接各种试题卷、论文打印</p></section></div>
-<script src="site-search-data.js?v=20260820-2140"></script><script src="site-search.js?v=20260820-2140"></script><script src="home.js?v=20260820-2140"></script>
-<script defer src="reading-tools.js?v=20260820-2140" data-reading-tools-asset></script><script defer src="unified-quiz-engine.js?v=20260820-2140"></script>  <link rel="stylesheet" href="theme.css">
+<script src="site-search-data.js?v=20260820-2156"></script><script src="site-search.js?v=20260820-2156"></script><script src="home.js?v=20260820-2156"></script>
+<script defer src="reading-tools.js?v=20260820-2156" data-reading-tools-asset></script><script defer src="unified-quiz-engine.js?v=20260820-2156"></script>  <link rel="stylesheet" href="theme.css">
   <script defer src="common.js" data-common-injected></script>
 </body>
 </html>
