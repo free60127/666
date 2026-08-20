@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Waiyuan quiz data",
+  "description": "Schema for the two data-driven exercise formats currently used by the site.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["source", "sections"],
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["title", "items"],
+            "properties": {
+              "title": {"type": "string", "minLength": 1},
+              "page": {"type": "integer"},
+              "verified": {"type": "boolean"},
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["number", "question", "answer"],
+                  "properties": {
+                    "number": {"type": ["string", "integer"]},
+                    "question": {"type": "string", "minLength": 1},
+                    "answer": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["source", "exercises"],
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "exercises": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "title", "kind", "instruction", "questions"],
+            "properties": {
+              "id": {"type": "string", "minLength": 1},
+              "title": {"type": "string", "minLength": 1},
+              "kind": {"type": "string", "minLength": 1},
+              "instruction": {"type": "string"},
+              "questions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["number", "text", "answer"],
+                  "properties": {
+                    "number": {"type": ["string", "integer"]},
+                    "text": {"type": "string", "minLength": 1},
+                    "answer": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "withheld": {"type": "array"}
+      }
+    }
+  ]
+}

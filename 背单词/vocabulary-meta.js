@@ -1,0 +1,1 @@
+window.WAIYUAN_VOCABULARY_META = {"version":3,"books":[{"key":"tem4","name":"英语专四","shortName":"TEM-4","description":"HY2024版专四词汇 · 索引筛选与词典扩展","total":4115},{"key":"tem8","name":"英语专八","shortName":"TEM-8","description":"华研外语专八词汇突破13000（新题型）· 主词条、派生词、短语与附录","total":5673}]};
