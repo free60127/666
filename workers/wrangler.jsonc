@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "waiyuan-study",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-20",
+  "workers_dev": true,
+  "kv_namespaces": [
+    { "binding": "STUDY_KV", "id": "c839167b913f41d8b9bb6eb7eaa04821" }
+  ]
+}
