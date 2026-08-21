@@ -19,20 +19,25 @@
 | GET | `/api/notice` | 读取公告 | 公开 |
 | POST | `/api/notice` | 更新公告 `{text}` | Bearer ADMIN_TOKEN |
 | POST | `/api/feedback` | 提交反馈 `{page,question,answer,note,contact}`（同 IP 30 秒最多 5 次） | 公开 |
-| GET | `/api/feedback` | 拉取反馈列表（最多 200 条） | Bearer ADMIN_TOKEN |
-| POST | `/api/sync` | 进度同步上传 `{deviceId, payload}`（payload ≤ 1MB，deviceId ≤ 64 字符） | 匿名 |
-| GET | `/api/sync?deviceId=x` | 进度同步下载（不存在返回 404） | 匿名 |
-| DELETE | `/api/sync?deviceId=x` | 删除云端进度 | 匿名 |
+| GET | `/api/feedback` | 拉取反馈列表（cursor 分页：`?cursor=&limit=&type=&since=&until=&handled=`） | Bearer ADMIN_TOKEN |
+| PATCH | `/api/feedback?key=feedback:xxx&handled=1|0` | 标记反馈已处理/重新打开 | Bearer ADMIN_TOKEN |
+| DELETE | `/api/feedback?key=feedback:xxx` | 删除反馈 | Bearer ADMIN_TOKEN |
+| POST | `/api/sync` | 进度同步上传 `{deviceId?, payload}`（payload ≤ 2.5MB；匿名需 64 位 hex deviceId；登录态带 Bearer 走账号键） | 匿名 / 会话 |
+| GET | `/api/sync?deviceId=x` | 进度同步下载（不存在返回 404；登录态可不带 deviceId 直接取账号数据） | 匿名 / 会话 |
+| DELETE | `/api/sync?deviceId=x` | 删除云端进度（登录态直接删账号数据） | 匿名 / 会话 |
 | GET | `/proxy/*` | 站点反代加速 → `https://free60127.github.io/666/*`（HTML 自动重写资源路径） | 公开 |
 | GET | `/` 及任意非 `/api/` 路径 | 主域直连反代（`free60127.top`），HTML 去 `/666/` 前缀 + OG 地址改主域 | 公开 |
 
 所有 API 响应 JSON。CORS：**API 路由**只对白名单来源（`https://free60127.github.io`、`https://free60127.top`）回显 `Access-Control-Allow-Origin`（其他来源无 CORS 头）；**反代**是公开静态资源，返回 `Access-Control-Allow-Origin: *`（不携带凭证）。
 
-## 安全边界（上线清单，未启用前须知）
+## 安全边界（2026-08-22 加固后）
 
-- `/api/sync` 使用匿名 `deviceId` 作为访问凭证——**知道 ID 即可读取/覆盖/删除进度**，前端暂未接入，切勿直接上线自动云同步；启用前需增加配对码/签名令牌/账号鉴权、payload 加密、冲突合并与设备解绑。
-- 反馈/同步限频使用进程内 `Map`，多实例部署时不是全局限流。
-- `/api/feedback` 拉取最多 200 条，无分页。
+- `/api/sync` 双模式：
+  - **匿名（访客）**：恢复码 → `deviceId = SHA-256(code)`（64 位 hex），**知道恢复码才能读写数据**（服务端只存哈希）；
+  - **账号（登录用户）**：`Authorization: Bearer <session>`，数据键 `user:{id}` 与匿名完全隔离；前端登录后自动把旧匿名数据迁移到账号（`cloud-sync.js migrateAnonymous`）。
+- 保护措施：deviceId 必须 64 位 hex；每键每分钟限流（上传 10 / 下载 30 / 删除 6，KV 计数器）；`Content-Length` 预检 + 字符串化二次校验（payload ≤ 2.5MB）；写入带 2 年 TTL（730 天未备份自动过期）；响应 `Cache-Control: no-store`；CORS 回显 `Vary: Origin`。
+- payload 全程端到端加密（PBKDF2 派生 AES-GCM-256），服务端/管理员读不到学习内容。
+- 反馈限频（进程内 `Map`）仅限单实例；`/api/feedback` 列表已支持 cursor 分页 + 类型/时间/已处理筛选。
 - 反代仅允许 `GET/HEAD`，并主动删除 `Authorization`、`Cookie` 等敏感请求头。
 
 ## 常用命令

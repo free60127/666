@@ -75,9 +75,26 @@
   <div id="tab-feedback" class="card">
     <div class="row" style="justify-content:space-between">
       <h2 style="margin:0">反馈列表</h2>
-      <button class="ghost" id="load-fb">刷新</button>
+      <div class="row">
+        <button class="ghost" id="export-csv">导出 CSV</button>
+        <button class="ghost" id="export-json">导出 JSON</button>
+        <button class="ghost" id="load-fb">刷新</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="fb-type" placeholder="类型筛选（留空=全部）" style="width:160px">
+      <select id="fb-handled" style="padding:9px 10px;border:1px solid #c9d6cd;border-radius:10px;font:inherit;background:#fff">
+        <option value="">全部状态</option>
+        <option value="0">未处理</option>
+        <option value="1">已处理</option>
+      </select>
+      <button class="ghost" id="fb-filter">应用筛选</button>
+      <span class="now" id="fb-count"></span>
     </div>
     <div id="fb-list"><div class="empty">点击「刷新」加载反馈。</div></div>
+    <div class="row" style="justify-content:center;margin-top:10px">
+      <button class="ghost" id="fb-more" hidden>加载更多</button>
+    </div>
   </div>
 
   <div id="tab-notice" class="card" hidden>
@@ -137,18 +154,24 @@
     });
   });
 
-  // 反馈列表
-  const renderFeedback = items => {
+  // 反馈列表（分页 / 筛选 / 已处理 / 导出）
+  const fbState = { cursor: null, hasMore: false, items: [] };
+  const renderFeedback = (items, append) => {
     const list = $('#fb-list');
-    list.innerHTML = '';
-    if (!items.length) { list.innerHTML = '<div class="empty">暂无反馈。</div>'; return; }
+    if (!append) list.innerHTML = '';
+    if (!items.length && !list.children.length) { list.innerHTML = '<div class="empty">暂无反馈。</div>'; $('#fb-more').hidden = true; return; }
     for (const it of items) {
       const el = document.createElement('div');
       el.className = 'fb';
       const meta = document.createElement('div'); meta.className = 'meta';
       const page = document.createElement('span'); page.className = 'page'; page.textContent = it.page || '（无页面）';
+      const status = document.createElement('span');
+      status.className = 'page';
+      status.style.background = it.handled ? '#e4f3e9' : '#fbeae7';
+      status.style.color = it.handled ? '#276545' : '#b04a3e';
+      status.textContent = it.handled ? '已处理' : '未处理';
       const time = document.createElement('span'); time.className = 'time'; time.textContent = fmt(it.ts);
-      meta.append(page, time);
+      meta.append(page, status, time);
       el.append(meta);
       if (it.question) { const q = document.createElement('div'); q.className = 'q'; q.textContent = it.question; el.append(q); }
       if (it.answer) { const d = document.createElement('div'); d.className = 'detail'; d.textContent = '答案：' + it.answer; el.append(d); }
@@ -156,34 +179,109 @@
       if (it.note) { const n = document.createElement('div'); n.className = 'note'; n.textContent = '备注：' + it.note; el.append(n); }
       if (it.contact) { const d = document.createElement('div'); d.className = 'detail'; d.textContent = '联系方式：' + it.contact; el.append(d); }
       const actions = document.createElement('div'); actions.className = 'actions';
-      const del = document.createElement('button'); del.className = 'danger'; del.textContent = '删除这条反馈';
+      const toggle = document.createElement('button');
+      toggle.className = 'ghost';
+      toggle.textContent = it.handled ? '重新打开' : '标记已处理';
+      toggle.addEventListener('click', async () => {
+        try {
+          const r = await fetch(base() + '/api/feedback?key=' + encodeURIComponent(it.key) + '&handled=' + (it.handled ? '0' : '1'), { method: 'PATCH', headers: { Authorization: auth() } });
+          const j = await r.json();
+          if (r.ok && j.ok) { showMsg(it.handled ? '已重新打开。' : '已标记为处理。', true); loadFeedback(true); }
+          else showMsg('操作失败：' + (j.error || r.status), false);
+        } catch (e) { showMsg('操作失败：' + e.message, false); }
+      });
+      const del = document.createElement('button'); del.className = 'danger'; del.textContent = '删除';
       del.addEventListener('click', async () => {
         if (!confirm('确定删除这条反馈？删除后不可恢复。')) return;
         try {
           const r = await fetch(base() + '/api/feedback?key=' + encodeURIComponent(it.key), { method: 'DELETE', headers: { Authorization: auth() } });
           const j = await r.json();
-          if (r.ok && j.ok) { showMsg('已删除。', true); loadFeedback(); }
+          if (r.ok && j.ok) { showMsg('已删除。', true); loadFeedback(true); }
           else showMsg('删除失败：' + (j.error || r.status), false);
         } catch (e) { showMsg('删除失败：' + e.message, false); }
       });
-      actions.append(del);
+      actions.append(toggle, del);
       el.append(actions);
       list.append(el);
     }
   };
-  const loadFeedback = async () => {
+  const loadFeedback = async (reset = true) => {
     const btn = $('#load-fb');
     btn.disabled = true; btn.textContent = '加载中…';
+    if (reset) { fbState.cursor = null; fbState.items = []; }
     try {
-      const r = await fetch(base() + '/api/feedback', { headers: { Authorization: auth() } });
+      const params = new URLSearchParams({ limit: '50' });
+      if (fbState.cursor) params.set('cursor', fbState.cursor);
+      const type = $('#fb-type').value.trim();
+      if (type) params.set('type', type);
+      const handled = $('#fb-handled').value;
+      if (handled !== '') params.set('handled', handled);
+      const r = await fetch(base() + '/api/feedback?' + params, { headers: { Authorization: auth() } });
       const j = await r.json();
-      if (r.ok && j.ok) { renderFeedback(j.items || []); showMsg('共 ' + j.count + ' 条反馈。', true); }
+      if (r.ok && j.ok) {
+        fbState.cursor = j.cursor || null;
+        fbState.hasMore = !!j.hasMore;
+        fbState.items = fbState.items.concat(j.items || []);
+        renderFeedback(j.items || [], !reset);
+        $('#fb-more').hidden = !fbState.hasMore;
+        $('#fb-count').textContent = '已加载 ' + fbState.items.length + ' 条' + (fbState.hasMore ? '（还有更多）' : '');
+        if (reset) showMsg('共 ' + fbState.items.length + ' 条反馈。', true);
+      }
       else if (r.status === 401) showMsg('令牌无效或未填写，请在上方输入正确令牌后重试。', false);
       else showMsg('加载失败：' + (j.error || r.status), false);
     } catch (e) { showMsg('请求失败：' + e.message, false); }
     btn.disabled = false; btn.textContent = '刷新';
   };
-  $('#load-fb').addEventListener('click', loadFeedback);
+  const fetchAllFeedback = async () => {
+    const all = [];
+    let cursor = null;
+    while (true) {
+      const params = new URLSearchParams({ limit: '100' });
+      if (cursor) params.set('cursor', cursor);
+      const type = $('#fb-type').value.trim();
+      if (type) params.set('type', type);
+      const handled = $('#fb-handled').value;
+      if (handled !== '') params.set('handled', handled);
+      const r = await fetch(base() + '/api/feedback?' + params, { headers: { Authorization: auth() } });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      all.push(...(j.items || []));
+      if (!j.hasMore || !j.cursor) break;
+      cursor = j.cursor;
+    }
+    return all;
+  };
+  const downloadFile = (name, content, mime) => {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+  const csvEscape = v => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  $('#export-csv').addEventListener('click', async () => {
+    try {
+      const items = await fetchAllFeedback();
+      if (!items.length) { showMsg('没有可导出的反馈。', false); return; }
+      const head = ['时间', '状态', '页面', '题目', '答案', '类型', '备注', '联系方式'];
+      const rows = items.map(it => [it.ts, it.handled ? '已处理' : '未处理', it.page, it.question, it.answer, it.type, it.note, it.contact].map(csvEscape).join(','));
+      downloadFile('waiyuan-feedback-' + new Date().toISOString().slice(0, 10) + '.csv', '\ufeff' + [head.join(','), ...rows].join('\r\n'), 'text/csv;charset=utf-8');
+      showMsg('已导出 ' + items.length + ' 条 CSV。', true);
+    } catch (e) { showMsg('导出失败：' + e.message, false); }
+  });
+  $('#export-json').addEventListener('click', async () => {
+    try {
+      const items = await fetchAllFeedback();
+      downloadFile('waiyuan-feedback-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(items, null, 2), 'application/json');
+      showMsg('已导出 ' + items.length + ' 条 JSON。', true);
+    } catch (e) { showMsg('导出失败：' + e.message, false); }
+  });
+  $('#load-fb').addEventListener('click', () => loadFeedback(true));
+  $('#fb-filter').addEventListener('click', () => loadFeedback(true));
+  $('#fb-more').addEventListener('click', () => loadFeedback(false));
 
   // 公告
   const loadNotice = async () => {

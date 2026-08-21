@@ -159,6 +159,56 @@
     return request('/api/sync?deviceId=' + encodeURIComponent(deviceId), { method: 'DELETE' }, base);
   }
 
+  /* ---------- 账号模式（2026-08-22）：登录后数据键 user:{id} + Bearer 鉴权 ----------
+     与匿名（恢复码）数据完全隔离；登录后调用 migrateAnonymous 自动把旧匿名数据搬进账号 */
+  let identity = null;  // { token, userId }
+  function setAuth(token, userId) { identity = { token: String(token), userId: String(userId) }; }
+  function clearAuth() { identity = null; }
+  function isAuthed() { return !!(identity && identity.token && identity.userId); }
+  const authHeaders = () => ({ Authorization: 'Bearer ' + identity.token });
+
+  /** 账号模式上传（无需 deviceId，worker 按会话解析 user 键；payload 仍为 encrypt() 密文） */
+  async function backupAccount(payload, base) {
+    if (!isAuthed()) throw new Error('未登录，请先登录账号');
+    return request('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ payload }),
+    }, base);
+  }
+
+  /** 账号模式下载：返回 {payload, updatedAt}；无数据返回 null */
+  async function downloadAccount(base) {
+    if (!isAuthed()) throw new Error('未登录，请先登录账号');
+    const res = await fetch((base || apiBase()) + '/api/sync', { headers: authHeaders() });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body && body.error) || ('HTTP ' + res.status));
+    }
+    return res.json();
+  }
+
+  /** 账号模式删除 */
+  async function removeAccount(base) {
+    if (!isAuthed()) throw new Error('未登录，请先登录账号');
+    return request('/api/sync', { method: 'DELETE', headers: authHeaders() }, base);
+  }
+
+  /** 匿名 → 账号一次性迁移（登录后调用）：
+     账号云端无数据 && 匿名云端有数据 → 搬过去并删除匿名；返回 {status:'migrated'|'noop'|'skipped'} */
+  async function migrateAnonymous(code, base) {
+    if (!isAuthed()) return { status: 'noop' };
+    const account = await downloadAccount(base);
+    if (account && account.payload) return { status: 'skipped' };  // 账号已有数据，不覆盖
+    if (!code) return { status: 'noop' };
+    const anon = await download(code, base);
+    if (!anon || !anon.payload) return { status: 'noop' };
+    await backupAccount(anon.payload, base);
+    await remove(code, base);
+    return { status: 'migrated', size: JSON.stringify(anon.payload).length, updatedAt: anon.updatedAt };
+  }
+
   /* ---------- 恢复码本地持久化（浏览器端；Node 测试不使用）---------- */
   const CODE_KEY = 'waiyuan-cloud-recovery-code-v1';
   function loadCode() {
@@ -171,5 +221,5 @@
     try { localStorage.setItem(CODE_KEY, JSON.stringify({ code: String(code), updatedAt: new Date().toISOString() })); } catch (_) {}
   }
 
-  return { createCode, sha256Hex, encrypt, decrypt, mergeBackup, backup, download, remove, loadCode, saveCode, DEFAULT_API };
+  return { createCode, sha256Hex, encrypt, decrypt, mergeBackup, backup, download, remove, setAuth, clearAuth, isAuthed, backupAccount, downloadAccount, removeAccount, migrateAnonymous, loadCode, saveCode, DEFAULT_API };
 });

@@ -34,3 +34,21 @@ jobs:
           # build.js 与 build-standalone.js 已在上方重建，若产物陈旧这里会产生差异并使 CI 失败。
           # 版本号刷新由 release.js 负责，CI 不做，因此 ?v= 差异不会被误报。
           git diff --exit-code || { echo '::error::构建产物与提交不一致（data.js/data.json/单文件版等），请先本地跑 node scripts/release.js'; git diff --stat; exit 1; }
+
+  browser-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 安装测试依赖与 Chromium
+        working-directory: tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: 运行浏览器测试（Playwright，全量 31+ 用例）
+        working-directory: tests
+        env:
+          PW_CHANNEL: chromium
+        run: npx playwright test

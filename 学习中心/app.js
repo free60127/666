@@ -181,21 +181,24 @@
   const doCloudBackup = async () => {
     if (!cloud()) { setStatus('云端模块未加载，请刷新页面重试。', 'error'); return; }
     try {
+      const authed = cloud().isAuthed ? cloud().isAuthed() : false;
       let code = cloud().loadCode();
       if (!code) {
         code = cloud().createCode();
         cloud().saveCode(code);
         refreshCloudCodeBox();
-        showCloudPanel(true);
-        setStatus('已生成恢复码，请先点「复制恢复码」保存，再点一次「云端备份」完成上传。', 'success');
-        return;
+        if (!authed) {  // 账号模式不需要手抄恢复码（已加密绑定账号）
+          showCloudPanel(true);
+          setStatus('已生成恢复码，请先点「复制恢复码」保存，再点一次「云端备份」完成上传。', 'success');
+          return;
+        }
       }
       setStatus('正在加密并上传学习数据（备份=覆盖云端）…', '');
       const payload = await cloud().encrypt(code, createBackup());
-      const result = await cloud().backup(code, payload);
+      const result = authed ? await cloud().backupAccount(payload) : await cloud().backup(code, payload);
       const at = result.updatedAt ? new Date(result.updatedAt) : new Date();
       const size = result.size ? Math.max(1, Math.round(result.size / 1024)) : 0;
-      setStatus('云端备份完成（' + date(at) + '，约 ' + size + ' KB）。换设备时用恢复码即可取回。', 'success');
+      setStatus('云端备份完成（' + date(at) + '，约 ' + size + ' KB）。' + (authed ? '已存入你的账号，换设备登录后点「云端恢复」即可取回。' : '换设备时用恢复码即可取回。'), 'success');
     } catch (error) {
       setStatus('云端备份失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
     }
@@ -203,6 +206,31 @@
   const doCloudRestore = async input => {
     if (!cloud()) { setStatus('云端模块未加载，请刷新页面重试。', 'error'); return; }
     const code = String(input || '').trim();
+    const authed = cloud().isAuthed ? cloud().isAuthed() : false;
+    // 登录态且未输入恢复码 → 直接从账号取数据（恢复码自动解锁，无需手输）
+    if (authed && !code) {
+      try {
+        setStatus('正在从账号云端下载并解密…', '');
+        const remote = await cloud().downloadAccount();
+        if (!remote || !remote.payload) { setStatus('账号云端还没有备份：先点「☁ 云端备份」上传一次。', 'error'); return; }
+        const myCode = cloud().loadCode();
+        if (!myCode) { setStatus('账号未绑定恢复码，无法解密数据，请先在旧设备登录并备份。', 'error'); return; }
+        const cloudBackup = await cloud().decrypt(myCode, remote.payload);
+        validateBackup(cloudBackup);
+        download(JSON.stringify(createBackup(), null, 2), 'waiyuan-local-before-restore-' + dateStamp() + '.json');
+        const merged = cloud().mergeBackup(createBackup(), cloudBackup);
+        localStorage.setItem(KEY, JSON.stringify(merged.data.webQuiz));
+        localStorage.setItem(VOCABULARY_KEY, JSON.stringify(merged.data.vocabulary));
+        for (const key of EXTRA_KEYS) localStorage.removeItem(key);
+        for (const key of Object.keys(merged.data.extra || {})) localStorage.setItem(key, JSON.stringify(merged.data.extra[key]));
+        render();
+        const when = remote.updatedAt ? '（账号云端 ' + date(new Date(remote.updatedAt)) + ' 的备份）' : '';
+        setStatus('账号云端恢复成功' + when + '：已与本地合并，本机数据未丢失。', 'success');
+      } catch (error) {
+        setStatus('账号云端恢复失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
+      }
+      return;
+    }
     if (!code) { setStatus('请先输入恢复码。', 'error'); return; }
     try {
       setStatus('正在从云端下载并解密…', '');
@@ -228,10 +256,17 @@
   };
   const doCloudClear = async () => {
     if (!cloud()) { setStatus('云端模块未加载，请刷新页面重试。', 'error'); return; }
-    const code = cloud().loadCode();
-    if (!code) { setStatus('本机没有恢复码（先备份或恢复一次），无法定位云端数据。', 'error'); return; }
-    if (!window.confirm('确定删除云端备份吗？删除后无法恢复。此操作只影响云端，不影响本机数据。')) return;
-    try { await cloud().remove(code); setStatus('云端备份已删除。', 'success'); }
+    const authed = cloud().isAuthed ? cloud().isAuthed() : false;
+    if (!authed) {
+      const code = cloud().loadCode();
+      if (!code) { setStatus('本机没有恢复码（先备份或恢复一次），无法定位云端数据。', 'error'); return; }
+      if (!window.confirm('确定删除云端备份吗？删除后无法恢复。此操作只影响云端，不影响本机数据。')) return;
+      try { await cloud().remove(code); setStatus('云端备份已删除。', 'success'); }
+      catch (error) { setStatus('清除失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error'); }
+      return;
+    }
+    if (!window.confirm('确定删除账号云端备份吗？删除后无法恢复。此操作只影响云端，不影响本机数据。')) return;
+    try { await cloud().removeAccount(); setStatus('账号云端备份已删除。', 'success'); }
     catch (error) { setStatus('清除失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error'); }
   };
   /* ---------- 账号登录（2026-08-21，D1）：登录态 + 恢复码保险箱 ---------- */
@@ -273,6 +308,7 @@
     const submit = document.getElementById('auth-submit-btn');
     if (submit) submit.disabled = true;
     try {
+      let migratedNote = '';
       if (authMode === 'register') {
         let code = window.WaiyuanCloudSync && window.WaiyuanCloudSync.loadCode ? window.WaiyuanCloudSync.loadCode() : '';
         if (!code && window.WaiyuanCloudSync && window.WaiyuanCloudSync.createCode) {
@@ -282,12 +318,15 @@
         const recovery = code ? await auth().lockRecovery(password, code) : null;
         const result = await auth().register({ email, password, nickname: nickname || undefined, recovery });
         auth().saveSession(result);
-        setStatus('注册成功，已登录。' + (recovery ? '本机恢复码已加密保存到账号，换设备登录即可解锁。' : '建议先做一次云端备份以生成恢复码。'), 'success');
+        if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.setAuth) window.WaiyuanCloudSync.setAuth(result.token, result.user.id);
+        migratedNote = await tryMigrate(code);  // 注册前若有匿名备份则搬入账号
+        setStatus('注册成功，已登录。' + (recovery ? '本机恢复码已加密保存到账号，换设备登录即可解锁。' : '建议先做一次云端备份以生成恢复码。') + migratedNote, 'success');
         showAuthPanel(false);
         refreshCloudCodeBox();
       } else {
         const result = await auth().login({ email, password });
         auth().saveSession(result);
+        if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.setAuth) window.WaiyuanCloudSync.setAuth(result.token, result.user.id);
         let unlocked = false;
         if (result.recovery) {
           try {
@@ -295,9 +334,10 @@
             if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.saveCode) window.WaiyuanCloudSync.saveCode(code);
             refreshCloudCodeBox();
             unlocked = true;
+            migratedNote = await tryMigrate(code);
           } catch (_) { /* 密码已通过服务端验证，此处失败属数据异常，不阻断登录 */ }
         }
-        setStatus('登录成功。' + (unlocked ? '云端恢复码已解锁，可点「云端恢复」取回学习数据。' : '该账号尚未绑定恢复码，可用原恢复码手动恢复或做一次云端备份。'), 'success');
+        setStatus('登录成功。' + (unlocked ? '云端恢复码已解锁，可点「云端恢复」取回学习数据。' : '该账号尚未绑定恢复码，可用原恢复码手动恢复或做一次云端备份。') + migratedNote, 'success');
         showAuthPanel(false);
       }
       refreshAuthBar();
@@ -312,8 +352,18 @@
     const session = auth() && auth().getSession ? auth().getSession() : null;
     try { if (session && auth()) await auth().logout(session.token); } catch (_) {}
     if (auth()) auth().clearSession();
+    if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.clearAuth) window.WaiyuanCloudSync.clearAuth();
     refreshAuthBar();
     setStatus('已退出登录。', 'success');
+  };
+  /** 登录/注册后：把旧匿名恢复码数据迁移到账号（无数据/账号已有数据则跳过，静默） */
+  const tryMigrate = async code => {
+    try {
+      const cloudSync = window.WaiyuanCloudSync;
+      if (!cloudSync || !cloudSync.migrateAnonymous) return '';
+      const result = await cloudSync.migrateAnonymous(code || cloudSync.loadCode());
+      return result && result.status === 'migrated' ? '原恢复码数据已自动迁移到账号。' : '';
+    } catch (_) { return ''; }
   };
 
   const sourceName = item => clean(item.page).replace(/s*[·|-]s*外院知识分享站.*$/i, '') || '网页题库';

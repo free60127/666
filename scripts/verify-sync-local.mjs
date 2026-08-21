@@ -1,0 +1,78 @@
+/* /api/sync 加固本地集成测试（wrangler dev --local + 真实 HTTP）
+ * 用法：
+ *   cd workers && wrangler dev --port 8787 --local &
+ *   node scripts/verify-sync-local.mjs
+ * 覆盖：非法 deviceId 400 / 合法上传下载删除 200 / 上传限流 429 / 账号模式（Bearer）读写
+ */
+const API = 'http://127.0.0.1:8787';
+let passed = 0, failed = 0;
+const check = (name, cond, detail = '') => {
+  if (cond) { passed++; console.log('  ✓', name); }
+  else { failed++; console.log('  ✗', name, detail); }
+};
+const hex64 = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+
+async function call(path, { method = 'GET', body, token } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = 'Bearer ' + token;
+  const res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => null);
+  return { status: res.status, data, cacheControl: res.headers.get('cache-control') };
+}
+
+console.log('1) deviceId 校验');
+{
+  const bad = await call('/api/sync', { method: 'POST', body: { deviceId: 'short', payload: { a: 1 } } });
+  check('非 64hex deviceId → 400', bad.status === 400, String(bad.status));
+  const bad2 = await call('/api/sync', { method: 'POST', body: { deviceId: 'Z'.repeat(64), payload: { a: 1 } } });
+  check('非 hex（大写Z）→ 400', bad2.status === 400);
+}
+
+console.log('2) 匿名上传/下载/删除 + no-store');
+{
+  const deviceId = hex64();
+  const up = await call('/api/sync', { method: 'POST', body: { deviceId, payload: { hello: '世界' } } });
+  check('合法上传 → 200 带 updatedAt', up.status === 200 && !!up.data.updatedAt);
+  check('上传响应 no-store', up.cacheControl === 'no-store', String(up.cacheControl));
+  const dl = await call('/api/sync?deviceId=' + deviceId);
+  check('下载 200 数据一致', dl.status === 200 && dl.data.payload.hello === '世界');
+  check('下载响应 no-store', dl.cacheControl === 'no-store');
+  const miss = await call('/api/sync?deviceId=' + hex64());
+  check('不存在 → 404', miss.status === 404);
+  const del = await call('/api/sync?deviceId=' + deviceId, { method: 'DELETE' });
+  check('删除 200', del.status === 200);
+}
+
+console.log('3) 上传限流（每分钟 10 次，KV 计数器）');
+{
+  const deviceId = hex64();
+  let limited = 0, ok = 0;
+  for (let i = 0; i < 12; i++) {
+    const r = await call('/api/sync', { method: 'POST', body: { deviceId, payload: { i } } });
+    if (r.status === 429) limited++;
+    else if (r.status === 200) ok++;
+  }
+  check('前 10 次成功、第 11 次起 429', ok === 10 && limited >= 1, 'ok=' + ok + ' limited=' + limited);
+}
+
+console.log('4) 账号模式（Bearer 会话）');
+{
+  // 本地 D1 已跑过 register 流程（0001_init.sql applied locally），注册真实用户
+  const email = 'sync-' + Date.now().toString(36) + '@test.com';
+  const reg = await call('/api/auth/register', { method: 'POST', body: { email, password: 'password123' } });
+  check('注册账号成功', reg.status === 201, String(reg.status));
+  const token = reg.data && reg.data.token;
+  const up = await call('/api/sync', { method: 'POST', body: { payload: { account: true } }, token });
+  check('账号模式上传（无 deviceId）→ 200', up.status === 200, String(up.status) + ' ' + JSON.stringify(up.data));
+  const dl = await call('/api/sync', { token });
+  check('账号模式下载 → 200 数据一致', dl.status === 200 && dl.data.payload.account === true);
+  const dlAnon = await call('/api/sync?deviceId=' + hex64());
+  check('匿名看不到账号数据（404）', dlAnon.status === 404);
+  const badToken = await call('/api/sync', { method: 'POST', body: { payload: { x: 1 } }, token: 'deadbeef'.repeat(8) });
+  check('伪造 token → 401', badToken.status === 401);
+  const del = await call('/api/sync', { method: 'DELETE', token });
+  check('账号模式删除 → 200', del.status === 200);
+}
+
+console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
+process.exit(failed ? 1 : 0);

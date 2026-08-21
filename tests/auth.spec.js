@@ -21,6 +21,32 @@ async function lockRecoveryNode(password, code) {
   return { salt: b64(salt), iv: b64(iv), c: b64(new Uint8Array(ct)) };
 }
 
+// mock /api/sync：账号模式（带 Bearer）与匿名（deviceId）内存存储；避免测试打真实网络
+function mockSyncApi(page, store) {
+  page.route('**/api/sync**', route => {
+    const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+    const req = route.request();
+    const method = req.method();
+    const auth = req.headers()['authorization'] || '';
+    const url = new URL(req.url());
+    const deviceId = url.searchParams.get('deviceId');
+    const key = auth ? 'user:' + (store.authUser || 'u0') : deviceId;
+    if (!key) return route.fulfill({ status: 400, headers, body: JSON.stringify({ error: 'deviceId required' }) });
+    if (method === 'POST') {
+      const body = req.postDataJSON();
+      store[key] = { payload: body.payload, updatedAt: '2026-08-22T00:00:00.000Z' };
+      return route.fulfill({ status: 200, headers, body: JSON.stringify({ ok: true, size: 10, updatedAt: store[key].updatedAt }) });
+    }
+    if (method === 'GET') {
+      const hit = store[key];
+      return hit ? route.fulfill({ status: 200, headers, body: JSON.stringify({ ok: true, payload: hit.payload, updatedAt: hit.updatedAt }) })
+                 : route.fulfill({ status: 404, headers, body: JSON.stringify({ error: 'not found' }) });
+    }
+    if (method === 'DELETE') { delete store[key]; return route.fulfill({ status: 200, headers, body: JSON.stringify({ ok: true }) }); }
+    return route.fulfill({ status: 405, headers, body: 'no' });
+  });
+}
+
 // mock /api/auth/*：内存用户 + 会话；CORS 头必须有（页面 127.0.0.1:8788 跨域）
 function mockAuthApi(page, users) {
   const calls = [];
@@ -56,6 +82,7 @@ function mockAuthApi(page, users) {
 test('注册流程：面板切换 → 注册 → 登录态显示 → 退出', async ({ page }) => {
   const users = [];
   mockAuthApi(page, users);
+  mockSyncApi(page, {});
   await page.goto(BASE);
   await expect(page.locator('#auth-open-btn')).toBeVisible();
   await expect(page.locator('#auth-open-btn')).toHaveText(/登录 \/ 注册/);
@@ -95,6 +122,7 @@ test('登录流程：账号绑定恢复码 → 登录自动解锁云端恢复码
   const box = await lockRecoveryNode('password123', code);
   const users = [{ id: 'u1', email: 'old@example.com', password: 'password123', nickname: '学长', recovery: box }];
   mockAuthApi(page, users);
+  mockSyncApi(page, {});
 
   await page.goto(BASE);
   await page.locator('#auth-open-btn').click();
@@ -119,6 +147,7 @@ test('登录流程：账号绑定恢复码 → 登录自动解锁云端恢复码
 test('登录失败：密码错误显示错误信息', async ({ page }) => {
   const users = [{ id: 'u1', email: 'old@example.com', password: 'password123', nickname: '学长', recovery: null }];
   mockAuthApi(page, users);
+  mockSyncApi(page, {});
   await page.goto(BASE);
   await page.locator('#auth-open-btn').click();
   await page.fill('#auth-email-input', 'old@example.com');
@@ -126,4 +155,31 @@ test('登录失败：密码错误显示错误信息', async ({ page }) => {
   await page.locator('#auth-submit-btn').click();
   await expect(page.locator('#data-status')).toContainText('邮箱或密码不正确');
   await expect(page.locator('#auth-email')).toBeHidden(); // 未登录
+});
+
+test('登录后云端备份走账号模式（带 Bearer，无 deviceId）', async ({ page }) => {
+  const users = [{ id: 'acc1', email: 'acc@example.com', password: 'password123', nickname: '账号用户', recovery: null }];
+  const syncStore = { authUser: 'acc1' };
+  mockAuthApi(page, users);
+  mockSyncApi(page, syncStore);
+  await page.goto(BASE);
+
+  // 登录
+  await page.locator('#auth-open-btn').click();
+  await page.fill('#auth-email-input', 'acc@example.com');
+  await page.fill('#auth-password-input', 'password123');
+  await page.locator('#auth-submit-btn').click();
+  await expect(page.locator('#auth-email')).toHaveText('👤 账号用户');
+
+  // 云端备份 → 应写入账号键（带 Authorization）
+  await page.locator('[data-action="cloud-backup"]').click();
+  await expect(page.locator('#data-status')).toContainText('云端备份完成');
+  expect(syncStore['user:acc1']).toBeTruthy();  // 账号键有数据
+  // 匿名键不存在（64 hex deviceId 未出现）
+  expect(Object.keys(syncStore).some(k => k.length === 64)).toBe(false);
+
+  // 云端恢复（登录态无输入框内容）→ 从账号取回
+  await page.locator('[data-action="cloud-restore"]').click();
+  await page.locator('[data-action="cloud-restore-go"]').click();
+  await expect(page.locator('#data-status')).toContainText('账号云端恢复成功');
 });
