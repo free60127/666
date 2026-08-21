@@ -1,4 +1,5 @@
-const base = 'https://free60127.github.io/666/';
+// 主域 HTML/SW/manifest 细节核验（2026-08-21 改版：free60127.top）
+const base = 'https://free60127.top/';
 const fs = require('fs');
 const path = require('path');
 // 从本地 sw.js 动态提取缓存常量名，避免常量升级后本检查项过时

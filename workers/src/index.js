@@ -40,6 +40,12 @@ async function route(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // www 子域统一 301 跳转主域（保留路径与查询串，避免双域名内容/统计分裂）
+    if (url.hostname === 'www.free60127.top') {
+      const target = 'https://free60127.top' + url.pathname + url.search;
+      return new Response(null, { status: 301, headers: { Location: target, 'Cache-Control': 'no-store' } });
+    }
+
     // CORS 预检
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204 });
