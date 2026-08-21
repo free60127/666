@@ -1555,96 +1555,101 @@
         },
         {
           "number": 2,
-          "question": "据悉，地震后许多人无家可归（homeless)。",
-          "answer": "It is known that many people are homeless after the Earthquake./ Many people are known to be homeless after the earthquake."
+          "question": "据悉，地震后许多人无家可归（homeless）。",
+          "answer": "It is known that many people are homeless after the Earthquake. / Many people are known to be homeless after the earthquake."
         },
         {
           "number": 3,
-          "question": "不言而喻，这是最近谈判（recentnegotiations）的结果。",
-          "answer": "It is understood that this is the result of recent negotiations./ This is understood to be the result of recent negotiations."
+          "question": "不言而喻，这是最近谈判（recent negotiations）的结果。",
+          "answer": "It is understood that this is the result of recent negotiations. / This is understood to be the result of recent negotiations."
         },
         {
           "number": 4,
           "question": "大家认为她已经康复。",
-          "answer": "It is thought that she has recovered./ She is thought to have recovered."
+          "answer": "It is thought that she has recovered. / She is thought to have recovered."
         },
         {
           "number": 5,
           "question": "估计总统即将发表声明。",
-          "answer": "It is expected that the President will make an Announcement. /"
+          "answer": "It is expected that the President will make an announcement. / The President is expected to make an announcement."
         },
         {
           "number": 6,
           "question": "这个问题明天上午讨论吗？",
-          "answer": "The President is expected to make an announcement."
-        },
-        {
-          "number": 7,
-          "question": "这件事马上可以做。 s.这项动议（motion）通过了吗？",
           "answer": "Will this question be discussed tomorrow morning?"
         },
         {
-          "number": 8,
-          "question": "这水库将提前完工。",
+          "number": 7,
+          "question": "这件事马上可以做。",
           "answer": "It can be done right away."
         },
         {
-          "number": 9,
-          "question": "现在广播里正在教唱新歌。",
+          "number": 8,
+          "question": "这项动议（motion）通过了吗？",
           "answer": "Has this motion been adopted?"
         },
         {
-          "number": 10,
-          "question": "首先一定要保证质量。",
+          "number": 9,
+          "question": "这水库将提前完工。",
           "answer": "The reservoir is going to be completed ahead of schedule."
         },
         {
-          "number": 11,
-          "question": "浦东又办了一所大学。",
+          "number": 10,
+          "question": "现在广播里正在教唱新歌。",
           "answer": "Some new songs are being taught now over the radio."
         },
         {
-          "number": 12,
-          "question": "有人建议会议推迟到下星期四举行。",
+          "number": 11,
+          "question": "首先一定要保证质量。",
           "answer": "Quality must be guaranteed first."
         },
         {
-          "number": 13,
-          "question": "必须承认中国还是一个发展中国家。",
+          "number": 12,
+          "question": "浦东又办了一所大学。",
           "answer": "Another college has been set up at Pudong."
         },
         {
-          "number": 14,
-          "question": "必须指出台湾问题是中国的内政。",
+          "number": 13,
+          "question": "有人建议会议推迟到下星期四举行。",
           "answer": "It is suggested that the meeting be put off till next Thursday."
         },
         {
-          "number": 15,
-          "question": "这个英语读本很畅销。",
+          "number": 14,
+          "question": "必须承认中国还是一个发展中国家。",
           "answer": "It must be recognized that China is still a developing country."
         },
         {
-          "number": 16,
-          "question": "瓷槽（porcelain sink）容易洗净。",
-          "answer": "It must be pointed out that Taiwan question is China's internal affairs."
+          "number": 15,
+          "question": "必须指出台湾问题是中国的内政。",
+          "answer": "It must be pointed out that Taiwan question is China’s internal affairs."
         },
         {
-          "number": 17,
-          "question": "这抽屉锁不上。",
+          "number": 16,
+          "question": "这个英语读本很畅销。",
           "answer": "This English reader sells well."
         },
         {
-          "number": 18,
-          "question": "牛奶容易变质。",
+          "number": 17,
+          "question": "瓷槽（porcelain sink）容易洗净。",
           "answer": "A porcelain sink cleans easily."
         },
         {
+          "number": 18,
+          "question": "这抽屉锁不上。",
+          "answer": "This drawer won’t lock."
+        },
+        {
           "number": 19,
+          "question": "牛奶容易变质。",
+          "answer": "Milk spoils easily."
+        },
+        {
+          "number": 20,
           "question": "这条鱼能放到明天吗？",
-          "answer": "This drawer won't lock."
+          "answer": "Will this fish keep till tomorrow?"
         }
       ],
-      "expectedAnswerCount": 19,
+      "expectedAnswerCount": 20,
       "ocrQuestionCount": 19,
       "verified": false,
       "ocrLines": [
@@ -3175,101 +3180,106 @@
       "items": [
         {
           "number": 1,
-          "question": "他们将取道美国去南美洲。(bywayof) 上周抓获的那个间谍受雇于一个外国特务机关。(in thepayof)",
+          "question": "他们将取道美国去南美洲。(by way of)",
           "answer": "They are to go South America by way of the United States."
         },
         {
           "number": 2,
-          "question": "我紧跟在向导的后面，爬呀，爬呀，终于爬到了山顶。(inthewakeof)",
+          "question": "上周抓获的那个间谍受雇于一个外国特务机关。(in the pay of)",
           "answer": "The spy caught last week was in the pay of a foreign secret agency."
         },
         {
           "number": 3,
-          "question": "Ted因病没有出席会议。(onthescoreof)",
+          "question": "我紧跟在向导的后面，爬呀，爬呀，终于爬到了山顶。(in the wake of)",
           "answer": "In the wake of the guide, I climbed and climbed and finally got to the top of the mountain."
         },
         {
           "number": 4,
-          "question": "金融危机使千百万人民濒于饥饿。（onthevergeof)",
+          "question": "Ted 因病没有出席会议。(on the score of)",
           "answer": "Ted was absent from the meeting on the score of illness."
         },
         {
           "number": 5,
-          "question": "一个民族必须掌握自己的命运，而不应任凭命运的摆布。（atthemercyof)",
+          "question": "金融危机使千百万人民濒于饥饿。(on the verge of)",
           "answer": "Owing to the financial crisis, millions of people were living on the verge of starvation."
         },
         {
           "number": 6,
-          "question": "我们不应以损坏环境为代价来发展经济。（attheexpenseof)",
+          "question": "一个民族必须掌握自己的命运，而不应任凭命运的摆布。(at the mercy of)",
           "answer": "A nation must be masters of themselves instead of living at the mercy of fate."
         },
         {
           "number": 7,
-          "question": "我们学校的大门向所有的人开，不管什么种族，肤色和信仰。（irrespective",
+          "question": "我们不应以损坏环境为代价来发展经济。(at the expense of)",
           "answer": "We shouldn’t promote economic growth at the expense of the environment."
         },
         {
           "number": 8,
-          "question": "不管花多少钱，她都要买一辆豪华车。（regardlessof)",
+          "question": "我们学校的大门向所有的人敞开，不管什么种族，肤色和信仰。(irrespective of)",
           "answer": "Our schools are open to all irrespective of race, color or creed."
         },
         {
           "number": 9,
-          "question": "我们必须秉承自力更生的原则来发展经济。(inlinewith)",
+          "question": "不管花多少钱，她都要买一辆豪华车。(regardless of)",
           "answer": "She is bent on buying an expensive car regardless of the cost."
         },
         {
           "number": 10,
-          "question": "我们不可以借口发展工业而污染环境。（on/underthepretenceof)",
+          "question": "我们必须秉承自力更生的原则来发展经济。(in line with)",
           "answer": "We must develop our economy in the line with the principle of self-reliance."
         },
         {
           "number": 11,
-          "question": "我的邻居老汤姆子身独处，只有一条名叫Boris的大黑狗和一只名叫Blackie的 大黑猫和他做伴。（apartfrom)",
+          "question": "我们不可以借口发展工业而污染环境。(on/under the pretence of)",
           "answer": "We must not contaminate the environment on the pretence of developing industry."
         },
         {
           "number": 12,
-          "question": "在1937年卢沟桥事变发生以前，中国的东北三省已被日本占领了6年。 (previous to)",
+          "question": "我的邻居老汤姆孑身独处，只有一条名叫 Boris 的大黑狗和一只名叫 Blackie 的大黑猫和他做伴。(apart from)",
           "answer": "My neighbor Old Tom lived entirely alone, apart from a big black cat named Blackie and a big black dog called Boris."
         },
         {
           "number": 13,
-          "question": "那将军相信他所做的一切都是为了中国人民的利益。（intheinterestsof)",
+          "question": "在 1937 年卢沟桥事变发生以前，中国的东北三省已被日本占领了 6 年。(previous to)",
           "answer": "Previous to the Lugou Bridge Incident in 1937, China’s three northeastern provinces had been under the Japanese occupation for 6 years."
         },
         {
           "number": 14,
-          "question": "我们必须随时提防敌人的破坏活动。（onthewatchfor)",
+          "question": "那将军相信他所做的一切都是为了中国人民的利益。(in the interests of)",
           "answer": "The general believed that all he did was in the interests of the Chinese people."
         },
         {
           "number": 15,
-          "question": "在警察方面仍然心存疑虑。(onthepartof)",
+          "question": "我们必须随时提防敌人的破坏活动。(on the watch for)",
           "answer": "We must always be on the watch for the enemy’s subversive activities."
         },
         {
           "number": 16,
-          "question": "由于金融危机，该国的经济已处于破产的边缘。（onthebrinkof)",
+          "question": "在警察方面仍然心存疑虑。(on the part of)",
           "answer": "There were still doubts on the part of the police."
         },
         {
           "number": 17,
-          "question": "如果发生金融危机，一般老百姓将饱尝失业和通胀之苦。(intheeventof)",
+          "question": "由于金融危机，该国的经济已处于破产的边缘。(on the brink of)",
           "answer": "Owing to the financial crisis, that country’s economy was on the brink of bankruptcy."
         },
         {
           "number": 18,
-          "question": "那船正顶着狂风全速行驶。(in theteethof)",
-          "answer": "In the event of a financial crisis, the common people will suffer a lot from inflation and unemployment."
+          "question": "如果发生金融危机，一般老百姓将饱尝失业和通胀之苦。(in the event of)",
+          "answer": "In the event of a financial crisis, the common people will suffer from inflation and unemployment."
         },
         {
           "number": 19,
-          "question": "他由于身体不好决定提前退休。(on thegroundof)",
+          "question": "那船正顶着狂风全速行驶。(in the teeth of)",
           "answer": "The ship was sailing full steam in the teeth of a strong wind."
+        },
+        {
+          "number": 20,
+          "question": "他由于身体不好决定提前退休。(on the ground of)",
+          "answer": "He decided to retire ahead of time on the ground of ill health."
         }
       ],
-      "expectedAnswerCount": 19,
+      "expectedAnswerCount": 20,
       "ocrQuestionCount": 19,
       "verified": false,
       "ocrLines": [

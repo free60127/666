@@ -86,8 +86,11 @@ try {
   tryRun('计算机单文件版校验', 'node scripts/verify-standalone.js 计算机系列/计算机刷题-单文件离线版.html');
 
   // ---------- 5. git 提交并推送 ----------
-  // add 白名单：全量添加但排除归档目录、临时脚本、数据备份与本地教材库（textbook/ 为本地资料源，绝不推送）
-  tryRun('git add', 'git add -A -- ":!archive/legacy" ":!scripts/_tmp-*" ":!*.bak-*" ":!textbook/"');
+  // add 白名单：全量添加但排除归档目录、临时脚本与数据备份。
+  // 注意：不要用 ":!textbook/" 排除 pathspec——git 对显式排除的 ignored 目录报
+  // "The following paths are ignored" 并 exit 1（PowerShell 判定失败）；.gitignore
+  // 已含 textbook/，普通 git add -A 不会添加 ignored 文件。
+  tryRun('git add', 'git add -A -- ":!archive/legacy" ":!scripts/_tmp-*" ":!*.bak-*"');
   try { execSync('git diff --cached --quiet', {cwd: root}); console.log('\n无内容变更，跳过提交。'); }
   catch (_) {
     try { run('git diff --cached --stat'); } catch (_) {}
