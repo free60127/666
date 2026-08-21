@@ -20,6 +20,14 @@ test('纠错反馈：选类型 + 填具体说明后提交，出现反馈提示�
   await card.locator('.unified-feedback').click();
   await expect(page.locator('.unified-feedback-menu')).toBeVisible();
   await expect(page.locator('.unified-feedback-menu .ufm-type')).toHaveCount(4);  // 答案错误/题目重复/题干不完整/排版问题
+  // 菜单必须完整显示在视口内（不出现顶部/底部 UI 遮挡）
+  const box = await page.locator('.unified-feedback-menu').boundingBox();
+  const vp = page.viewportSize();
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(vp.height + 1);
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(vp.width + 1);
+  await expect(page.locator('.unified-feedback-menu .ufm-note')).toBeVisible();
   // 未选类型直接提交 → 提示补选（不关闭菜单）
   await page.locator('.unified-feedback-menu .ufm-submit').click();
   await expect(page.locator('.unified-feedback-menu')).toBeVisible();
@@ -82,3 +90,4 @@ test('学习中心能读到统一进度（答题 → 概览出现记录）', asy
   const answeredText = await page.locator('.stats .stat').nth(2).textContent();
   expect(answeredText).toContain('1');
 });
+
