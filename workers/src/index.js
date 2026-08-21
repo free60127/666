@@ -54,6 +54,7 @@ async function route(request, env) {
           return json(raw ? JSON.parse(raw) : { text: '', updatedAt: null });
         }
         if (request.method === 'POST') return requireAdmin(request, env, () => handleSetNotice(request, env));
+        if (request.method === 'DELETE') return requireAdmin(request, env, () => handleDeleteNotice(env));
         return methodNotAllowed();
       }
 
@@ -126,6 +127,11 @@ async function handleSetNotice(request, env) {
   const record = { text, updatedAt: new Date().toISOString() };
   await env.STUDY_KV.put('notice', JSON.stringify(record));
   return json({ ok: true, notice: record });
+}
+
+async function handleDeleteNotice(env) {
+  await env.STUDY_KV.delete('notice');
+  return json({ ok: true });
 }
 
 /* ---------- 反馈 ---------- */

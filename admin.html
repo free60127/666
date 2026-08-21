@@ -86,6 +86,7 @@
     <textarea id="notice-text" placeholder="输入公告内容，保存后生效…"></textarea>
     <div class="row" style="margin-top:10px">
       <button id="save-notice">发布公告</button>
+      <button id="clear-notice" class="danger">清除公告</button>
       <span class="now" id="notice-time"></span>
     </div>
   </div>
@@ -192,6 +193,16 @@
       if (r.ok) { $('#notice-text').value = j.text || ''; $('#notice-time').textContent = j.updatedAt ? '上次更新：' + fmt(j.updatedAt) : '（暂无公告）'; }
     } catch (e) { /* 静默，公告可稍后保存时再验证 */ }
   };
+  $('#clear-notice').addEventListener('click', async () => {
+    if (!window.confirm('确定清除公告吗？清除后首页横幅不再显示。')) return;
+    try {
+      const r = await fetch(base() + '/api/notice', { method: 'DELETE', headers: { Authorization: auth() } });
+      const j = await r.json();
+      if (r.ok && j.ok) { showMsg('公告已清除。', true); loadNotice(); }
+      else if (r.status === 401) showMsg('令牌无效，无法清除。', false);
+      else showMsg('清除失败：' + (j.error || r.status), false);
+    } catch (e) { showMsg('请求失败：' + e.message, false); }
+  });
   $('#save-notice').addEventListener('click', async () => {
     try {
       const r = await fetch(base() + '/api/notice', {
