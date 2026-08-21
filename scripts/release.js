@@ -86,8 +86,8 @@ try {
   tryRun('计算机单文件版校验', 'node scripts/verify-standalone.js 计算机系列/计算机刷题-单文件离线版.html');
 
   // ---------- 5. git 提交并推送 ----------
-  // add 白名单：全量添加但排除归档目录、临时脚本与数据备份，降低误提交风险
-  tryRun('git add', 'git add -A -- ":!archive/legacy" ":!scripts/_tmp-*" ":!*.bak-*"');
+  // add 白名单：全量添加但排除归档目录、临时脚本、数据备份与本地教材库（textbook/ 为本地资料源，绝不推送）
+  tryRun('git add', 'git add -A -- ":!archive/legacy" ":!scripts/_tmp-*" ":!*.bak-*" ":!textbook/"');
   try { execSync('git diff --cached --quiet', {cwd: root}); console.log('\n无内容变更，跳过提交。'); }
   catch (_) {
     try { run('git diff --cached --stat'); } catch (_) {}
