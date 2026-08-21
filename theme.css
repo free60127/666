@@ -318,7 +318,10 @@ html[data-theme="dark"] .unified-self-assess button { background: #24312b !impor
 html[data-theme="dark"] .unified-self-assess button:hover { background: #2d4038 !important; }
 html[data-theme="dark"] .unified-feedback-menu { background: #232a2e !important; border-color: #3a4541 !important; box-shadow: 0 6px 18px rgba(0,0,0,.35) !important; }
 html[data-theme="dark"] .unified-feedback-menu .ufm-label { color: #c98d68 !important; }
-html[data-theme="dark"] .unified-feedback-menu button { background: #24312b !important; border-color: #3a4541 !important; color: #d8b173 !important; }
+html[data-theme="dark"] .unified-feedback-menu .ufm-type { background: #24312b !important; border-color: #3a4541 !important; color: #d8b173 !important; }
+html[data-theme="dark"] .unified-feedback-menu .ufm-type.selected { background: #c98d68 !important; border-color: #c98d68 !important; color: #1d1510 !important; }
+html[data-theme="dark"] .unified-feedback-menu .ufm-note { background: #1d2823 !important; border-color: #3a4541 !important; color: #cfd8d3 !important; }
+html[data-theme="dark"] .unified-feedback-menu .ufm-submit { background: #a05a3a !important; border-color: #a05a3a !important; color: #fff !important; }
 
 /* ---------- 基英 / 泛读 共享选项组（word-bank，2026-08-21 恢复） ---------- */
 html[data-theme="dark"] .word-bank { background: #232d28 !important; border-color: #3a4a42 !important; }

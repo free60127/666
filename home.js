@@ -9,7 +9,7 @@ document.addEventListener('click', event => {
   if (button.dataset.action === 'close-pay') sponsor.classList.add('hidden');
   if (button.dataset.action === 'print-shop') printShop.classList.remove('hidden');
   if (button.dataset.action === 'close-print-shop') printShop.classList.add('hidden');
-  if (button.dataset.action === 'feedback') feedback.classList.remove('hidden');
+  if (button.dataset.action === 'feedback') { feedback.classList.remove('hidden'); resetFeedback(); }
   if (button.dataset.action === 'close-feedback') feedback.classList.add('hidden');
   if (button.dataset.action === 'copy-share') shareLink(button);
   if (button.dataset.area) alert(`${button.dataset.area}专区正在整理中，敬请期待喵。`);
@@ -149,4 +149,56 @@ if (installSite && installBtn) {
       installSite.hidden = true;
     });
   }
+}
+
+// 意见反馈：主页文本框直接提交到云端（/api/feedback），失败给出提示
+const feedbackText = document.getElementById('feedback-text');
+const feedbackCount = document.getElementById('feedback-count');
+const feedbackSubmit = document.getElementById('feedback-submit');
+const feedbackStatus = document.getElementById('feedback-status');
+const resetFeedback = () => {
+  if (feedbackStatus) feedbackStatus.textContent = '';
+  if (feedbackText) feedbackText.value = '';
+  if (feedbackCount) feedbackCount.textContent = '0 / 200';
+  if (feedbackSubmit) feedbackSubmit.disabled = false;
+};
+if (feedbackText && feedbackSubmit) {
+  const MAX = 200;
+  feedbackText.addEventListener('input', () => {
+    if (feedbackCount) feedbackCount.textContent = `${feedbackText.value.length} / ${MAX}`;
+    if (feedbackStatus) feedbackStatus.textContent = '';
+  });
+  feedbackSubmit.addEventListener('click', async () => {
+    const note = feedbackText.value.trim();
+    if (!note) {
+      if (feedbackStatus) { feedbackStatus.textContent = '请先输入反馈内容'; feedbackStatus.className = 'feedback-status error'; }
+      return;
+    }
+    feedbackSubmit.disabled = true;
+    if (feedbackStatus) { feedbackStatus.textContent = '提交中…'; feedbackStatus.className = 'feedback-status'; }
+    const apiBase = window.WAIYUAN_API_BASE;
+    let ok = false;
+    if (apiBase) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(`${apiBase}/api/feedback`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ page: document.title, note: note.slice(0, 200), type: '主页反馈' }),
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+        ok = res.ok;
+      } catch (_) { ok = false; }
+    }
+    feedbackSubmit.disabled = false;
+    if (ok) {
+      feedbackText.value = '';
+      if (feedbackCount) feedbackCount.textContent = `0 / ${MAX}`;
+      if (feedbackStatus) { feedbackStatus.textContent = '✓ 反馈已提交，感谢你的支持！'; feedbackStatus.className = 'feedback-status ok'; }
+    } else {
+      if (feedbackStatus) { feedbackStatus.textContent = '提交失败，请稍后重试，或直接微信联系 f-xuan-r'; feedbackStatus.className = 'feedback-status error'; }
+    }
+  });
 }

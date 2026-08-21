@@ -12,16 +12,22 @@ test('随机一题：题库页有悬浮按钮，点击不报错', async ({ page 
   expect(errors).toEqual([]);
 });
 
-test('纠错反馈：菜单可选 4 类，提交后出现反馈提示条', async ({ page }) => {
+test('纠错反馈：选类型 + 填具体说明后提交，出现反馈提示条', async ({ page }) => {
   await page.goto('/思政系列/index.html');
   await page.click('[data-action="bank"][data-bank="ethics"]');
   const card = page.locator('.card').first();
   await expect(card.locator('.unified-feedback')).toBeVisible();
   await card.locator('.unified-feedback').click();
   await expect(page.locator('.unified-feedback-menu')).toBeVisible();
-  const count = await page.locator('.unified-feedback-menu button').count();
-  expect(count).toBe(4);  // 答案错误/题目重复/题干不完整/排版问题
-  await page.locator('.unified-feedback-menu button').first().click();
+  await expect(page.locator('.unified-feedback-menu .ufm-type')).toHaveCount(4);  // 答案错误/题目重复/题干不完整/排版问题
+  // 未选类型直接提交 → 提示补选（不关闭菜单）
+  await page.locator('.unified-feedback-menu .ufm-submit').click();
+  await expect(page.locator('.unified-feedback-menu')).toBeVisible();
+  // 选类型 + 填 100 字说明 → 提交
+  await page.locator('.unified-feedback-menu .ufm-type').first().click();
+  await expect(page.locator('.unified-feedback-menu .ufm-type.selected')).toHaveCount(1);
+  await page.locator('.unified-feedback-menu .ufm-note').fill('这个答案好像不对，麻烦核对一下具体内容');
+  await page.locator('.unified-feedback-menu .ufm-submit').click();
   // 云端提交失败（测试环境无 Worker）→ 回退复制 → 出现提示条
   await expect(page.locator('.unified-feedback-notice')).toBeVisible({ timeout: 15000 });
 });
