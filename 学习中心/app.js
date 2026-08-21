@@ -86,8 +86,8 @@
       if (result && typeof result.then === 'function') result.then(done).catch(() => done('denied'));  // Promise 式
     } catch (_) { done('denied'); }
   });
-  // 本地日期（非 UTC）：跨日统计/导出文件名/提醒去重都用中国时区当天，
-  // 否则 00:00-08:00 之间会把今天算成昨天。
+  // 本地日期（浏览器本地时区，非 UTC）：跨日统计/导出文件名/提醒去重都用设备当天，
+  // 与背单词 day() 算法一致；如需固定中国时区可改为 Asia/Shanghai 计算。
   const dateStamp = (date = new Date()) => { const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60000); return copy.toISOString().slice(0, 10); };
   const download = (content, filename) => {
     const blob = new Blob([content], {type:'application/json;charset=utf-8'});
@@ -118,6 +118,8 @@
         localStorage.setItem(KEY, JSON.stringify(backup.webQuiz));
         localStorage.setItem(VOCABULARY_KEY, JSON.stringify(backup.vocabulary));
         let extraCount = 0;
+        // 覆盖语义：先清掉全部附加 key，再按备份恢复——避免备份中缺失的 key 残留旧值
+        for (const key of EXTRA_KEYS) localStorage.removeItem(key);
         for (const key of EXTRA_KEYS) {
           if (backup.extra[key] !== undefined) {
             localStorage.setItem(key, JSON.stringify(backup.extra[key]));
@@ -164,7 +166,7 @@
   let view = new URLSearchParams(location.search).get('view') || 'overview';
 
   function itemCard(item, kind) {
-    return `<article class="item"><div class="item-head"><h2>${escape(item.title || '未命名题目')}</h2><span class="source">${escape(sourceName(item))}${item.scope === 'paper' ? ' · <b class="tag-paper">模拟卷</b>' : ''}${item.updatedAt ? ` · ${escape(date(item.updatedAt))}` : ''}</span></div>${item.answer ? `<div class="answer"><b>参考答案</b><br>${escape(item.answer)}</div>` : ''}<div class="item-actions"><a href="${escape(sourceUrl(item))}">返回原题页面</a>${kind === 'mistake' && item.scope !== 'paper' ? `<a class="practice-link" href="${escape(practiceUrl(item))}">重新练习</a>` : ''}${kind === 'favorite' ? `<button class="remove" data-remove="${escape(item.key)}">取消收藏</button>` : ''}</div></article>`;
+    return `<article class="item"><div class="item-head"><h2>${escape(item.title || '未命名题目')}</h2><span class="source">${escape(sourceName(item))}${item.scope === 'paper' ? ' · <b class="tag-paper">模拟卷</b>' : ''}${item.updatedAt ? ` · ${escape(date(item.updatedAt))}` : ''}${item.attempts && item.attempts > 1 ? ` · 练习 ${item.attempts} 次` : ''}</span></div>${item.answer ? `<div class="answer"><b>参考答案</b><br>${escape(item.answer)}</div>` : ''}<div class="item-actions"><a href="${escape(sourceUrl(item))}">返回原题页面</a>${kind === 'mistake' && item.scope !== 'paper' ? `<a class="practice-link" href="${escape(practiceUrl(item))}">重新练习</a>` : ''}${kind === 'favorite' ? `<button class="remove" data-remove="${escape(item.key)}">取消收藏</button>` : ''}</div></article>`;
   }
 
   // —— 统计增强（2026-08-21）：按课程进度 / 连续天数 / 近 7 天曲线 / 每日目标 ——

@@ -11,21 +11,38 @@
  */
 
 const UPSTREAM = 'https://free60127.github.io/666';
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Max-Age': '86400',
+// CORS：只对站点白名单来源回显 Origin（其余不带 CORS 头，浏览器直接拦截；
+// 未携带 Origin 的同源/非浏览器请求不受影响）
+const ALLOWED_ORIGINS = new Set(['https://free60127.github.io']);
+const corsFor = request => {
+  const origin = (request && request.headers.get('Origin')) || '';
+  if (!origin || !ALLOWED_ORIGINS.has(origin)) return {};
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400',
+  };
 };
 
 export default {
   async fetch(request, env) {
+    const response = await route(request, env);
+    const cors = corsFor(request);
+    for (const [key, value] of Object.entries(cors)) {
+      if (value) response.headers.set(key, value);
+    }
+    return response;
+  }
+};
+
+async function route(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
 
     // CORS 预检
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: CORS_HEADERS });
+      return new Response(null, { status: 204 });
     }
 
     try {
@@ -59,15 +76,14 @@ export default {
     } catch (err) {
       return json({ error: 'internal error', detail: String(err && err.message || err) }, 500);
     }
-  },
-};
+}
 
 /* ---------- 工具 ---------- */
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', ...CORS_HEADERS },
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
   });
 
 const methodNotAllowed = () => json({ error: 'method not allowed' }, 405);

@@ -445,6 +445,9 @@ html[data-theme="dark"] .unified-self-assess .usa-label { color: #8d9b94 !import
 html[data-theme="dark"] .unified-self-assess.done .usa-label { color: #7fc39a !important; }
 html[data-theme="dark"] .unified-self-assess button { background: #24312b !important; border-color: #3a4541 !important; color: #cfd8d3 !important; }
 html[data-theme="dark"] .unified-self-assess button:hover { background: #2d4038 !important; }
+html[data-theme="dark"] .unified-feedback-menu { background: #232a2e !important; border-color: #3a4541 !important; box-shadow: 0 6px 18px rgba(0,0,0,.35) !important; }
+html[data-theme="dark"] .unified-feedback-menu .ufm-label { color: #c98d68 !important; }
+html[data-theme="dark"] .unified-feedback-menu button { background: #24312b !important; border-color: #3a4541 !important; color: #d8b173 !important; }
 
 /* ---------- 基英 / 泛读 共享选项组（word-bank，2026-08-21 恢复） ---------- */
 html[data-theme="dark"] .word-bank { background: #232d28 !important; border-color: #3a4a42 !important; }
@@ -1525,7 +1528,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-0821'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-0837'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -2012,12 +2015,15 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     setTimeout(() => notice.remove(), 8000);
   }
 
+  // 题干提取：翻译题取 .prompt 最后一个 span（排除题号/按钮/答案），改写题取 .question-text，
+  // 思政/计算机取 h2/.qbody；兜底取 .question 自身（避免整卡文本含按钮与答案污染 key 与标题）
+  const questionNodeOf = card => card.querySelector('.prompt span:last-child,.question-text,.qbody,h2') || card.querySelector('.question');
+  const questionText = card => { const node = questionNodeOf(card); return clean(node ? node.textContent : card.textContent); };
+
   function enhanceCard(card, index) {
     if (card.dataset.unifiedReady) return;
     if (card.dataset.unifiedIgnore) return;  // 页面自身管理进度的卡片（预留）
-    const questionNode = card.querySelector('.question,h2,.qbody,.question-text');
-    if (!questionNode) return;
-    const title = clean(questionNode.textContent);
+    const title = questionText(card);
     if (!title) return;
     // 答案提取：<details class="answer"> 的 summary（如「查看参考答案」）不算答案内容，先剥掉
     const answerNode = card.querySelector('.answer');
@@ -2034,36 +2040,55 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     const key = `${pageKey}-${hash(`${stableId}-${title}`)}`;
     card.dataset.unifiedReady = key;
     card.dataset.unifiedTitle = title;
-    // 纠错反馈：收集题目上下文，复制后发送给站长（有云端 API 时优先提交）
+    // 纠错反馈：先选问题类型，再复制/提交给站长（有云端 API 时优先提交）
+    const submitFeedback = async type => {
+      const apiBase = window.WAIYUAN_API_BASE;
+      if (apiBase) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 5000);
+          const res = await fetch(`${apiBase}/api/feedback`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ page: document.title, question: title, answer, type }),
+            signal: controller.signal
+          });
+          clearTimeout(timer);
+          if (res.ok) { showFeedbackNotice('纠错信息已提交，感谢反馈！'); return; }
+        } catch (_) { /* 云端不可达，走复制兜底 */ }
+      }
+      const body = `【题目纠错】\n页面：${document.title}\n链接：${location.href}\n问题类型：${type}\n题干：${title}\n当前答案：${answer}\n\n问题描述：`;
+      const email = window.WAIYUAN_FEEDBACK_EMAIL || '';
+      copyText(body);
+      showFeedbackNotice(
+        `已复制纠错信息，粘贴发送给站长即可${email ? '，或点「发邮件」直接提交' : ''}。`,
+        email ? `mailto:${email}?subject=${encodeURIComponent('题目纠错 · ' + document.title)}&body=${encodeURIComponent(body)}` : null
+      );
+    };
     if (!card.querySelector('.unified-feedback')) {
       const feedback = document.createElement('button');
       feedback.type = 'button';
       feedback.className = 'unified-feedback';
       feedback.textContent = '⚠ 纠错';
-      feedback.addEventListener('click', async event => {
+      feedback.addEventListener('click', event => {
         event.stopPropagation();
-        const apiBase = window.WAIYUAN_API_BASE;
-        if (apiBase) {
-          try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 5000);
-            const res = await fetch(`${apiBase}/api/feedback`, {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ page: document.title, question: title, answer }),
-              signal: controller.signal
-            });
-            clearTimeout(timer);
-            if (res.ok) { showFeedbackNotice('纠错信息已提交，感谢反馈！'); return; }
-          } catch (_) { /* 云端不可达，走复制兜底 */ }
-        }
-        const body = `【题目纠错】\n页面：${document.title}\n链接：${location.href}\n题干：${title}\n当前答案：${answer}\n\n问题描述：`;
-        const email = window.WAIYUAN_FEEDBACK_EMAIL || '';
-        copyText(body);
-        showFeedbackNotice(
-          `已复制纠错信息，粘贴发送给站长即可${email ? '，或点「发邮件」直接提交' : ''}。`,
-          email ? `mailto:${email}?subject=${encodeURIComponent('题目纠错 · ' + document.title)}&body=${encodeURIComponent(body)}` : null
-        );
+        const existing = card.querySelector('.unified-feedback-menu');
+        if (existing) { existing.remove(); return; }
+        const menu = document.createElement('div');
+        menu.className = 'unified-feedback-menu';
+        menu.setAttribute('role', 'menu');
+        const label = document.createElement('span');
+        label.className = 'ufm-label';
+        label.textContent = '问题类型：';
+        menu.appendChild(label);
+        ['答案错误', '题目重复', '题干不完整', '排版问题'].forEach(type => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.textContent = type;
+          item.addEventListener('click', () => { menu.remove(); submitFeedback(type); });
+          menu.appendChild(item);
+        });
+        card.appendChild(menu);
       });
       card.appendChild(feedback);
     }
@@ -2090,7 +2115,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     state.progress[key] = {
       ...old,
       key,
-      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody,.question-text')?.textContent) || old.title || '',
+      title: card.dataset.unifiedTitle || questionText(card) || old.title || '',
       page: document.title,
       path: location.pathname,
       scope: card.dataset.unifiedScope || old.scope || 'bank',
@@ -2182,7 +2207,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     state.progress[key] = {
       ...old,
       key,
-      title: card.dataset.unifiedTitle || clean(card.querySelector('.question,h2,.qbody,.question-text')?.textContent) || old.title || '',
+      title: card.dataset.unifiedTitle || questionText(card) || old.title || '',
       page: document.title,
       path: location.pathname,
       scope: card.dataset.unifiedScope || old.scope || 'bank',
@@ -2313,7 +2338,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
   function randomQuestion() { const cards = [...document.querySelectorAll(cardSelector)].filter(card => card.offsetParent !== null); if (!cards.length) return; cards[Math.floor(Math.random()*cards.length)].scrollIntoView({behavior:'smooth',block:'center'}); }
 
   const style = document.createElement('style');
-  style.textContent = '.unified-favorite{margin-top:14px;padding:8px 14px;border:1px solid #d7dce5;border-radius:999px;background:#f7f8fa;color:#697386;cursor:pointer}.unified-favorite.active{background:#fff3c4;border-color:#e4b84a;color:#8a6200}.unified-feedback{margin-top:14px;margin-left:8px;padding:8px 14px;border:1px solid #e8d5c8;border-radius:999px;background:#fdf6f0;color:#a05a3a;cursor:pointer}.unified-review-target{outline:3px solid #d97845;outline-offset:5px;scroll-margin-block:24px}.unified-random-web{position:fixed;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(18px,env(safe-area-inset-bottom));z-index:30;max-width:calc(100vw - 100px);padding:11px 16px;border:0;border-radius:999px;background:#28634f;color:#fff;box-shadow:0 8px 25px rgba(0,0,0,.18);cursor:pointer;white-space:nowrap}@media(max-width:560px){.unified-random-web{left:12px;bottom:14px;padding:10px 13px;font-size:13px}}.unified-focus-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center}.unified-focus-notice button{flex:none;border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-feedback-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff4ec;border:1px solid #e8b48f;color:#6b3d1d;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.unified-feedback-notice a{color:#b05f2e;font-weight:700;text-decoration:none;border-bottom:1px dashed #b05f2e}.unified-feedback-notice button{flex:none;border:0;background:#e8b48f;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-self-assess{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.unified-self-assess .usa-label{color:#73817b;font-size:14px}.unified-self-assess.done .usa-label{color:#28634f;font-weight:700}.unified-self-assess button{padding:7px 13px;border:1px solid #dfe6df;border-radius:999px;background:#f1f7f3;color:#44584f;cursor:pointer;font-size:13px}.unified-self-assess button:hover{background:#e2efe7}.unified-self-assess.done button{display:none}.fill-input-wrap{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fill-input-wrap .fill-input{flex:1;min-width:160px;padding:9px 12px;border:1px solid #c9d6cd;border-radius:10px;background:#fffefa;color:#17211f;font-size:15px}.fill-input-wrap .fill-submit{padding:8px 16px;border:0;border-radius:10px;background:#28634f;color:#fff;cursor:pointer;font-size:14px}.fill-feedback{margin-top:10px;font-size:13px;font-weight:700}.fill-feedback.correct{color:#276545}.fill-feedback.wrong{color:#a04b44}';
+  style.textContent = '.unified-favorite{margin-top:14px;padding:8px 14px;border:1px solid #d7dce5;border-radius:999px;background:#f7f8fa;color:#697386;cursor:pointer}.unified-favorite.active{background:#fff3c4;border-color:#e4b84a;color:#8a6200}.unified-feedback{margin-top:14px;margin-left:8px;padding:8px 14px;border:1px solid #e8d5c8;border-radius:999px;background:#fdf6f0;color:#a05a3a;cursor:pointer}.question-card,.card,.question{position:relative}.unified-feedback-menu{position:absolute;right:8px;bottom:calc(100% + 6px);z-index:5;display:flex;flex-wrap:wrap;gap:6px;max-width:min(280px,calc(100% - 16px));padding:10px;border-radius:10px;background:#fffefa;border:1px solid #e8d5c8;box-shadow:0 6px 18px rgba(0,0,0,.12)}.unified-feedback-menu .ufm-label{flex-basis:100%;font-size:12px;color:#a05a3a}.unified-feedback-menu button{border:1px solid #e8d5c8;background:#fdf6f0;color:#a05a3a;border-radius:999px;padding:5px 10px;font-size:13px;cursor:pointer}.unified-review-target{outline:3px solid #d97845;outline-offset:5px;scroll-margin-block:24px}.unified-random-web{position:fixed;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(18px,env(safe-area-inset-bottom));z-index:30;max-width:calc(100vw - 100px);padding:11px 16px;border:0;border-radius:999px;background:#28634f;color:#fff;box-shadow:0 8px 25px rgba(0,0,0,.18);cursor:pointer;white-space:nowrap}@media(max-width:560px){.unified-random-web{left:12px;bottom:14px;padding:10px 13px;font-size:13px}}.unified-focus-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center}.unified-focus-notice button{flex:none;border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-feedback-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff4ec;border:1px solid #e8b48f;color:#6b3d1d;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.unified-feedback-notice a{color:#b05f2e;font-weight:700;text-decoration:none;border-bottom:1px dashed #b05f2e}.unified-feedback-notice button{flex:none;border:0;background:#e8b48f;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-self-assess{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.unified-self-assess .usa-label{color:#73817b;font-size:14px}.unified-self-assess.done .usa-label{color:#28634f;font-weight:700}.unified-self-assess button{padding:7px 13px;border:1px solid #dfe6df;border-radius:999px;background:#f1f7f3;color:#44584f;cursor:pointer;font-size:13px}.unified-self-assess button:hover{background:#e2efe7}.unified-self-assess.done button{display:none}.fill-input-wrap{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fill-input-wrap .fill-input{flex:1;min-width:160px;padding:9px 12px;border:1px solid #c9d6cd;border-radius:10px;background:#fffefa;color:#17211f;font-size:15px}.fill-input-wrap .fill-submit{padding:8px 16px;border:0;border-radius:10px;background:#28634f;color:#fff;cursor:pointer;font-size:14px}.fill-feedback{margin-top:10px;font-size:13px;font-weight:700}.fill-feedback.correct{color:#276545}.fill-feedback.wrong{color:#a04b44}';
   document.head.appendChild(style);
   const randomButton = document.createElement('button'); randomButton.className='unified-random-web'; randomButton.textContent='↻ 随机一题'; randomButton.addEventListener('click',randomQuestion); randomButton.style.display='none'; document.body.appendChild(randomButton);
   new MutationObserver(enhance).observe(document.body,{childList:true,subtree:true});

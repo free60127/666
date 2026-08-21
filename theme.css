@@ -316,6 +316,9 @@ html[data-theme="dark"] .unified-self-assess .usa-label { color: #8d9b94 !import
 html[data-theme="dark"] .unified-self-assess.done .usa-label { color: #7fc39a !important; }
 html[data-theme="dark"] .unified-self-assess button { background: #24312b !important; border-color: #3a4541 !important; color: #cfd8d3 !important; }
 html[data-theme="dark"] .unified-self-assess button:hover { background: #2d4038 !important; }
+html[data-theme="dark"] .unified-feedback-menu { background: #232a2e !important; border-color: #3a4541 !important; box-shadow: 0 6px 18px rgba(0,0,0,.35) !important; }
+html[data-theme="dark"] .unified-feedback-menu .ufm-label { color: #c98d68 !important; }
+html[data-theme="dark"] .unified-feedback-menu button { background: #24312b !important; border-color: #3a4541 !important; color: #d8b173 !important; }
 
 /* ---------- 基英 / 泛读 共享选项组（word-bank，2026-08-21 恢复） ---------- */
 html[data-theme="dark"] .word-bank { background: #232d28 !important; border-color: #3a4a42 !important; }

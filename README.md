@@ -129,6 +129,8 @@ node scripts/release.js
 
 后端 Worker（`workers/`）已部署 `/api/sync` 匿名同步接口与 `/api/feedback` 纠错接口（纠错已接入前端）。**云同步尚未在前端启用**：匿名 `deviceId` 目前等同访问密钥，可能被猜测后读取、覆盖或删除进度。在实现配对码/恢复码、payload 加密、冲突合并与设备解绑之前，不会开放自动云同步；学习数据仍保存在浏览器本地，可用学习中心的「导出/导入」备份迁移。
 
+安全边界（2026-08-21 起）：Worker CORS 已收紧为只对 `https://free60127.github.io` 回显 `Access-Control-Allow-Origin`，其余来源不带 CORS 头、由浏览器直接拦截；`/api/feedback` 的限频（同一 IP 30 秒 5 次）基于单实例内存 `Map`，多实例部署下不能作为全局限流，正式启用云同步前应改用 Cloudflare Rate Limiting、Turnstile 或 Durable Objects。
+
 ## 自愿赞助
 
 首页底部「赞助支持」弹出微信收款码（`payment-qr.jpg`）。赞助完全自愿，不影响任何功能。多文件版部署必须包含 `payment-qr.jpg`（单文件版已内嵌）。
