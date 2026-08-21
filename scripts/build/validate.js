@@ -184,6 +184,15 @@ function validateContentBooks(file, data) {
       if (!isNonEmptyString(unit.name)) fail(file, `${book.key}/${unit.key}: unit.name empty`);
       const questions = Array.isArray(unit.questions) ? unit.questions : [];
       const indices = new Set();
+      // HTML 实体残留检查：旧页面提取未解码会把 "&#39;/&quot;" 字样存进数据，
+      // 前端转义后用户看到乱码（2026-08-21 曾修复 487 处）——发布前必须拦截
+      const checkNoEntities = (text, where) => {
+        if (!text) return;
+        const hit = String(text).match(/&(?:[a-zA-Z]+|#\d+);/);
+        if (hit) fail(file, `${book.key}/${unit.key}: HTML 实体残留 "${hit[0]}" in ${where} (index ${question?.index ?? '?'})`);
+      };
+      checkNoEntities(unit.instruction, `instruction`);
+      (unit.wordBanks || []).forEach((bank, bi) => (bank.words || []).forEach((word, wi) => checkNoEntities(word, `wordBanks[${bi}].words[${wi}]`)));
       for (const question of questions) {
         if (!isObject(question)) { fail(file, `${book.key}/${unit.key}: question must be an object`); continue; }
         if (question.index === undefined) fail(file, `${book.key}/${unit.key}: question index missing: "${String(question.q || '').slice(0, 40)}…"`);
@@ -191,6 +200,9 @@ function validateContentBooks(file, data) {
         indices.add(String(question.index));
         if (!isNonEmptyString(question.q)) fail(file, `${book.key}/${unit.key}: empty question q (index ${question.index ?? '?'})`);
         if (!isNonEmptyString(question.answer)) fail(file, `${book.key}/${unit.key}: empty answer (index ${question.index ?? '?'})`);
+        checkNoEntities(question.q, `q`);
+        checkNoEntities(question.answer, `answer`);
+        (question.options || []).forEach((option, i) => checkNoEntities(option, `options[${i}]`));
         const type = String(question.type || '');
         if (type !== 'choice' && type !== 'text') fail(file, `${book.key}/${unit.key}: invalid type "${type}" (index ${question.index ?? '?'})`);
         const options = question.options || [];

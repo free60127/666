@@ -67,7 +67,8 @@ function parseUnitBody(bodyHtml) {
   let current = null;
   for (const part of parts) {
     if (part.kind === 'q') {
-      current = { index: part.groups[1], q: part.groups[2].trim(), htmlIndex: part.index };
+      // q 保留 <mark>/<em> 标签供前端白名单渲染，但必须先解码 HTML 实体
+      current = { index: part.groups[1], q: decodeEntities(part.groups[2].trim()), htmlIndex: part.index };
       questions.push(current);
     } else if (part.kind === 'options' && current) {
       current.options = parseOptions(bodyHtml.slice(part.block.start, part.block.end));
@@ -117,11 +118,30 @@ function parseUnitBody(bodyHtml) {
   return { modules: moduleTitles, instruction: instruction ? stripTags(instruction).trim() : '', wordBanks, questions };
 }
 
+// —— HTML 实体解码（命名 + 十进制/十六进制数字实体）——
+// 历史教训：旧页面用 &#39;/&quot; 等实体，q 提取若只剥标签不解码会把
+// "&#39;" 字样原样存进数据，前端转义后用户看到乱码（2026-08-21 修复 487 处）。
+const NAMED_ENTITIES = {
+  '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'",
+  '&#39;': "'", '&nbsp;': '\u00A0', '&hellip;': '…', '&mdash;': '—', '&ndash;': '–',
+  '&rsquo;': '’', '&lsquo;': '‘', '&rdquo;': '”', '&ldquo;': '“', '&middot;': '·',
+};
+function decodeEntities(text) {
+  return String(text || '').replace(/&(?:#[xX][0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g, match => {
+    if (NAMED_ENTITIES[match] !== undefined) return NAMED_ENTITIES[match];
+    if (match[1] === '#') {
+      const hex = /^&#[xX]/.test(match);
+      const code = hex ? parseInt(match.slice(3, -1), 16) : parseInt(match.slice(2, -1), 10);
+      if (Number.isFinite(code) && code > 0 && code <= 0x10FFFF) {
+        try { return String.fromCodePoint(code); } catch (_) { return match; }
+      }
+    }
+    return match;
+  });
+}
+
 function stripTags(html) {
-  return String(html || '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&nbsp;/g, ' ');
+  return decodeEntities(String(html || '').replace(/<[^>]*>/g, ''));
 }
 
 function parseOptions(blockHtml) {
