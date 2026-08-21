@@ -9,7 +9,7 @@
   const loadBook = (key, done) => {
     if (books.some(b => b.key === key)) return done();
     const script = document.createElement('script');
-    script.src = `vocabulary-data-${key}.js?v=20260821-1403`;
+    script.src = `vocabulary-data-${key}.js?v=20260821-1438`;
     // 竞态保护：快速切换词书时，旧回调不得渲染（state.bookKey 已指向新书）
     script.onload = () => { if (state.bookKey === key) done(); };
     script.onerror = () => { if (state.bookKey !== key) return; root.innerHTML = `${brand}<section class="hero"><h1>词库加载失败<span>。</span></h1><p>请检查网络后重新点击词书卡片。</p><button class="primary" data-action="home">返回首页</button></section>`; };
@@ -34,7 +34,24 @@
   if (!progress.settings.remindTime) progress.settings.remindTime = '';
   if (progress.settings.autoSpeak === undefined) progress.settings.autoSpeak = true;
   const state = {view: 'home', bookKey: '', mode: 'card', queue: [], index: 0, initialTotal: 0, reviewed: 0, correct: 0, filter: 'all', listLimit: 200, listQuery: '', requeue: {}, recordedPositions: {}, advanceTimer: null};
-  const save = () => { try { localStorage.setItem(storageKey, JSON.stringify(progress)); } catch (_) {} };
+  let saveWarned = false;
+  const showSaveWarning = () => {
+    if (saveWarned) return;
+    saveWarned = true;
+    const bar = document.createElement('div');
+    bar.setAttribute('role', 'alert');
+    bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:70;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5';
+    bar.textContent = '⚠ 本地保存失败（浏览器存储不可用或空间不足），背词进度可能无法保存。';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '知道了';
+    close.style.cssText = 'border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;margin-left:10px;cursor:pointer';
+    close.addEventListener('click', () => bar.remove());
+    bar.appendChild(close);
+    document.body.appendChild(bar);
+    setTimeout(() => bar.remove(), 10000);
+  };
+  const save = () => { try { localStorage.setItem(storageKey, JSON.stringify(progress)); } catch (error) { console.warn('背单词: 保存失败', error); showSaveWarning(); } };
   // 通知权限请求兼容包装：旧 iOS Safari（<16）只支持回调式且不返回 Promise，
   // 直接 .then/.catch 会抛 TypeError 中断交互。
   const requestNotifyPermission = () => {

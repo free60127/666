@@ -899,7 +899,24 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
   let displayLimit = 30;
   let accessDialog = '';
 
-  const persist = () => { try { localStorage.setItem(storeKey, JSON.stringify(saved)); } catch (_) {} };
+  let persistWarned = false;
+  const showPersistWarning = () => {
+    if (persistWarned) return;
+    persistWarned = true;
+    const bar = document.createElement('div');
+    bar.setAttribute('role', 'alert');
+    bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:70;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5';
+    bar.textContent = '⚠ 本地保存失败（浏览器存储不可用或空间不足），答题进度可能无法保存。';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '知道了';
+    close.style.cssText = 'border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;margin-left:10px;cursor:pointer';
+    close.addEventListener('click', () => bar.remove());
+    bar.appendChild(close);
+    document.body.appendChild(bar);
+    setTimeout(() => bar.remove(), 10000);
+  };
+  const persist = () => { try { localStorage.setItem(storeKey, JSON.stringify(saved)); } catch (error) { console.warn('思政刷题: 保存失败', error); showPersistWarning(); } };
   const getBank = key => banks.find(bank => bank.key === key);
   const bankQuestions = () => paper ? paper.questions : (getBank(bankKey)?.questions || []);
   const questionKey = question => paper ? `paper-${paper.key}-${question.id}` : `${bankKey}-${question.type}-${question.id}`;
@@ -1344,12 +1361,12 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     const container = option.parentElement;
     const options = [...container.children].filter(isStaticOption);
     const answerText = container.closest('article,.question-card')?.querySelector('.answer p,.answer')?.textContent || '';
-    const correctLetters = (answerText.match(/(?:正确答案|参考答案|答案)\s*[：:]\s*([A-E]+)/i)?.[1] || '').toUpperCase().split('');
-    const selectedLetter = (option.querySelector('strong')?.textContent.match(/[A-E]/i)?.[0] || '').toUpperCase();
+    const correctLetters = (answerText.match(/(?:正确答案|参考答案|答案)\s*[：:]\s*([A-Z]+)/i)?.[1] || '').toUpperCase().split('');
+    const selectedLetter = (option.querySelector('strong')?.textContent.match(/[A-Z]/i)?.[0] || '').toUpperCase();
     options.forEach(item => {
       item.classList.remove('is-selected', 'is-correct', 'is-wrong');
       item.setAttribute('aria-pressed', 'false');
-      const letter = (item.querySelector('strong')?.textContent.match(/[A-E]/i)?.[0] || '').toUpperCase();
+      const letter = (item.querySelector('strong')?.textContent.match(/[A-Z]/i)?.[0] || '').toUpperCase();
       if (correctLetters.includes(letter)) item.classList.add('is-correct');
     });
     option.classList.add('is-selected');
@@ -1518,7 +1535,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-1403'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-1438'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -1955,7 +1972,27 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
   <script>(() => {
   const KEY = 'waiyuan-unified-web-study-v1';
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {version:1,progress:{},favorites:{}}; } catch (_) { return {version:1,progress:{},favorites:{}}; } };
-  const save = state => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} };
+  // 本地存储失败提示：隐私模式/空间不足时进度会丢，至少让用户知道（每页一次，不刷屏）
+  let saveWarned = false;
+  const warnSaveFailed = () => {
+    if (saveWarned) return;
+    saveWarned = true;
+    const notice = document.createElement('div');
+    notice.className = 'unified-focus-notice';
+    notice.setAttribute('role', 'alert');
+    notice.textContent = '⚠ 本地保存失败（浏览器存储不可用或空间不足），答题进度可能无法保存。可到学习中心「导出学习数据」备份。';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '知道了';
+    close.addEventListener('click', () => notice.remove());
+    notice.appendChild(close);
+    document.body.appendChild(notice);
+    setTimeout(() => notice.remove(), 10000);
+  };
+  const save = state => {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (error) { console.warn('统一引擎: 保存失败', error); warnSaveFailed(); }
+  };
   const state = load(); if (!state.progress) state.progress = {}; if (!state.favorites) state.favorites = {};
   const clean = text => String(text || '').replace(/\s+/g, ' ').trim();
   const hash = text => { let value = 2166136261; for (const char of text) value = Math.imul(value ^ char.charCodeAt(0), 16777619); return (value >>> 0).toString(36); };
@@ -1968,7 +2005,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
   // 页面（思政/计算机/泛读/基英/翻译/改写）反查定位时使用同一 key 算法
   const computeKey = (stableId, title) => `${pageKey}-${hash(`${stableId}-${clean(title)}`)}`;
   const cardSelector = '.question-card,.card,.question';
-  const findCardByKey = key => [...document.querySelectorAll(cardSelector)].find(item => item.dataset.unifiedReady === key);
+  const findCardByKey = key => [...observeRoot().querySelectorAll(cardSelector)].find(item => item.dataset.unifiedReady === key);
 
   function copyText(text) {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
@@ -2318,20 +2355,29 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     }
   }
   function enhance() {
-    const cards = [...document.querySelectorAll(cardSelector)];
+    const cards = [...observeRoot().querySelectorAll(cardSelector)];
     cards.forEach(card => { enhanceCard(card); prepareCard(card); });
     // Only show the floating random-question button on pages that actually
     // contain question cards (the homepage has none and must not show it).
     randomButton.style.display = cards.length ? '' : 'none';
     focusQuestion();
   }
-  function randomQuestion() { const cards = [...document.querySelectorAll(cardSelector)].filter(card => card.offsetParent !== null); if (!cards.length) return; cards[Math.floor(Math.random()*cards.length)].scrollIntoView({behavior:'smooth',block:'center'}); }
+  function randomQuestion() { const cards = [...observeRoot().querySelectorAll(cardSelector)].filter(card => card.offsetParent !== null); if (!cards.length) return; cards[Math.floor(Math.random()*cards.length)].scrollIntoView({behavior:'smooth',block:'center'}); }
 
   const style = document.createElement('style');
   style.textContent = '.unified-favorite{margin-top:14px;padding:8px 14px;border:1px solid #d7dce5;border-radius:999px;background:#f7f8fa;color:#697386;cursor:pointer}.unified-favorite.active{background:#fff3c4;border-color:#e4b84a;color:#8a6200}.unified-feedback{margin-top:14px;margin-left:8px;padding:8px 14px;border:1px solid #e8d5c8;border-radius:999px;background:#fdf6f0;color:#a05a3a;cursor:pointer}.question-card,.card,.question{position:relative}.unified-feedback-menu{position:absolute;right:8px;bottom:calc(100% + 6px);z-index:5;display:flex;flex-wrap:wrap;gap:6px;max-width:min(280px,calc(100% - 16px));padding:10px;border-radius:10px;background:#fffefa;border:1px solid #e8d5c8;box-shadow:0 6px 18px rgba(0,0,0,.12)}.unified-feedback-menu .ufm-label{flex-basis:100%;font-size:12px;color:#a05a3a}.unified-feedback-menu button{border:1px solid #e8d5c8;background:#fdf6f0;color:#a05a3a;border-radius:999px;padding:5px 10px;font-size:13px;cursor:pointer}.unified-review-target{outline:3px solid #d97845;outline-offset:5px;scroll-margin-block:24px}.unified-random-web{position:fixed;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(18px,env(safe-area-inset-bottom));z-index:30;max-width:calc(100vw - 100px);padding:11px 16px;border:0;border-radius:999px;background:#28634f;color:#fff;box-shadow:0 8px 25px rgba(0,0,0,.18);cursor:pointer;white-space:nowrap}@media(max-width:560px){.unified-random-web{left:12px;bottom:14px;padding:10px 13px;font-size:13px}}.unified-focus-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center}.unified-focus-notice button{flex:none;border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-feedback-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff4ec;border:1px solid #e8b48f;color:#6b3d1d;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.unified-feedback-notice a{color:#b05f2e;font-weight:700;text-decoration:none;border-bottom:1px dashed #b05f2e}.unified-feedback-notice button{flex:none;border:0;background:#e8b48f;color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}.unified-self-assess{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.unified-self-assess .usa-label{color:#73817b;font-size:14px}.unified-self-assess.done .usa-label{color:#28634f;font-weight:700}.unified-self-assess button{padding:7px 13px;border:1px solid #dfe6df;border-radius:999px;background:#f1f7f3;color:#44584f;cursor:pointer;font-size:13px}.unified-self-assess button:hover{background:#e2efe7}.unified-self-assess.done button{display:none}.fill-input-wrap{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fill-input-wrap .fill-input{flex:1;min-width:160px;padding:9px 12px;border:1px solid #c9d6cd;border-radius:10px;background:#fffefa;color:#17211f;font-size:15px}.fill-input-wrap .fill-submit{padding:8px 16px;border:0;border-radius:10px;background:#28634f;color:#fff;cursor:pointer;font-size:14px}.fill-feedback{margin-top:10px;font-size:13px;font-weight:700}.fill-feedback.correct{color:#276545}.fill-feedback.wrong{color:#a04b44}';
   document.head.appendChild(style);
   const randomButton = document.createElement('button'); randomButton.className='unified-random-web'; randomButton.textContent='↻ 随机一题'; randomButton.addEventListener('click',randomQuestion); randomButton.style.display='none'; document.body.appendChild(randomButton);
-  new MutationObserver(enhance).observe(document.body,{childList:true,subtree:true});
+  // 观察范围限定题库容器（#app），避免全站 body 子树监听；
+  // 回调做 80ms 防抖，展开大单元（数百卡片）时不会反复全量扫描。
+  const observeRoot = () => document.getElementById('app') || document.body;
+  let observeTimer = null;
+  const scheduleEnhance = () => {
+    if (observeTimer) return;
+    observeTimer = setTimeout(() => { observeTimer = null; enhance(); }, 80);
+  };
+  const observer = new MutationObserver(scheduleEnhance);
+  observer.observe(observeRoot(), {childList:true, subtree:true});
   enhance(); save(state);
   window.WaiyuanQuizEngine = {state, save, enhance, randomQuestion, record, computeKey, focusKey};
 })();

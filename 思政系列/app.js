@@ -25,7 +25,24 @@
   let displayLimit = 30;
   let accessDialog = '';
 
-  const persist = () => { try { localStorage.setItem(storeKey, JSON.stringify(saved)); } catch (_) {} };
+  let persistWarned = false;
+  const showPersistWarning = () => {
+    if (persistWarned) return;
+    persistWarned = true;
+    const bar = document.createElement('div');
+    bar.setAttribute('role', 'alert');
+    bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:70;max-width:min(92vw,560px);padding:10px 14px;border-radius:10px;background:#fff8e6;border:1px solid #e4b84a;color:#6b4d00;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:14px;line-height:1.5';
+    bar.textContent = '⚠ 本地保存失败（浏览器存储不可用或空间不足），答题进度可能无法保存。';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '知道了';
+    close.style.cssText = 'border:0;background:#e4b84a;color:#fff;border-radius:999px;padding:4px 12px;margin-left:10px;cursor:pointer';
+    close.addEventListener('click', () => bar.remove());
+    bar.appendChild(close);
+    document.body.appendChild(bar);
+    setTimeout(() => bar.remove(), 10000);
+  };
+  const persist = () => { try { localStorage.setItem(storeKey, JSON.stringify(saved)); } catch (error) { console.warn('思政刷题: 保存失败', error); showPersistWarning(); } };
   const getBank = key => banks.find(bank => bank.key === key);
   const bankQuestions = () => paper ? paper.questions : (getBank(bankKey)?.questions || []);
   const questionKey = question => paper ? `paper-${paper.key}-${question.id}` : `${bankKey}-${question.type}-${question.id}`;

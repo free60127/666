@@ -18,9 +18,19 @@
   const unitOf = key => { const b = getBook(bookKey); return b && b.units.find(u => u.key === key); };
   const totalQ = book => book.units.reduce((n, u) => n + u.questions.length, 0);
 
+  // 答案字母解析：支持 A-F 六选项；"C&F"→"CF"（数据已规范化）；"A or D" 二选一均可
+  function answerLetters(q) {
+    const ans = String(q.answer || '').trim();
+    const or = ans.match(/^([A-F])\s+or\s+([A-F])$/i);
+    if (or) return {right: [or[1].toUpperCase().charCodeAt(0) - 65, or[2].toUpperCase().charCodeAt(0) - 65], isOr: true, raw: ans};
+    return {right: [...ans.match(/[A-F]/g) || []].map(l => l.charCodeAt(0) - 65), isOr: false, raw: ans};
+  }
+
   function card(question, unitKey, index, unitKind) {
     const hasOptions = Array.isArray(question.options) && question.options.length;
-    const multi = hasOptions && (String(question.answer || '').match(/[A-E]/g) || []).length > 1;
+    // 多选标签与判题共用同一 answerLetters 解析（支持 A-F 六选项与 "A or D" 二选一）
+    const parsed = hasOptions ? answerLetters(question) : null;
+    const multi = !!parsed && !parsed.isOr && parsed.right.length > 1;
     const options = hasOptions ? question.options.map((opt, i) =>
       `<button class="option" data-action="choose" data-u="${unitKey}" data-index="${index}" data-opt="${i}"><span class="radio"></span><span>${letterOf(i)}．${escape(opt)}</span></button>`).join('') : '';
     // 填空类单元（选词填空/词汇/单词/填空）的文本题渲染输入框，由统一引擎自动判题；

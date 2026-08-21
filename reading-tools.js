@@ -183,12 +183,12 @@
     const container = option.parentElement;
     const options = [...container.children].filter(isStaticOption);
     const answerText = container.closest('article,.question-card')?.querySelector('.answer p,.answer')?.textContent || '';
-    const correctLetters = (answerText.match(/(?:正确答案|参考答案|答案)\s*[：:]\s*([A-E]+)/i)?.[1] || '').toUpperCase().split('');
-    const selectedLetter = (option.querySelector('strong')?.textContent.match(/[A-E]/i)?.[0] || '').toUpperCase();
+    const correctLetters = (answerText.match(/(?:正确答案|参考答案|答案)\s*[：:]\s*([A-Z]+)/i)?.[1] || '').toUpperCase().split('');
+    const selectedLetter = (option.querySelector('strong')?.textContent.match(/[A-Z]/i)?.[0] || '').toUpperCase();
     options.forEach(item => {
       item.classList.remove('is-selected', 'is-correct', 'is-wrong');
       item.setAttribute('aria-pressed', 'false');
-      const letter = (item.querySelector('strong')?.textContent.match(/[A-E]/i)?.[0] || '').toUpperCase();
+      const letter = (item.querySelector('strong')?.textContent.match(/[A-Z]/i)?.[0] || '').toUpperCase();
       if (correctLetters.includes(letter)) item.classList.add('is-correct');
     });
     option.classList.add('is-selected');
@@ -357,7 +357,7 @@
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-1403'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-1438'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;

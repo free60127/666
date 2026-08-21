@@ -16,7 +16,7 @@
     quiz: ['single', 'multi', 'short', 'essay', 'material', 'theory'],   // 思政/计算机
     content: ['choice', 'text'],                                          // 泛读/基英
   };
-  const LETTER = /^[A-E]+$/i;
+  const LETTER = /^[A-Z]+$/i;   // 答案字母上限 A-Z；实际范围按 options.length 动态校验
   const clean = text => String(text || '').replace(/\s+/g, ' ').trim();
 
   function normalizeOptions(options) {
@@ -39,14 +39,17 @@
     const answer = clean(q.answer);
     if (!answer) { errors.push(`答案为空${at}`); return errors; }
     if (['single', 'multi', 'choice'].includes(type)) {
-      const letters = String(answer).match(/[A-E]/g) || [];
+      // 答案字母：支持 A-Z；"A or D" 型（二选一均可）拆为两个合法字母；
+      // 具体上限由 options.length 决定（如 6 选项可答 A-F）。
+      const or = String(answer).match(/^([A-Z])\s+or\s+([A-Z])$/i);
+      const letters = or ? [or[1].toUpperCase(), or[2].toUpperCase()] : (String(answer).match(/[A-Z]/g) || []);
       if (!letters.length) {
-        errors.push(`${type} 题答案应使用字母（如 C 或 CD），当前："${answer}"${at}`);
+        errors.push(`${type} 题答案应使用字母（如 C、CD 或 A or D），当前："${answer}"${at}`);
       } else {
         const maxIndex = options.length;
         const bad = letters.filter(l => l.charCodeAt(0) - 65 >= maxIndex);
         if (bad.length) errors.push(`答案 ${bad.join('')} 超出选项范围（共 ${options.length} 项）${at}`);
-        if (type === 'single' && letters.length > 1) errors.push(`单选答案含多个字母：${answer}${at}`);
+        if (type === 'single' && letters.length > 1 && !or) errors.push(`单选答案含多个字母：${answer}${at}`);
       }
     }
     return errors;

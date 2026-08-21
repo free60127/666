@@ -1,10 +1,11 @@
-// CI 用：对全站 JS 做语法检查（node --check），排除 node_modules / archive / workers 等
+// CI 用：对全站 JS 做语法检查（node --check），排除 node_modules / archive 等；
+// workers/（Cloudflare Worker）也纳入检查，防止云端代码漏检。
 const fs = require('fs');
 const path = require('path');
 const {execFileSync} = require('child_process');
 
 const root = path.resolve(__dirname, '..');
-const EXCLUDE_DIRS = new Set(['node_modules', 'archive', '.git', 'workers']);
+const EXCLUDE_DIRS = new Set(['node_modules', 'archive', '.git']);
 const files = [];
 
 function walk(dir) {
