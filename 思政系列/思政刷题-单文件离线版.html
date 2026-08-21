@@ -1536,7 +1536,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-1949'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-2025'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -2311,6 +2311,11 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         const hit = document.elementFromPoint(event.clientX, event.clientY);
         if (hit) { const hitCard = hit.closest(cardSelector); if (hitCard) current = hitCard; }
       } catch (_) {}
+      if (!current.dataset.unifiedReady) {
+        // 快速作答时（点击早于 80ms 增强防抖）立即补一次增强（幂等），避免记录丢失；
+        // 页面整卡重绘时新 DOM 尚无 key，仍走下方轮询。
+        try { enhance(); } catch (_) {}
+      }
       if (!current.dataset.unifiedReady) {
         const waitKey = card.dataset.unifiedReady;  // 同题重渲染后 key 不变（stableId+title 确定性哈希）
         setTimeout(() => {

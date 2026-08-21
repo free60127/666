@@ -125,11 +125,19 @@ node scripts/release.js
 
 ⚠️ 每次改完必须重新部署，否则线上仍是旧版（历史教训：线上曾停留在 8/18 版本，首页搜索与新版答题引擎全部 404）。
 
-## 云同步（未启用）
+## 云同步（已启用，2026-08-21）
 
-后端 Worker（`workers/`）已部署 `/api/sync` 匿名同步接口与 `/api/feedback` 纠错接口（纠错已接入前端）。**云同步尚未在前端启用**：匿名 `deviceId` 目前等同访问密钥，可能被猜测后读取、覆盖或删除进度。在实现配对码/恢复码、payload 加密、冲突合并与设备解绑之前，不会开放自动云同步；学习数据仍保存在浏览器本地，可用学习中心的「导出/导入」备份迁移。
+学习中心提供「云端备份 / 云端恢复 / 清除云端」：
 
-安全边界（2026-08-21 起）：Worker CORS 已收紧为只对白名单（`https://free60127.github.io`、`https://free60127.top`）回显 `Access-Control-Allow-Origin`，其余来源不带 CORS 头、由浏览器直接拦截；`/api/feedback` 的限频（同一 IP 30 秒 5 次）基于单实例内存 `Map`，多实例部署下不能作为全局限流，正式启用云同步前应改用 Cloudflare Rate Limiting、Turnstile 或 Durable Objects。
+- **恢复码**：首次备份自动生成 32 字节随机恢复码（base64url，约 256 bit 熵），是云端数据的唯一钥匙，需用户自己妥善保存（复制到记事本/密码管理器）。
+- **加密**：恢复码经 PBKDF2（120k 次）派生 AES-GCM-256 密钥，学习数据加密后才上传；服务端只存 `deviceId = SHA-256(恢复码)`（64 位 hex），KV 泄露也推不出恢复码、读不出内容。
+- **备份**：上传本机全部学习数据（网页题库进度/收藏/设置 + 背单词 FSRS + 思政/计算机答题状态 + 查词收藏）覆盖云端；**恢复**：下载解密后与本地合并（重复条目取较新、独有内容两边都保留），恢复前自动导出一份本机备份文件兜底。
+- 实现：前端 `学习中心/cloud-sync.js`（UMD，Node 可单测）；后端 `/api/sync`（POST/GET/DELETE，payload ≤ 2.5MB）。
+- 安全边界：恢复码随机性即安全边界（无找回机制，丢失只能重新备份）；`/api/feedback` 限频（同一 IP 30 秒 5 次）基于单实例内存 `Map`，多实例部署下不构成全局限流，如遭滥用应改用 Cloudflare Rate Limiting、Turnstile 或 Durable Objects；CORS 只对白名单（`https://free60127.github.io`、`https://free60127.top`）回显。
+
+## 公告
+
+首页与各页面支持云端公告条：管理员在 `admin.html`（站点根，需管理令牌）发布公告后，页面顶部的 `#site-notice` 横幅自动显示（`common.js` 拉取 `GET /api/notice`，4 秒超时静默降级；无公告或不可达时不显示，不影响功能）。
 
 ## 自愿赞助
 

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#28634f">
   <title>统一学习中心 · 外院知识分享站</title>
-  <link rel="stylesheet" href="style.css?v=20260821-1949">
-  <link rel="stylesheet" href="../reading-tools.css?v=20260821-1949" data-reading-tools-asset>
+  <link rel="stylesheet" href="style.css?v=20260821-2025">
+  <link rel="stylesheet" href="../reading-tools.css?v=20260821-2025" data-reading-tools-asset>
 <script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
   <meta name="description" content="外院知识分享站 · 统一学习中心：课程题库、学习工具与专业资料，免费分享持续更新。">
   <meta property="og:type" content="website">
@@ -26,6 +26,9 @@
       <h1>统一学习中心</h1>
       <div>学习记录保存在当前浏览器中。</div>
       <div class="data-tools" aria-label="学习数据管理">
+        <button type="button" data-action="cloud-backup">☁ 云端备份</button>
+        <button type="button" data-action="cloud-restore">☁ 云端恢复</button>
+        <button type="button" class="danger" data-action="cloud-clear">清除云端</button>
         <button type="button" data-action="export">导出学习数据</button>
         <button type="button" data-action="import">导入学习数据</button>
         <button type="button" data-action="remind" id="remind-toggle">开启错题提醒</button>
@@ -33,6 +36,18 @@
         <input id="import-file" type="file" accept="application/json,.json" hidden>
       </div>
       <p id="data-status" class="data-status" aria-live="polite"></p>
+      <section id="cloud-panel" class="cloud-panel" hidden aria-label="云端同步">
+        <div class="cloud-row">
+          <b>☁ 云端恢复码</b>
+          <code id="cloud-code">（备份后自动生成）</code>
+          <button type="button" data-action="copy-code" id="copy-code-btn" disabled>复制恢复码</button>
+        </div>
+        <p class="cloud-tip">恢复码是云端数据的唯一钥匙（随机生成、加密传输存储，站点也无法读取内容）。请复制保存到记事本或密码管理器——换设备、清浏览器后输入恢复码即可取回学习数据。</p>
+        <div class="cloud-restore-row">
+          <input id="cloud-code-input" type="text" autocomplete="off" spellcheck="false" placeholder="粘贴恢复码，把云端数据恢复到这台设备">
+          <button type="button" data-action="cloud-restore-go">从云端恢复</button>
+        </div>
+      </section>
     </header>
     <nav class="tabs" aria-label="学习中心视图">
       <button data-view="overview">学习概览</button>
@@ -41,11 +56,12 @@
     </nav>
     <div id="app"></div>
   </main>
-  <script src="app.js?v=20260821-1949"></script>
-  <script defer src="../reading-tools.js?v=20260821-1949" data-reading-tools-asset></script>
+  <script src="cloud-sync.js?v=20260821-2025"></script>
+  <script src="app.js?v=20260821-2025"></script>
+  <script defer src="../reading-tools.js?v=20260821-2025" data-reading-tools-asset></script>
   <link rel="stylesheet" href="../theme.css">
   <script defer src="../common.js" data-common-injected></script>
-  <link rel="stylesheet" href="../tomato-timer.css?v=20260821-1949">
-  <script defer src="../tomato-timer.js?v=20260821-1949" data-tomato-injected></script>
+  <link rel="stylesheet" href="../tomato-timer.css?v=20260821-2025">
+  <script defer src="../tomato-timer.js?v=20260821-2025" data-tomato-injected></script>
 </body>
 </html>

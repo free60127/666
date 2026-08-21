@@ -172,11 +172,11 @@ async function handleDeleteFeedback(request, env) {
 }
 
 /* ---------- 进度同步（匿名设备 ID 即钥匙）----------
-   POST /api/sync   {deviceId, payload}  上传（payload ≤ 1MB）
+   POST /api/sync   {deviceId, payload}  上传（payload ≤ 2.5MB）
    GET  /api/sync?deviceId=x             下载（不存在返回 404）
    DELETE /api/sync?deviceId=x           删除 */
 
-const MAX_SYNC_BYTES = 1_000_000;
+const MAX_SYNC_BYTES = 2_500_000;
 
 async function handleSyncUpload(request, env) {
   let body;
@@ -184,7 +184,7 @@ async function handleSyncUpload(request, env) {
   const deviceId = String(body.deviceId || '').trim();
   if (!deviceId || deviceId.length > 64) return json({ error: 'deviceId required (<=64 chars)' }, 400);
   const payload = JSON.stringify(body.payload ?? null);
-  if (payload.length > MAX_SYNC_BYTES) return json({ error: 'payload too large (max 1MB)' }, 413);
+  if (payload.length > MAX_SYNC_BYTES) return json({ error: 'payload too large (max 2.5MB)' }, 413);
   const record = { data: JSON.parse(payload), updatedAt: new Date().toISOString() };
   await env.STUDY_KV.put(`sync:${deviceId}`, JSON.stringify(record));
   return json({ ok: true, size: payload.length, updatedAt: record.updatedAt });

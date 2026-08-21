@@ -340,6 +340,11 @@
         if (hit) { const hitCard = hit.closest(cardSelector); if (hitCard) current = hitCard; }
       } catch (_) {}
       if (!current.dataset.unifiedReady) {
+        // 快速作答时（点击早于 80ms 增强防抖）立即补一次增强（幂等），避免记录丢失；
+        // 页面整卡重绘时新 DOM 尚无 key，仍走下方轮询。
+        try { enhance(); } catch (_) {}
+      }
+      if (!current.dataset.unifiedReady) {
         const waitKey = card.dataset.unifiedReady;  // 同题重渲染后 key 不变（stableId+title 确定性哈希）
         setTimeout(() => {
           const re = waitKey ? [...document.querySelectorAll(cardSelector)].find(item => item.dataset.unifiedReady === waitKey) : null;
