@@ -1536,7 +1536,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-2054'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-2117'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -2260,9 +2260,13 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
   }
 
   // —— 填空判题：规范化比较（大小写/全角半角/首尾与连续空白/中英文标点）。
-  //    题库答案中，仅「分号」表示同一空位的多个合法答案（或语义，如 "on; from"）；
-  //    逗号/顿号/斜杠是答案文本的组成部分（如 "a, the, with" 必须完整填写），
-  //    不能拆开——否则用户只填 "a" 会被误判为正确。
+  //    分号语义由题干空位数决定（题干里每段连续下划线算一个空）：
+  //      · 多空题（≥2 个空）：分号分隔各空答案，必须逐空完整填写；
+  //        每空内部可用 "/" 列出多个可接受值（如 "by/from"），
+  //        带序号前缀的答案 "(1) individualism" 与 "individualism" 视为等价。
+  //      · 单空题（1 个空）：分号 = 该空的多个同义答案，填任一即判对。
+  //    逗号/顿号是答案文本的组成部分（如 "a, the, with" 必须完整填写），不能拆开。
+  //    页面可通过 data-fill-mode="all-blanks" | "any" 显式覆盖自动判定。
   const normalizeAnswer = text => String(text || '')
     .replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))  // 全角→半角
     .replace(/\u3000/g, ' ')
@@ -2270,14 +2274,33 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+  // 去掉 "(1) xxx" 这类序号前缀（题干带编号的空位，序号只是位置标记，不参与内容比对）
+  const stripBlankNo = text => text.replace(/^\(\d+\)\s*/, '');
   function judgeFill(card, inputValue) {
     const raw = card.dataset.fillAnswers || '';
     if (!raw) return null;
     const input = normalizeAnswer(inputValue);
     const whole = normalizeAnswer(raw);
     if (!input || !whole) return null;
-    if (whole === input) return true;
-    return whole.split(/\s*;\s*/).some(part => part && part === input);
+    // 完整填写直接判对（容忍分号两侧空格差异："on;from" ≡ "on; from"）
+    if (whole === input || whole.replace(/\s*;\s*/g, ';') === input.replace(/\s*;\s*/g, ';')) return true;
+    const parts = whole.split(/\s*;\s*/).filter(Boolean);
+    if (parts.length <= 1) return false;  // 无分号答案：必须是完整文本（逗号等不可拆分）
+    // 空位数：题干中每段连续下划线算一个空（"_____" / "______" 都算 1 个）
+    const stem = normalizeAnswer(card.dataset.unifiedTitle || questionText(card) || '');
+    const blankCount = (stem.match(/_+/g) || []).length;
+    const mode = card.dataset.fillMode || (blankCount >= 2 ? 'all-blanks' : 'any');
+    if (mode === 'all-blanks') {
+      // 多空题：分号分隔逐空作答，空数必须一致，每空匹配该空的任一可接受值
+      const inputParts = input.split(/\s*;\s*/).filter(Boolean);
+      if (inputParts.length !== parts.length) return false;
+      return parts.every((part, i) => {
+        const variants = part.split('/').map(v => stripBlankNo(v.trim()));
+        return variants.includes(stripBlankNo(inputParts[i]));
+      });
+    }
+    // 单空题：分号 = 多个同义答案，填任一即判对
+    return parts.some(part => part === input);
   }
   function handleFillSubmit(target) {
     const card = target.closest(cardSelector);

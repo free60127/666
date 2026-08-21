@@ -114,14 +114,6 @@
     }
   }
 
-  // 答案字母解析：支持 A-F 六选项；"C&F"→"CF"（数据已规范化）；"A or D" 二选一均可
-  function answerLetters(q) {
-    const ans = String(q.answer || '').trim();
-    const or = ans.match(/^([A-F])\s+or\s+([A-F])$/i);
-    if (or) return {right: [or[1].toUpperCase().charCodeAt(0) - 65, or[2].toUpperCase().charCodeAt(0) - 65], isOr: true, raw: ans};
-    return {right: [...ans.match(/[A-F]/g) || []].map(l => l.charCodeAt(0) - 65), isOr: false, raw: ans};
-  }
-
   function choose(unitKey, index, optIndex) {
     const unit = unitOf(unitKey);
     const q = unit && unit.questions[index];
