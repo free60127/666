@@ -3,51 +3,74 @@
  */
 import { handleAuth } from '../workers/src/auth.js';
 
-/* ---------- 内存版 D1（模拟 prepare/bind/first/run） ---------- */
+/* ---------- 内存版 D1（模拟 prepare/bind/first/run/batch；token 列存 SHA-256 哈希） ---------- */
 class MemoryD1 {
   constructor() {
     this.users = new Map();
     this.sessions = new Map();
-    this.sql = '';
-    this.args = [];
+    this.loginFails = new Map();
   }
-  prepare(sql) { this.sql = sql; this.args = []; return this; }
-  bind(...args) { this.args = args; return this; }
-  async first() {
-    const s = this.sql;
+  prepare(sql) {
+    const db = this;
+    const bound = { _sql: sql, _args: [] };
+    return {
+      bind(...args) { bound._args = args; return this; },
+      async first() { return db._first(bound._sql, bound._args); },
+      async run() { return db._run(bound._sql, bound._args); },
+    };
+  }
+  async batch(statements) {
+    for (const stmt of statements) await stmt.run();
+    return { meta: { changes: statements.length } };
+  }
+  async _first(s, args) {
+    if (s.includes('FROM login_fails') && s.includes('WHERE email')) {
+      const [email] = args;
+      return this.loginFails.get(email) || null;
+    }
     if (s.includes('FROM users') && s.includes('WHERE email')) {
-      const [email] = this.args;
+      const [email] = args;
       return [...this.users.values()].find(u => u.email === email) || null;
     }
     if (s.includes('JOIN users') && s.includes('WHERE s.token')) {
-      const [token, now] = this.args;
-      const ses = this.sessions.get(token);
+      const [tokenHash, now] = args;
+      const ses = this.sessions.get(tokenHash);
       if (!ses || ses.expires_at <= now) return null;
       const u = this.users.get(ses.user_id);
       if (!u) return null;
-      return { token, id: u.id, email: u.email, nickname: u.nickname || '', recovery_encrypted: u.recovery_encrypted };
+      return { token: tokenHash, id: u.id, email: u.email, nickname: u.nickname || '', recovery_encrypted: u.recovery_encrypted };
     }
     if (s.includes('FROM sessions') && s.includes('expires_at >')) {
-      const [token, now] = this.args;
-      const ses = this.sessions.get(token);
+      const [tokenHash, now] = args;
+      const ses = this.sessions.get(tokenHash);
       return ses && ses.expires_at > now ? ses : null;
+    }
+    if (s.startsWith('DELETE FROM sessions') && !s.includes('WHERE token')) {
+      const [now] = args;
+      for (const [k, v] of this.sessions) if (v.expires_at < now) this.sessions.delete(k);
+      return { meta: { changes: 0 } };
     }
     return null;
   }
-  async run() {
-    const s = this.sql;
+  async _run(s, args) {
     if (s.startsWith('INSERT INTO users')) {
-      const [id, email, password_hash, nickname, recovery_encrypted, created_at, updated_at] = this.args;
+      const [id, email, password_hash, nickname, recovery_encrypted, created_at, updated_at] = args;
       if ([...this.users.values()].some(u => u.email === email)) throw new Error('UNIQUE constraint failed: users.email');
       this.users.set(id, { id, email, password_hash, nickname, recovery_encrypted, created_at, updated_at });
     } else if (s.startsWith('INSERT INTO sessions')) {
-      const [token, user_id, created_at, expires_at] = this.args;
-      this.sessions.set(token, { token, user_id, created_at, expires_at });
+      const [tokenHash, user_id, created_at, expires_at] = args;
+      this.sessions.set(tokenHash, { token: tokenHash, user_id, created_at, expires_at });
     } else if (s.startsWith('DELETE FROM sessions')) {
-      const [token] = this.args;
-      this.sessions.delete(token);
+      const [tokenHash] = args;
+      this.sessions.delete(tokenHash);
+    } else if (s.startsWith('DELETE FROM login_fails')) {
+      const [email] = args;
+      this.loginFails.delete(email);
+    } else if (s.startsWith('INSERT INTO login_fails')) {
+      const [email, failCount, lockedUntil, updatedAt] = args;
+      this.loginFails.set(email, { email, fail_count: failCount, locked_until: lockedUntil, updated_at: updatedAt });
     } else if (s.startsWith('UPDATE users')) {
-      const [recovery, now, id] = this.args;
+      const [recovery, now, id] = args;
       const u = this.users.get(id);
       if (u) { u.recovery_encrypted = recovery; u.updated_at = now; }
     }
@@ -142,6 +165,27 @@ console.log('3) 恢复码保险箱结构校验');
 {
   const bad = await api('/api/auth/register', { method: 'POST', body: { email: 'bad@test.com', password: 'secret123', recovery: { salt: 'x', iv: 'y', c: 'z' } } });
   check('非法 recovery 被拒（仍可注册）', bad.status === 201 && bad.data.user.email === 'bad@test.com');
+}
+
+console.log('4) 登录限流（D1 邮箱锁定：连续 8 次失败 → 429）');
+{
+  const email = 'rate@test.com';
+  await api('/api/auth/register', { method: 'POST', body: { email, password: 'secret123' } });
+  let got429 = false, statuses = [];
+  for (let i = 0; i < 10; i++) {
+    const r = await api('/api/auth/login', { method: 'POST', body: { email, password: 'wrong-pass-' + i } });
+    statuses.push(r.status);
+    if (r.status === 429) { got429 = true; break; }
+  }
+  check('连续 10 次错误密码触发 429', got429, statuses.join(','));
+  check('触发的是邮箱锁定而非其他', statuses.filter(s => s === 429).length === 1 && statuses[statuses.length - 1] === 429, statuses.join(','));
+  // 正确密码在锁定期内也被拒
+  const locked = await api('/api/auth/login', { method: 'POST', body: { email, password: 'secret123' } });
+  check('锁定期内正确密码也 429', locked.status === 429);
+  // 解锁后成功登录（模拟时间流逝：直接改内存表）
+  sharedDb.loginFails.get(email).locked_until = Date.now() - 1;
+  const ok = await api('/api/auth/login', { method: 'POST', body: { email, password: 'secret123' } });
+  check('锁过期后正确密码 200 且清计数', ok.status === 200 && !sharedDb.loginFails.has(email));
 }
 
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);

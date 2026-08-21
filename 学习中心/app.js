@@ -182,12 +182,26 @@
     if (!cloud()) { setStatus('云端模块未加载，请刷新页面重试。', 'error'); return; }
     try {
       const authed = cloud().isAuthed ? cloud().isAuthed() : false;
+      if (authed && insuranceBroken) {
+        setStatus('账号恢复码保险箱异常，已暂停备份。请先点「导出学习数据」保存本机数据，再联系管理员。', 'error');
+        return;
+      }
       let code = cloud().loadCode();
       if (!code) {
-        code = cloud().createCode();
-        cloud().saveCode(code);
-        refreshCloudCodeBox();
-        if (!authed) {  // 账号模式不需要手抄恢复码（已加密绑定账号）
+        if (authed) {
+          // 账号模式：云端已有数据但本机无恢复码 → 禁止覆盖（旧数据将无法解密）
+          const remote = await cloud().downloadAccount().catch(() => null);
+          if (remote && remote.payload) {
+            setStatus('账号云端已有备份，但本机没有恢复码（无法解密旧数据），已取消本次备份以防数据丢失。请先在旧设备登录并备份，或导出本机数据。', 'error');
+            return;
+          }
+          code = cloud().createCode();
+          cloud().saveCode(code);
+          refreshCloudCodeBox();
+        } else {
+          code = cloud().createCode();
+          cloud().saveCode(code);
+          refreshCloudCodeBox();
           showCloudPanel(true);
           setStatus('已生成恢复码，请先点「复制恢复码」保存，再点一次「云端备份」完成上传。', 'success');
           return;
@@ -272,6 +286,7 @@
   /* ---------- 账号登录（2026-08-21，D1）：登录态 + 恢复码保险箱 ---------- */
   const auth = () => window.WaiyuanAuth;
   let authMode = 'login';
+  let insuranceBroken = false;  // 账号恢复码保险箱解密失败（防覆盖云端数据）
   const showAuthPanel = show => { const p = document.getElementById('auth-panel'); if (p) p.hidden = !show; };
   const setAuthMode = mode => {
     authMode = mode;
@@ -327,17 +342,39 @@
         const result = await auth().login({ email, password });
         auth().saveSession(result);
         if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.setAuth) window.WaiyuanCloudSync.setAuth(result.token, result.user.id);
-        let unlocked = false;
+        let unlocked = false, broken = false;
+        let localCode = window.WaiyuanCloudSync && window.WaiyuanCloudSync.loadCode ? window.WaiyuanCloudSync.loadCode() : '';
         if (result.recovery) {
           try {
             const code = await auth().unlockRecovery(password, result.recovery);
             if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.saveCode) window.WaiyuanCloudSync.saveCode(code);
+            localCode = code;
             refreshCloudCodeBox();
             unlocked = true;
             migratedNote = await tryMigrate(code);
-          } catch (_) { /* 密码已通过服务端验证，此处失败属数据异常，不阻断登录 */ }
+          } catch (_) {
+            broken = true;  // 密码已通过服务端验证，解不开 = 保险箱数据异常，与「未绑定」严格区分
+          }
+        } else {
+          // 账号从未绑定保险箱：用登录密码把本机恢复码（没有则新生成）绑定到账号
+          if (!localCode && window.WaiyuanCloudSync && window.WaiyuanCloudSync.createCode) {
+            localCode = window.WaiyuanCloudSync.createCode();
+            window.WaiyuanCloudSync.saveCode(localCode);
+          }
+          if (localCode) {
+            try {
+              const box = await auth().lockRecovery(password, localCode);
+              await auth().setRecovery(result.token, box);
+              refreshCloudCodeBox();
+            } catch (_) { /* 绑定失败不阻断登录；备份时若账号云端无数据仍可继续 */ }
+          }
         }
-        setStatus('登录成功。' + (unlocked ? '云端恢复码已解锁，可点「云端恢复」取回学习数据。' : '该账号尚未绑定恢复码，可用原恢复码手动恢复或做一次云端备份。') + migratedNote, 'success');
+        insuranceBroken = broken;
+        if (broken) {
+          setStatus('登录成功，但账号恢复码保险箱异常（解密失败）。为防覆盖云端数据已暂停自动备份：请先点「导出学习数据」保存本机数据，并联系管理员检查账号。', 'error');
+        } else {
+          setStatus('登录成功。' + (unlocked ? '云端恢复码已解锁，可点「云端恢复」取回学习数据。' : '该账号尚未绑定恢复码，可用原恢复码手动恢复或做一次云端备份。') + migratedNote, 'success');
+        }
         showAuthPanel(false);
       }
       refreshAuthBar();
@@ -558,6 +595,25 @@ ${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title
   refreshAuthBar();
   setAuthMode('login');
   render();
+
+  // 页面刷新后恢复账号模式（cloud-sync 的 identity 只在内存，必须从会话重建），
+  // 并异步验证 token 有效性——无效则自动登出，避免误传匿名键
+  (async function restoreCloudIdentity() {
+    try {
+      const session = auth() && auth().getSession ? auth().getSession() : null;
+      if (!session || !session.token || !session.user || !session.user.id) return;
+      if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.setAuth) {
+        window.WaiyuanCloudSync.setAuth(session.token, session.user.id);
+      }
+      try {
+        await auth().me(session.token);
+      } catch (_) {
+        if (auth()) auth().clearSession();
+        if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.clearAuth) window.WaiyuanCloudSync.clearAuth();
+        refreshAuthBar();
+      }
+    } catch (_) {}
+  })();
 
   // 错题复习提醒：已开启 && 存在错题 && 今日未提醒过 && 通知权限已授予 → 发系统通知（每日至多一次）
   (function checkMistakeReminder() {

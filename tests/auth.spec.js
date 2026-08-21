@@ -74,6 +74,7 @@ function mockAuthApi(page, users) {
     }
     if (url.pathname === '/api/auth/logout') return ok({ ok: true });
     if (url.pathname === '/api/auth/me') return ok({ ok: true, user: { id: 'u0', email: 'me@test.com', nickname: '我' }, recovery: null });
+    if (url.pathname === '/api/auth/recovery') { calls.recoveryCount = (calls.recoveryCount || 0) + 1; return ok({ ok: true }); }
     return fail(404, 'no');
   });
   return calls;
@@ -182,4 +183,67 @@ test('登录后云端备份走账号模式（带 Bearer，无 deviceId）', asyn
   await page.locator('[data-action="cloud-restore"]').click();
   await page.locator('[data-action="cloud-restore-go"]').click();
   await expect(page.locator('#data-status')).toContainText('账号云端恢复成功');
+});
+
+test('刷新页面后账号模式保持（P0-1）', async ({ page }) => {
+  const users = [{ id: 'r1', email: 'refresh@example.com', password: 'password123', nickname: '刷新用户', recovery: null }];
+  const syncStore = { authUser: 'r1' };
+  mockAuthApi(page, users);
+  mockSyncApi(page, syncStore);
+  await page.goto(BASE);
+  await page.locator('#auth-open-btn').click();
+  await page.fill('#auth-email-input', 'refresh@example.com');
+  await page.fill('#auth-password-input', 'password123');
+  await page.locator('#auth-submit-btn').click();
+  await expect(page.locator('#auth-email')).toHaveText('👤 刷新用户');
+
+  // 刷新：cloud-sync 的 identity 在内存，必须从 localStorage 会话重建
+  await page.reload();
+  await expect(page.locator('#auth-email')).toHaveText('👤 刷新用户');
+
+  // 备份 → 必须仍走账号模式（带 Bearer，键 user:r1）
+  await page.locator('[data-action="cloud-backup"]').click();
+  await expect(page.locator('#data-status')).toContainText('云端备份完成');
+  expect(syncStore['user:r1']).toBeTruthy();
+  expect(Object.keys(syncStore).some(k => k.length === 64)).toBe(false);
+});
+
+test('登录时自动绑定恢复码保险箱（P0-2）', async ({ page }) => {
+  const users = [{ id: 'b1', email: 'bind@example.com', password: 'password123', nickname: '绑定用户', recovery: null }];
+  const calls = mockAuthApi(page, users);
+  mockSyncApi(page, { authUser: 'b1' });
+  await page.goto(BASE);
+  await page.locator('#auth-open-btn').click();
+  await page.fill('#auth-email-input', 'bind@example.com');
+  await page.fill('#auth-password-input', 'password123');
+  await page.locator('#auth-submit-btn').click();
+  await expect(page.locator('#auth-email')).toHaveText('👤 绑定用户');
+
+  // 账号无保险箱 → 前端应生成恢复码并调用 /api/auth/recovery 绑定
+  expect(calls.recoveryCount).toBe(1);
+  const stored = await page.evaluate(() => {
+    try { const raw = JSON.parse(localStorage.getItem('waiyuan-cloud-recovery-code-v1')); return raw ? raw.code : ''; } catch (_) { return ''; }
+  });
+  expect(stored.length).toBeGreaterThan(0);
+});
+
+test('保险箱解密失败 → 明确提示并暂停备份（P0-3）', async ({ page }) => {
+  // box 用 real-password 加密，但登录用 other-password（服务端校验通过，前端解不开 → 保险箱异常）
+  const box = await lockRecoveryNode('real-password', 'CODE'.padEnd(43, 'X'));
+  const users = [{ id: 'x1', email: 'broken@example.com', password: 'other-password', nickname: '异常用户', recovery: box }];
+  const syncStore = { authUser: 'x1' };
+  mockAuthApi(page, users);
+  mockSyncApi(page, syncStore);
+  await page.goto(BASE);
+  await page.locator('#auth-open-btn').click();
+  await page.fill('#auth-email-input', 'broken@example.com');
+  await page.fill('#auth-password-input', 'other-password');
+  await page.locator('#auth-submit-btn').click();
+  await expect(page.locator('#auth-email')).toHaveText('👤 异常用户');
+  // 明确提示保险箱异常
+  await expect(page.locator('#data-status')).toContainText('保险箱异常');
+  // 备份被暂停，账号键无数据
+  await page.locator('[data-action="cloud-backup"]').click();
+  await expect(page.locator('#data-status')).toContainText('已暂停备份');
+  expect(syncStore['user:x1']).toBeFalsy();
 });

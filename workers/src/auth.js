@@ -58,14 +58,73 @@ const validate = body => {
   return { email, password, nickname };
 };
 
-/* ---------- 会话 ---------- */
+/* ---------- 会话（2026-08-22 加固：库中只存 token 的 SHA-256 哈希） ---------- */
 const SESSION_DAYS = 30;
 function newSessionToken() { return randomHex(32); }
 function sessionExpiry() { return Date.now() + SESSION_DAYS * 24 * 3600 * 1000; }
 
+/** token -> SHA-256 hex（D1 泄露也不暴露可用会话令牌） */
+async function hashToken(token) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(token)));
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+}
+
 function bearerToken(request) {
   const auth = request.headers.get('Authorization') || '';
   return auth.replace(/^Bearer\s+/i, '');
+}
+
+/* ---------- 登录限流（2026-08-22 加固） ----------
+ * IP：KV 计数器，10 分钟窗口 30 次（粗粒度，容忍 KV 最终一致性）
+ * 邮箱：D1 login_fails 表，连续失败 8 次锁 15 分钟（SQLite 强一致，
+ *       连续失败请求打到不同边缘节点也能正确累计——KV 方案线上实测失效）
+ */
+const LOGIN_IP_MAX = 30, LOGIN_EMAIL_FAIL_MAX = 8, LOGIN_EMAIL_LOCK_MS = 15 * 60 * 1000;
+
+async function loginIpCheck(env, request) {
+  if (!env || !env.STUDY_KV) return { ok: true };
+  try {
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const now = Date.now();
+    const ipKey = 'rate:login:ip:' + ip + ':' + Math.floor(now / 600000);  // 10 分钟窗口
+    const ipCount = Number(await env.STUDY_KV.get(ipKey)) || 0;
+    if (ipCount >= LOGIN_IP_MAX) return { ok: false, error: '尝试过于频繁，请稍后再试' };
+    await env.STUDY_KV.put(ipKey, String(ipCount + 1), { expirationTtl: 660 });
+  } catch (_) { /* 限流器故障不阻断 */ }
+  return { ok: true };
+}
+
+async function loginEmailCheck(db, email) {
+  try {
+    const row = await db.prepare('SELECT locked_until FROM login_fails WHERE email = ?').bind(email).first();
+    if (row && row.locked_until > Date.now()) {
+      return { ok: false, error: '登录尝试过多，请 15 分钟后再试' };
+    }
+  } catch (_) { /* 表不存在等故障不阻断 */ }
+  return { ok: true };
+}
+
+async function recordLoginFail(db, email) {
+  try {
+    const now = Date.now();
+    const row = await db.prepare('SELECT fail_count, locked_until FROM login_fails WHERE email = ?').bind(email).first();
+    let count = 1, lockedUntil = 0;
+    if (row) {
+      // 仅当「曾锁定且已过期」才重新计数；locked_until=0（从未锁定）必须继续累计
+      const expired = row.locked_until > 0 && row.locked_until < now;
+      count = expired ? 1 : row.fail_count + 1;
+      lockedUntil = row.locked_until;
+    }
+    if (count >= LOGIN_EMAIL_FAIL_MAX) lockedUntil = now + LOGIN_EMAIL_LOCK_MS;
+    await db.prepare(
+      'INSERT INTO login_fails (email, fail_count, locked_until, updated_at) VALUES (?, ?, ?, ?) ' +
+      'ON CONFLICT(email) DO UPDATE SET fail_count = excluded.fail_count, locked_until = excluded.locked_until, updated_at = excluded.updated_at'
+    ).bind(email, count, lockedUntil, now).run();
+  } catch (_) {}
+}
+
+async function recordLoginSuccess(db, email) {
+  try { await db.prepare('DELETE FROM login_fails WHERE email = ?').bind(email).run(); } catch (_) {}
 }
 
 /* ---------- 认证处理（env.DB = D1） ---------- */
@@ -73,8 +132,8 @@ async function handleAuth(request, env, path) {
   const db = env.DB;
   if (!db) return json({ error: 'database not configured' }, 500);
 
-  if (path === '/api/auth/register' && request.method === 'POST') return register(db, request);
-  if (path === '/api/auth/login' && request.method === 'POST') return login(db, request);
+  if (path === '/api/auth/register' && request.method === 'POST') return register(db, env, request);
+  if (path === '/api/auth/login' && request.method === 'POST') return login(db, env, request);
   if (path === '/api/auth/logout' && request.method === 'POST') return logout(db, request);
   if (path === '/api/auth/me' && request.method === 'GET') return me(db, request);
   if (path === '/api/auth/recovery' && request.method === 'POST') return setRecovery(db, request);
@@ -85,7 +144,7 @@ async function readJson(request) {
   try { return await request.json(); } catch { return null; }
 }
 
-async function register(db, request) {
+async function register(db, env, request) {
   const body = await readJson(request);
   if (!body) return json({ error: 'invalid json' }, 400);
   const v = validate(body);
@@ -96,34 +155,47 @@ async function register(db, request) {
   const now = Date.now();
   const { salt, hash } = await hashPassword(v.password);
   const passwordHash = `pbkdf2:${PBKDF2_ITERATIONS}:${b64(salt)}:${b64(hash)}`;
+  const token = newSessionToken();
+  const tokenHash = await hashToken(token);
   try {
-    await db.prepare('INSERT INTO users (id, email, password_hash, nickname, recovery_encrypted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, v.email, passwordHash, v.nickname, recovery, now, now).run();
+    // 用户 + 会话同一批次原子写入：任一失败整体回滚（不会出现"用户建了但会话没建"）
+    await db.batch([
+      db.prepare('INSERT INTO users (id, email, password_hash, nickname, recovery_encrypted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(id, v.email, passwordHash, v.nickname, recovery, now, now),
+      db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
+        .bind(tokenHash, id, now, sessionExpiry()),
+    ]);
   } catch (error) {
     const message = String(error && error.message || '');
     if (/UNIQUE|unique/i.test(message)) return json({ error: '该邮箱已注册，请直接登录' }, 409);
     console.error('register db error:', error);
     return json({ error: 'internal error' }, 500);
   }
-  const token = newSessionToken();
-  await db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
-    .bind(token, id, now, sessionExpiry()).run();
   return json({ ok: true, token, user: { id, email: v.email, nickname: v.nickname } }, 201);
 }
 
-async function login(db, request) {
+async function login(db, env, request) {
   const body = await readJson(request);
   if (!body) return json({ error: 'invalid json' }, 400);
   const v = validate(body);
   if (v.error) return json({ error: v.error }, 400);
+  const ipCheck = await loginIpCheck(env, request);
+  if (!ipCheck.ok) return json({ error: ipCheck.error }, 429);
+  const emailCheck = await loginEmailCheck(db, v.email);
+  if (!emailCheck.ok) return json({ error: emailCheck.error }, 429);
   const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(v.email).first();
   if (!user || !(await verifyPassword(v.password, user.password_hash))) {
+    await recordLoginFail(db, v.email);
     return json({ error: '邮箱或密码不正确' }, 401);
   }
+  await recordLoginSuccess(db, v.email);
+  // 懒清理过期会话（登录时顺带，避免 sessions 表无限增长）
+  try { await db.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(Date.now()).run(); } catch (_) {}
   const token = newSessionToken();
+  const tokenHash = await hashToken(token);
   const now = Date.now();
   await db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
-    .bind(token, user.id, now, sessionExpiry()).run();
+    .bind(tokenHash, user.id, now, sessionExpiry()).run();
   // 返回恢复码保险箱密文（前端用密码派生密钥解密后写入本地恢复码）
   return json({
     ok: true, token,
@@ -135,7 +207,7 @@ async function login(db, request) {
 async function logout(db, request) {
   const token = bearerToken(request);
   if (!token) return json({ error: 'unauthorized' }, 401);
-  await db.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run();
+  await db.prepare('DELETE FROM sessions WHERE token = ?').bind(await hashToken(token)).run();
   return json({ ok: true });
 }
 
@@ -144,7 +216,7 @@ async function me(db, request) {
   if (!token) return json({ error: 'unauthorized' }, 401);
   const row = await db.prepare(
     'SELECT s.token, u.id, u.email, u.nickname, u.recovery_encrypted FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.expires_at > ?'
-  ).bind(token, Date.now()).first();
+  ).bind(await hashToken(token), Date.now()).first();
   if (!row) return json({ error: 'unauthorized' }, 401);
   return json({
     ok: true,
@@ -160,7 +232,7 @@ async function setRecovery(db, request) {
   if (!body) return json({ error: 'invalid json' }, 400);
   const recovery = sanitizeRecovery(body.recovery);
   if (!recovery) return json({ error: 'recovery invalid' }, 400);
-  const session = await db.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?').bind(token, Date.now()).first();
+  const session = await db.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?').bind(await hashToken(token), Date.now()).first();
   if (!session) return json({ error: 'unauthorized' }, 401);
   await db.prepare('UPDATE users SET recovery_encrypted = ?, updated_at = ? WHERE id = ?')
     .bind(recovery, Date.now(), session.user_id).run();
@@ -177,4 +249,4 @@ function sanitizeRecovery(value) {
   return JSON.stringify({ salt, iv, c });
 }
 
-export { handleAuth };
+export { handleAuth, hashToken };

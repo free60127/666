@@ -12,7 +12,7 @@
  */
 
 const UPSTREAM = 'https://free60127.github.io/666';
-import { handleAuth } from './auth.js';
+import { handleAuth, hashToken } from './auth.js';
 // CORS：只对站点白名单来源回显 Origin（其余不带 CORS 头，浏览器直接拦截；
 // 未携带 Origin 的同源/非浏览器请求不受影响）
 const ALLOWED_ORIGINS = new Set(['https://free60127.github.io', 'https://free60127.top']);
@@ -35,8 +35,8 @@ export default {
     for (const [key, value] of Object.entries(cors)) {
       if (value) response.headers.set(key, value);
     }
-    // 进度同步/鉴权数据一律禁止缓存（2026-08-22 审查）
-    if (new URL(request.url).pathname.startsWith('/api/sync')) {
+    // 全部 API 响应禁止缓存（同步/认证/反馈/公告，2026-08-22 审查）
+    if (new URL(request.url).pathname.startsWith('/api/')) {
       response.headers.set('Cache-Control', 'no-store');
     }
     return response;
@@ -277,7 +277,7 @@ async function resolveSyncIdentity(request, env) {
   if (!token) return { key: null };
   if (!env.DB) return { error: 'database not configured' };
   const session = await env.DB.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?')
-    .bind(token, Date.now()).first();
+    .bind(await hashToken(token), Date.now()).first();
   if (!session) return { error: 'unauthorized' };
   return { key: 'user:' + session.user_id };
 }
