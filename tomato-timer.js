@@ -34,11 +34,16 @@
   wrap.innerHTML = `
     <button type="button" class="tomato-timer__toggle" aria-label="番茄钟" aria-expanded="false">
       <svg class="tomato-timer__icon" viewBox="0 0 64 64" aria-hidden="true">
-        <path d="M32 16c-7-4-14-1-14 5 0 9 7 25 14 25s14-16 14-25c0-6-7-9-14-5z" fill="#e0503a"/>
-        <path d="M18 12c-5-7 3-9 5-4 1 3-2 7-5 4z" fill="#4c9e55"/>
-        <path d="M46 12c5-7-3-9-5-4-1 3 2 7 5 4z" fill="#4c9e55"/>
-        <path d="M32 7c1-4 6-5 7-1-1 3-6 4-7 1z" fill="#3f8f4e"/>
-        <path d="M26 16c-3 1-5 4-5 8 0 7 5 15 11 15" fill="none" stroke="#ffc9b8" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+        <ellipse cx="32" cy="39" rx="19" ry="17" fill="#e0503a"/>
+        <ellipse cx="25" cy="33" rx="6" ry="3.5" fill="#ff8a6b" opacity=".5" transform="rotate(-25 25 33)"/>
+        <rect x="30.8" y="9.5" width="2.4" height="9.5" rx="1.2" fill="#3f8f4e"/>
+        <g fill="#4c9e55">
+          <ellipse cx="32" cy="21.5" rx="2.8" ry="5"/>
+          <ellipse cx="26.5" cy="22.5" rx="2.6" ry="4.6" transform="rotate(-50 26.5 22.5)"/>
+          <ellipse cx="37.5" cy="22.5" rx="2.6" ry="4.6" transform="rotate(50 37.5 22.5)"/>
+          <ellipse cx="23.5" cy="26.5" rx="2.4" ry="4.2" transform="rotate(-28 23.5 26.5)"/>
+          <ellipse cx="40.5" cy="26.5" rx="2.4" ry="4.2" transform="rotate(28 40.5 26.5)"/>
+        </g>
       </svg>
       <span class="tomato-timer__remain"></span>
     </button>

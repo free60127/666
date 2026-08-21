@@ -34,20 +34,35 @@ document.addEventListener('click', event => {
   if (button.dataset.action === 'close-print-shop') printShop.classList.add('hidden');
   if (button.dataset.action === 'feedback') feedback.classList.remove('hidden');
   if (button.dataset.action === 'close-feedback') feedback.classList.add('hidden');
-  if (button.dataset.action === 'copy-share') copyShareLink(button);
+  if (button.dataset.action === 'copy-share') shareLink(button);
   if (button.dataset.area) alert(`${button.dataset.area}专区正在整理中，敬请期待喵。`);
 });
 
-// 分享链接复制（微信分享卡片的入口）
+// 分享：优先调起系统分享面板（微信/QQ 等收到链接会自动渲染 OG 分享卡片），
+// 不支持或被取消时退回复制链接（粘贴到微信/QQ 发送，对方同样看到卡片）。
 let shareResetTimer = null;
-const copyShareLink = async button => {
+const shareLink = async button => {
   const url = location.href;
+  const title = '外院知识分享站';
+  const text = '课程题库、学习工具与专业资料免费分享，点开即可刷题学习。';
+  if (navigator.share) {
+    try {
+      await navigator.share({title, text, url});
+      button.textContent = '已分享 ✓';
+      clearTimeout(shareResetTimer);
+      shareResetTimer = setTimeout(() => { button.textContent = '分享'; }, 2600);
+      return;
+    } catch (error) {
+      if (error && error.name === 'AbortError') return;  // 用户取消，不打扰
+      // 其他失败（如分享面板异常）→ 落到复制链接
+    }
+  }
   let ok = false;
-  try { await navigator.clipboard.writeText(url); ok = true; } catch (_) {}
+  try { await navigator.clipboard.writeText(`${title} ${url}`); ok = true; } catch (_) {}
   if (!ok) {
     try {
       const area = document.createElement('textarea');
-      area.value = url;
+      area.value = `${title} ${url}`;
       area.style.position = 'fixed';
       area.style.opacity = '0';
       document.body.appendChild(area);
@@ -56,9 +71,9 @@ const copyShareLink = async button => {
       area.remove();
     } catch (_) {}
   }
-  button.textContent = ok ? '已复制 ✓' : '复制失败，请手动复制地址栏链接';
+  button.textContent = ok ? '已复制 ✓ 粘贴到微信发送即可见卡片' : '复制失败，请长按地址栏手动复制';
   clearTimeout(shareResetTimer);
-  shareResetTimer = setTimeout(() => { button.textContent = '复制链接'; }, 2600);
+  shareResetTimer = setTimeout(() => { button.textContent = '分享'; }, 3200);
 };
 
 // 继续学习区块：从本地学习数据渲染「继续上次学习 / 复习错题 / 背单词」入口，
