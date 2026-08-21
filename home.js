@@ -38,16 +38,23 @@ document.addEventListener('click', event => {
   if (button.dataset.area) alert(`${button.dataset.area}专区正在整理中，敬请期待喵。`);
 });
 
-// 分享：优先调起系统分享面板（微信/QQ 等收到链接会自动渲染 OG 分享卡片），
-// 不支持或被取消时退回复制链接（粘贴到微信/QQ 发送，对方同样看到卡片）。
+// 分享：三档策略——
+// ① 微信内置浏览器：无 Web Share API，且只有微信原生的「···→分享给朋友」才能生成带图卡片，
+//    直接引导用户走原生分享（卡片由微信抓取 og:image 生成）；
+// ② 系统浏览器（Safari/Chrome 等）：调起系统分享面板（iOS/安卓分享到微信 = 网页卡片）；
+//    取消或失败 → 落到复制；
+// ③ 复制兜底：只复制纯 URL（带标题前缀的文本在微信里会被当普通消息，不识别为链接、不出卡片）。
 let shareResetTimer = null;
 const shareLink = async button => {
   const url = location.href;
-  const title = '外院知识分享站';
-  const text = '课程题库、学习工具与专业资料免费分享，点开即可刷题学习。';
+  const isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
+  if (isWeChat) {
+    alert('微信内请点右上角「···」→「分享给朋友」，对方会直接看到带图的分享卡片。\n\n（网页内无法直接调起微信的卡片分享，这是微信的限制。）');
+    return;
+  }
   if (navigator.share) {
     try {
-      await navigator.share({title, text, url});
+      await navigator.share({title: '外院知识分享站', text: '课程题库、学习工具与专业资料免费分享，点开即可刷题学习。', url});
       button.textContent = '已分享 ✓';
       clearTimeout(shareResetTimer);
       shareResetTimer = setTimeout(() => { button.textContent = '分享'; }, 2600);
@@ -58,11 +65,11 @@ const shareLink = async button => {
     }
   }
   let ok = false;
-  try { await navigator.clipboard.writeText(`${title} ${url}`); ok = true; } catch (_) {}
+  try { await navigator.clipboard.writeText(url); ok = true; } catch (_) {}
   if (!ok) {
     try {
       const area = document.createElement('textarea');
-      area.value = `${title} ${url}`;
+      area.value = url;
       area.style.position = 'fixed';
       area.style.opacity = '0';
       document.body.appendChild(area);
@@ -71,7 +78,7 @@ const shareLink = async button => {
       area.remove();
     } catch (_) {}
   }
-  button.textContent = ok ? '已复制 ✓ 粘贴到微信发送即可见卡片' : '复制失败，请长按地址栏手动复制';
+  button.textContent = ok ? '链接已复制 ✓ 粘贴发送即可' : '复制失败，请长按地址栏手动复制';
   clearTimeout(shareResetTimer);
   shareResetTimer = setTimeout(() => { button.textContent = '分享'; }, 3200);
 };
