@@ -168,7 +168,7 @@
     if (q && q.type === 'choice' && q.options) {
       const {right, raw} = answerLetters(q);
       const isOr = raw.includes(' or ');
-      ansNode.textContent = '正确答案：' + (isOr ? raw.split(/\s+or\s+/i).map(l => `${l.toUpperCase()}．${q.options[l.toUpperCase().charCodeAt(0) - 65] || ''}`).join(' 或 ') : right.map(l => `${l}．${q.options[l]}`).join('；'));
+      ansNode.textContent = '正确答案：' + (isOr ? raw.split(/\s+or\s+/i).map(l => `${l.toUpperCase()}．${q.options[l.toUpperCase().charCodeAt(0) - 65] || ''}`).join(' 或 ') : right.map(l => `${letterOf(l)}．${q.options[l]}`).join('；'));
     } else {
       ansNode.textContent = (q && q.answer) || '原文未提供标准答案，请结合教材复习。';
     }

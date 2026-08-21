@@ -1109,7 +1109,8 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
   }
   function printableAnswer(question) {
     const answer = String(question.answer || '').trim();
-    const letters = answer.match(/^[A-E]+/i)?.[0].toUpperCase().split('') || [];
+    // 支持 A-Z（按 options.length 过滤越界字母），当前题库为 A-E
+    const letters = (answer.match(/^[A-Z]+/i)?.[0].toUpperCase().split('') || []).filter(l => l.charCodeAt(0) - 65 < (question.options || []).length);
     if (!letters.length || !(question.options || []).length) return answer || '原文未提供标准答案，请结合教材复习。';
     const choices = letters.map(letter => {
       const option = question.options[letter.charCodeAt(0) - 65];
@@ -1128,7 +1129,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
       questions: questions.map(question => ({question: printableQuestion(question), options: (question.options || []).map(optionText), answer: printableAnswer(question), type: labels[question.type] || question.type})),
     });
   }
-  function judge(question) { const key = questionKey(question); const item = saved.progress[key] || {}; const right = String(question.answer).match(/^[A-E]+/i)?.[0].toUpperCase().split('').map(letter => letter.charCodeAt(0) - 65) || []; const picked = item.selected || []; item.feedback = question.options.map((_, index) => right.includes(index) ? 'correct' : picked.includes(index) ? 'wrong' : ''); item.ok = right.length === picked.length && right.every(index => picked.includes(index)); item.wrong = !item.ok; saved.progress[key] = item; persist(); }
+  function judge(question) { const key = questionKey(question); const item = saved.progress[key] || {}; const right = (String(question.answer).match(/^[A-Z]+/i)?.[0].toUpperCase().split('').map(letter => letter.charCodeAt(0) - 65) || []).filter(index => index < (question.options || []).length); const picked = item.selected || []; item.feedback = question.options.map((_, index) => right.includes(index) ? 'correct' : picked.includes(index) ? 'wrong' : ''); item.ok = right.length === picked.length && right.every(index => picked.includes(index)); item.wrong = !item.ok; saved.progress[key] = item; persist(); }
 
   app.addEventListener('click', event => {
     const button = event.target.closest('[data-action]'); if (!button) return;
@@ -1535,7 +1536,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-1438'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-1545'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -2258,8 +2259,10 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     return null;
   }
 
-  // —— 填空判题：规范化比较（大小写/全角半角/首尾与连续空白/中英文标点），
-  //    题库答案可含多个合法值（用 /；|、或中英文逗号分隔），命中任一即算答对 ——
+  // —— 填空判题：规范化比较（大小写/全角半角/首尾与连续空白/中英文标点）。
+  //    题库答案中，仅「分号」表示同一空位的多个合法答案（或语义，如 "on; from"）；
+  //    逗号/顿号/斜杠是答案文本的组成部分（如 "a, the, with" 必须完整填写），
+  //    不能拆开——否则用户只填 "a" 会被误判为正确。
   const normalizeAnswer = text => String(text || '')
     .replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))  // 全角→半角
     .replace(/\u3000/g, ' ')
@@ -2274,7 +2277,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     const whole = normalizeAnswer(raw);
     if (!input || !whole) return null;
     if (whole === input) return true;
-    return whole.split(/\s*[\/;|，,、]\s*/).some(part => part && part === input);
+    return whole.split(/\s*;\s*/).some(part => part && part === input);
   }
   function handleFillSubmit(target) {
     const card = target.closest(cardSelector);

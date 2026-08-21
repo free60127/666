@@ -287,8 +287,10 @@
     return null;
   }
 
-  // —— 填空判题：规范化比较（大小写/全角半角/首尾与连续空白/中英文标点），
-  //    题库答案可含多个合法值（用 /；|、或中英文逗号分隔），命中任一即算答对 ——
+  // —— 填空判题：规范化比较（大小写/全角半角/首尾与连续空白/中英文标点）。
+  //    题库答案中，仅「分号」表示同一空位的多个合法答案（或语义，如 "on; from"）；
+  //    逗号/顿号/斜杠是答案文本的组成部分（如 "a, the, with" 必须完整填写），
+  //    不能拆开——否则用户只填 "a" 会被误判为正确。
   const normalizeAnswer = text => String(text || '')
     .replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))  // 全角→半角
     .replace(/\u3000/g, ' ')
@@ -303,7 +305,7 @@
     const whole = normalizeAnswer(raw);
     if (!input || !whole) return null;
     if (whole === input) return true;
-    return whole.split(/\s*[\/;|，,、]\s*/).some(part => part && part === input);
+    return whole.split(/\s*;\s*/).some(part => part && part === input);
   }
   function handleFillSubmit(target) {
     const card = target.closest(cardSelector);

@@ -61,7 +61,7 @@ function validateBanks(file, data) {
         warn(file, `${bank.key}: question "${String(title).slice(0, 30)}…" has ${options.length} options (expected 2–6)`);
       }
       const answer = String(question.answer || '').trim();
-      if (/^[A-E]+$/i.test(answer)) {
+      if (/^[A-Z]+$/i.test(answer)) {  // 字母答案支持 A-Z，范围按 options.length 校验
         for (const letter of answer.toUpperCase()) {
           const index = letter.charCodeAt(0) - 65;
           if (index >= options.length) fail(file, `${bank.key}: answer "${answer}" out of range for id ${id}`);

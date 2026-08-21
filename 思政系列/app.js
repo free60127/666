@@ -235,7 +235,8 @@
   }
   function printableAnswer(question) {
     const answer = String(question.answer || '').trim();
-    const letters = answer.match(/^[A-E]+/i)?.[0].toUpperCase().split('') || [];
+    // 支持 A-Z（按 options.length 过滤越界字母），当前题库为 A-E
+    const letters = (answer.match(/^[A-Z]+/i)?.[0].toUpperCase().split('') || []).filter(l => l.charCodeAt(0) - 65 < (question.options || []).length);
     if (!letters.length || !(question.options || []).length) return answer || '原文未提供标准答案，请结合教材复习。';
     const choices = letters.map(letter => {
       const option = question.options[letter.charCodeAt(0) - 65];
@@ -254,7 +255,7 @@
       questions: questions.map(question => ({question: printableQuestion(question), options: (question.options || []).map(optionText), answer: printableAnswer(question), type: labels[question.type] || question.type})),
     });
   }
-  function judge(question) { const key = questionKey(question); const item = saved.progress[key] || {}; const right = String(question.answer).match(/^[A-E]+/i)?.[0].toUpperCase().split('').map(letter => letter.charCodeAt(0) - 65) || []; const picked = item.selected || []; item.feedback = question.options.map((_, index) => right.includes(index) ? 'correct' : picked.includes(index) ? 'wrong' : ''); item.ok = right.length === picked.length && right.every(index => picked.includes(index)); item.wrong = !item.ok; saved.progress[key] = item; persist(); }
+  function judge(question) { const key = questionKey(question); const item = saved.progress[key] || {}; const right = (String(question.answer).match(/^[A-Z]+/i)?.[0].toUpperCase().split('').map(letter => letter.charCodeAt(0) - 65) || []).filter(index => index < (question.options || []).length); const picked = item.selected || []; item.feedback = question.options.map((_, index) => right.includes(index) ? 'correct' : picked.includes(index) ? 'wrong' : ''); item.ok = right.length === picked.length && right.every(index => picked.includes(index)); item.wrong = !item.ok; saved.progress[key] = item; persist(); }
 
   app.addEventListener('click', event => {
     const button = event.target.closest('[data-action]'); if (!button) return;

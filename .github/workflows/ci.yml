@@ -28,6 +28,9 @@ jobs:
           node scripts/build-standalone.js 计算机系列
           node scripts/verify-standalone.js 思政系列/思政刷题-单文件离线版.html
           node scripts/verify-standalone.js 计算机系列/计算机刷题-单文件离线版.html
-      - name: 工作区无脏改动（产物可复现）
+      - name: 工作区无脏改动（产物可复现，差异直接失败）
         run: |
-          git diff --exit-code -- source/ scripts/ || echo '::warning::CI 生成产物与提交不一致，请先本地跑 node scripts/release.js'
+          # 检查全部生成产物（data.js/data.json/单文件版 HTML 等）是否与提交一致：
+          # build.js 与 build-standalone.js 已在上方重建，若产物陈旧这里会产生差异并使 CI 失败。
+          # 版本号刷新由 release.js 负责，CI 不做，因此 ?v= 差异不会被误报。
+          git diff --exit-code || { echo '::error::构建产物与提交不一致（data.js/data.json/单文件版等），请先本地跑 node scripts/release.js'; git diff --stat; exit 1; }

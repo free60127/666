@@ -195,13 +195,16 @@ async function handleSyncDelete(request, env) {
 /* ---------- 反代加速 ---------- */
 
 async function handleProxy(request, path) {
+  // 反代只允许读取类方法，避免经代理转发任意请求；敏感头一律不转发
+  if (!['GET', 'HEAD'].includes(request.method)) {
+    return new Response('method not allowed', { status: 405 });
+  }
   // /proxy/xxx -> https://free60127.github.io/666/xxx
   const rest = path.slice('/proxy/'.length).replace(/^\/+/, '');
   const target = `${UPSTREAM}/${rest}${request.url.includes('?') ? '?' + new URL(request.url).searchParams.toString() : ''}`;
   const upstream = await fetch(target, {
     method: request.method,
     headers: filterHeaders(request.headers),
-    body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
     redirect: 'manual',
   });
   const headers = new Headers(upstream.headers);
@@ -227,8 +230,9 @@ async function handleProxy(request, path) {
 
 function filterHeaders(headers) {
   const out = new Headers();
+  const blocked = new Set(['host', 'cf-connecting-ip', 'cf-ray', 'cf-visitor', 'x-forwarded-for', 'x-forwarded-proto', 'x-real-ip', 'authorization', 'proxy-authorization', 'cookie', 'set-cookie']);
   for (const [k, v] of headers) {
-    if (['host', 'cf-connecting-ip', 'cf-ray', 'cf-visitor', 'x-forwarded-for', 'x-forwarded-proto', 'x-real-ip'].includes(k.toLowerCase())) continue;
+    if (blocked.has(k.toLowerCase())) continue;
     out.set(k, v);
   }
   out.set('x-forwarded-host', 'free60127.github.io');

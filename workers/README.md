@@ -17,7 +17,14 @@
 | DELETE | `/api/sync?deviceId=x` | 删除云端进度 | 匿名 |
 | GET | `/proxy/*` | 站点反代加速 → `https://free60127.github.io/666/*`（HTML 自动重写资源路径） | 公开 |
 
-所有 API 响应 JSON，带 `Access-Control-Allow-Origin: *` CORS 头。
+所有 API 响应 JSON。CORS：**API 路由**只对白名单来源 `https://free60127.github.io` 回显 `Access-Control-Allow-Origin`（其他来源无 CORS 头）；**反代 `/proxy/*`** 是公开静态资源，返回 `Access-Control-Allow-Origin: *`（不携带凭证）。
+
+## 安全边界（上线清单，未启用前须知）
+
+- `/api/sync` 使用匿名 `deviceId` 作为访问凭证——**知道 ID 即可读取/覆盖/删除进度**，前端暂未接入，切勿直接上线自动云同步；启用前需增加配对码/签名令牌/账号鉴权、payload 加密、冲突合并与设备解绑。
+- 反馈/同步限频使用进程内 `Map`，多实例部署时不是全局限流。
+- `/api/feedback` 拉取最多 200 条，无分页。
+- 反代仅允许 `GET/HEAD`，并主动删除 `Authorization`、`Cookie` 等敏感请求头。
 
 ## 常用命令
 
