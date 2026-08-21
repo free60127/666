@@ -1539,7 +1539,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-0607'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-0644'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;

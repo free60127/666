@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#28634f">
   <title>统一学习中心 · 外院知识分享站</title>
-  <link rel="stylesheet" href="style.css?v=20260822-0607">
-  <link rel="stylesheet" href="../reading-tools.css?v=20260822-0607" data-reading-tools-asset>
+  <link rel="stylesheet" href="style.css?v=20260822-0644">
+  <link rel="stylesheet" href="../reading-tools.css?v=20260822-0644" data-reading-tools-asset>
 <script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
   <meta name="description" content="外院知识分享站 · 统一学习中心：课程题库、学习工具与专业资料，免费分享持续更新。">
   <meta property="og:type" content="website">
@@ -25,6 +25,24 @@
       <p>PERSONAL STUDY</p>
       <h1>统一学习中心</h1>
       <div>学习记录保存在当前浏览器中。</div>
+      <div class="auth-bar" id="auth-bar">
+        <button type="button" data-action="auth-open" id="auth-open-btn">👤 登录 / 注册</button>
+        <span id="auth-email" hidden></span>
+        <button type="button" data-action="auth-logout" id="auth-logout-btn" hidden>退出登录</button>
+      </div>
+      <section id="auth-panel" class="cloud-panel" hidden aria-label="账号登录">
+        <div class="auth-tabs">
+          <button type="button" data-auth-tab="login" class="active">登录</button>
+          <button type="button" data-auth-tab="register">注册</button>
+        </div>
+        <div class="auth-fields">
+          <input id="auth-email-input" type="email" autocomplete="email" placeholder="邮箱（同学之间不重复）">
+          <input id="auth-password-input" type="password" autocomplete="current-password" placeholder="密码（至少 8 位）">
+          <input id="auth-nickname-input" type="text" autocomplete="nickname" placeholder="昵称（可选）" hidden>
+          <button type="button" data-action="auth-submit" id="auth-submit-btn">登录</button>
+        </div>
+        <p class="cloud-tip" id="auth-hint">登录后，本机恢复码会用你的密码加密存入账号：换设备登录同一账号，云端学习数据自动解锁，无需再手抄恢复码。密码即钥匙，忘记密码 = 恢复码丢失（与现在一样，请自行记牢）。</p>
+      </section>
       <div class="data-tools" aria-label="学习数据管理">
         <button type="button" data-action="cloud-backup">☁ 云端备份</button>
         <button type="button" data-action="cloud-restore">☁ 云端恢复</button>
@@ -56,12 +74,13 @@
     </nav>
     <div id="app"></div>
   </main>
-  <script src="cloud-sync.js?v=20260822-0607"></script>
-  <script src="app.js?v=20260822-0607"></script>
-  <script defer src="../reading-tools.js?v=20260822-0607" data-reading-tools-asset></script>
+  <script src="cloud-sync.js?v=20260822-0644"></script>
+  <script src="auth.js?v=20260822-0644"></script>
+  <script src="app.js?v=20260822-0644"></script>
+  <script defer src="../reading-tools.js?v=20260822-0644" data-reading-tools-asset></script>
   <link rel="stylesheet" href="../theme.css">
   <script defer src="../common.js" data-common-injected></script>
-  <link rel="stylesheet" href="../tomato-timer.css?v=20260822-0607">
-  <script defer src="../tomato-timer.js?v=20260822-0607" data-tomato-injected></script>
+  <link rel="stylesheet" href="../tomato-timer.css?v=20260822-0644">
+  <script defer src="../tomato-timer.js?v=20260822-0644" data-tomato-injected></script>
 </body>
 </html>

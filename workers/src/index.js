@@ -11,6 +11,7 @@
  */
 
 const UPSTREAM = 'https://free60127.github.io/666';
+import { handleAuth } from './auth.js';
 // CORS：只对站点白名单来源回显 Origin（其余不带 CORS 头，浏览器直接拦截；
 // 未携带 Origin 的同源/非浏览器请求不受影响）
 const ALLOWED_ORIGINS = new Set(['https://free60127.github.io', 'https://free60127.top']);
@@ -69,6 +70,10 @@ async function route(request, env) {
         if (request.method === 'GET') return requireAdmin(request, env, () => handleListFeedback(request, env));
         if (request.method === 'DELETE') return requireAdmin(request, env, () => handleDeleteFeedback(request, env));
         return methodNotAllowed();
+      }
+
+      if (path.startsWith('/api/auth')) {
+        return handleAuth(request, env, path);
       }
 
       if (path === '/api/sync') {

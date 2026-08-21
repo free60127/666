@@ -6,5 +6,8 @@
   "workers_dev": true,
   "kv_namespaces": [
     { "binding": "STUDY_KV", "id": "c839167b913f41d8b9bb6eb7eaa04821" }
+  ],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "waiyuan-study-db", "database_id": "c73a1670-5b73-4b85-9801-8e25b5f3aa1a" }
   ]
 }
