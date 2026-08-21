@@ -1,7 +1,15 @@
 # 外院知识分享站 · 云端 API（Cloudflare Worker）
 
-线上地址：`https://waiyuan-study.3338095791.workers.dev`
-（域名若被网络环境 DNS 污染，可改用 DoH 解析后直连真实 IP，或后续绑定自定义域名）
+线上地址：`https://api.free60127.top`（API）／ `https://free60127.top`（主域直连反代）
+备用：`https://waiyuan-study.3338095791.workers.dev`（workers.dev 在国内常被 DNS 污染，仅作兜底）
+
+## 域名接入（2026-08-21）
+
+- 阿里云注册域名 `free60127.top`，NS 已改指向 Cloudflare（`andy.ns.cloudflare.com` + `mallory.ns.cloudflare.com`），zone 状态 `active`。
+- `api.free60127.top`：绑定本 Worker（API 专用，只走 `/api/*` 路由）。
+- `free60127.top`：绑定本 Worker，所有非 `/api/` 路径反代 `https://free60127.github.io/666`（HTML 自动去 `/666/` 前缀 + OG 地址改主域）。
+- CORS 白名单：`https://free60127.github.io`、`https://free60127.top`。
+- 前端切换：`common.js` 的 `WAIYUAN_API_BASE = https://api.free60127.top`（一处生效全站）。
 
 ## 接口一览
 
@@ -16,8 +24,9 @@
 | GET | `/api/sync?deviceId=x` | 进度同步下载（不存在返回 404） | 匿名 |
 | DELETE | `/api/sync?deviceId=x` | 删除云端进度 | 匿名 |
 | GET | `/proxy/*` | 站点反代加速 → `https://free60127.github.io/666/*`（HTML 自动重写资源路径） | 公开 |
+| GET | `/` 及任意非 `/api/` 路径 | 主域直连反代（`free60127.top`），HTML 去 `/666/` 前缀 + OG 地址改主域 | 公开 |
 
-所有 API 响应 JSON。CORS：**API 路由**只对白名单来源 `https://free60127.github.io` 回显 `Access-Control-Allow-Origin`（其他来源无 CORS 头）；**反代 `/proxy/*`** 是公开静态资源，返回 `Access-Control-Allow-Origin: *`（不携带凭证）。
+所有 API 响应 JSON。CORS：**API 路由**只对白名单来源（`https://free60127.github.io`、`https://free60127.top`）回显 `Access-Control-Allow-Origin`（其他来源无 CORS 头）；**反代**是公开静态资源，返回 `Access-Control-Allow-Origin: *`（不携带凭证）。
 
 ## 安全边界（上线清单，未启用前须知）
 

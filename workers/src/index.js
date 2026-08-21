@@ -13,7 +13,7 @@
 const UPSTREAM = 'https://free60127.github.io/666';
 // CORS：只对站点白名单来源回显 Origin（其余不带 CORS 头，浏览器直接拦截；
 // 未携带 Origin 的同源/非浏览器请求不受影响）
-const ALLOWED_ORIGINS = new Set(['https://free60127.github.io']);
+const ALLOWED_ORIGINS = new Set(['https://free60127.github.io', 'https://free60127.top']);
 const corsFor = request => {
   const origin = (request && request.headers.get('Origin')) || '';
   if (!origin || !ALLOWED_ORIGINS.has(origin)) return {};
@@ -70,7 +70,10 @@ async function route(request, env) {
         return methodNotAllowed();
       }
 
-      if (path.startsWith('/proxy/')) return handleProxy(request, path);
+      // 反代（主域直连或 /proxy/ 兼容路径）；api.free60127.top 只提供 API，不反代
+      if (url.hostname !== 'api.free60127.top' && !path.startsWith('/api/')) {
+        return handleProxy(request, path, path.startsWith('/proxy/') ? 'proxy' : 'root');
+      }
 
       return json({ error: 'not found', path }, 404);
     } catch (err) {
@@ -192,16 +195,19 @@ async function handleSyncDelete(request, env) {
   return json({ ok: true });
 }
 
-/* ---------- 反代加速 ---------- */
+/* ---------- 反代加速 ----------
+   mode 'root'：主域直连（https://free60127.top/xxx -> UPSTREAM/xxx，HTML 去 /666/ 前缀）
+   mode 'proxy'：兼容路径（/proxy/xxx -> UPSTREAM/xxx，HTML 一律改 /proxy/ 前缀） */
 
-async function handleProxy(request, path) {
+async function handleProxy(request, path, mode) {
   // 反代只允许读取类方法，避免经代理转发任意请求；敏感头一律不转发
   if (!['GET', 'HEAD'].includes(request.method)) {
     return new Response('method not allowed', { status: 405 });
   }
-  // /proxy/xxx -> https://free60127.github.io/666/xxx
-  const rest = path.slice('/proxy/'.length).replace(/^\/+/, '');
-  const target = `${UPSTREAM}/${rest}${request.url.includes('?') ? '?' + new URL(request.url).searchParams.toString() : ''}`;
+  const prefix = mode === 'root' ? '/' : '/proxy/';
+  const rest = path.startsWith(prefix) ? path.slice(prefix.length).replace(/^\/+/, '') : '';
+  const url = new URL(request.url);
+  const target = `${UPSTREAM}/${rest}${url.search}`;
   const upstream = await fetch(target, {
     method: request.method,
     headers: filterHeaders(request.headers),
@@ -209,14 +215,23 @@ async function handleProxy(request, path) {
   });
   const headers = new Headers(upstream.headers);
   headers.delete('content-security-policy');
-  // 资源引用重写：站内相对路径一律走反代域
+  // 资源引用重写
   const type = (headers.get('content-type') || '');
   let body = upstream.body;
   if (type.includes('text/html')) {
-    body = (await upstream.text())
-      .replace(/(href|src)="\/666\//g, `$1="/proxy/`)   // 站点绝对路径 /666/x -> 反代 /proxy/x
-      .replace(/(href|src)="\/(?!\/)/g, `$1="/proxy/`)   // 其他根绝对路径 -> /proxy/x
-      .replace(/(href|src)="(?!https?:|\/\/|#|data:)/g, `$1="/proxy/`); // 相对路径 -> /proxy/x
+    let html = await upstream.text();
+    if (mode === 'root') {
+      // 主域直连：/666/x -> /x；OG 分享地址改主域；其余根绝对/相对路径保持（自然走本域）
+      html = html
+        .replace(/(href|src)="\/666\//g, `$1="/`)
+        .replace(/https:\/\/free60127\.github\.io\/666\//g, 'https://free60127.top/');
+    } else {
+      html = html
+        .replace(/(href|src)="\/666\//g, `$1="/proxy/`)
+        .replace(/(href|src)="\/(?!\/)/g, `$1="/proxy/`)
+        .replace(/(href|src)="(?!https?:|\/\/|#|data:)/g, `$1="/proxy/`);
+    }
+    body = html;
     // body 已重写，原响应长度/编码/缓存标签全部失效，必须移除
     headers.delete('content-length');
     headers.delete('content-encoding');

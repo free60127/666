@@ -27,9 +27,9 @@
   else window.addEventListener('load', injectGoatCounter, { once: true });
 
   /* ---------- 云端 API 配置 ----------
-     默认指向 Cloudflare Worker；绑定自定义域名后改为 https://api.free60127.top
-     （只需改这一处，全站生效） */
-  window.WAIYUAN_API_BASE = window.WAIYUAN_API_BASE || 'https://waiyuan-study.3338095791.workers.dev';
+     指向 Cloudflare Worker 自定义域 api.free60127.top（2026-08-21 绑定）；
+     回退值保留 workers.dev 地址，域名未生效时 API 静默降级不影响功能 */
+  window.WAIYUAN_API_BASE = window.WAIYUAN_API_BASE || 'https://api.free60127.top';
 
   /* ---------- 首页公告（读云端 /api/notice）----------
      页面内有 #site-notice 才生效；云端不可达时静默隐藏，不影响任何功能 */

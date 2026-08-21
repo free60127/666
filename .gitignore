@@ -19,3 +19,6 @@ tests/playwright-report/
 
 # data backup files (release.js also excludes these)
 *.bak-*
+
+# dsh vision router artifacts
+.dsh-vision-router/
