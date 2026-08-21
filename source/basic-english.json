@@ -5335,16 +5335,23 @@
        "module": ""
       },
       {
+       "index": "6",
+       "q": "这个基金会的首要工作是确保战争地区妇女和儿童的利益得到维护。(attend to)",
+       "answer": "The primary task of this foundation is to make sure that the interests of women and children in the war zones are attended to.",
+       "type": "text",
+       "module": ""
+      },
+      {
        "index": "7",
        "q": "既然我已经离开家到了一个新的环境，我不能再依赖父母，而要尽力自已解决问题。(now that)",
-       "answer": "The primary task of this foundation is to make sure that the interests of women and children in the war zones are attended to.",
+       "answer": "Now that I have left home for a strange environment, I can no longer rely on my parents and must try to work out any problems on my own.",
        "type": "text",
        "module": ""
       },
       {
        "index": "8",
        "q": "为了以防万一，你还是带上自己的肥皂、洗发水和毛巾。(incase)",
-       "answer": "Now that I have left home for a strange environment, I can no longer rely on my parents and must try to work out any problems on my own.",
+       "answer": "Just in case, you'd better bring your own soap, shampoo and towel.",
        "type": "text",
        "module": ""
       },
@@ -5475,7 +5482,7 @@
       {
        "index": "5",
        "q": "不要理睬侮辱，但要留意听取建设性批评意见.(take heed to)",
-       "answer": "The Fates were often thought to be cruel, for they took no heed to human suffering, and were usually depicted as old and ugly women attended by the shadowy Nemesis, goddess of the inevitable.",
+       "answer": "Ignore insults, but take heed to constructive criticism.",
        "type": "text",
        "module": ""
       },
@@ -11273,6 +11280,874 @@
    "name": "基英4",
    "units": [
     {
+     "key": "book-4-translation-unit-1",
+     "kind": "translation",
+     "kindLabel": "汉译英",
+     "name": "Unit 1",
+     "modules": [],
+     "instruction": "",
+     "wordBanks": [],
+     "questions": [
+      {
+       "index": "1",
+       "q": "很多生物（organism）都具有至少初级形式的（rudimentary form）自我意识形式，以此来感知自身与环境的区别。",
+       "answer": "Many organisms exhibit at least a rudimentary form of self-awareness by which they experience themselves as distinct from their environment.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "然而，人类的自我意识更加深奥，这使人具有反思、自省（introspection and self-reflection）等人类独有的能力。",
+       "answer": "However, humans are capable of more profound forms of self-awareness that make possible uniquely human capacities such as introspection and self-reflection.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "自我意识通常分为两种形式，分别对应人类关注自身的两种角度（vantage point）。",
+       "answer": "A distinction typically is drawn between forms of self-consciousness corresponding to the two distinct vantage points from which people can direct attention toward themselves.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "所谓私我意识（private self-consciousness），是指人倾向于从个人角度来聚焦自我，关注（attend to）旁人不能轻易了解的自我的某些方面，如思想与情感等。",
+       "answer": "Private self-consciousness is the tendency to focus on oneself from a personal vantage point and attend to aspects of the self that are not readily apparent to others, such as one's thoughts and feelings.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "所谓公我意识（public self-consciousness），则指人倾向于从真实或假想的他者角度来聚焦自我、关注旁人可以了解的自我的某些方面，如外表、行为等。",
+       "answer": "Public self-consciousness is the tendency to focus on oneself from the perceived vantage point of real or imagined others and to attend to aspects of the self that are observable by others, such as facets of one's appearance and behavior.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "更强的私我意识意味着更好的自我认知，以及不论是好是坏都想增进自我认知的更浓厚兴趣。",
+       "answer": "Private self-consciousness is associated with better access to self-knowledge, and a greater interest in new self-knowledge regardless of whether that knowledge is positive.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "7",
+       "q": "因此，这类人更能表里如一，言行一致。",
+       "answer": "As a result, their attitudes are more predictive of their behavior.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "8",
+       "q": "公我意识意味着在意别人对自己的看法。",
+       "answer": "Public self consciousness is associated with phenomena that involve perceptions of how other people view the self.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "9",
+       "q": "公我意识强的人更容易屈从于群体压力，并能更准确判断别人对自己的评价。",
+       "answer": "People high in public self-consciousness are more likely to conform to group pressure, and they are more accurate in their perception of how others perceive them.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-10",
+     "name": "Unit 10",
+     "kind": "translation",
+     "instruction": "AI 辅助参考译文：本单元译文由 AI 辅助生成供学习参考，若与课堂老师提供的参考译文不一致，请以课堂版本为准。",
+     "questions": [
+      {
+       "index": "1",
+       "q": "弗里德里希·哈耶克是20世纪最负盛名的经济学家和政治哲学家（political philosopher）。",
+       "answer": "Friedrich Hayek was one of the most renowned economists and political philosophers of the twentieth century.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "与其他现代思想家相比，他最为详尽地阐释了自由市场经济（free market economy）的理论基础，是20世纪主流政治右派（mainstream political right）最具影响力的思想家。",
+       "answer": "Compared with other modern thinkers, he expounded the theoretical foundations of the free market economy most thoroughly, and was the most influential thinker of the mainstream political right in the twentieth century.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "21世纪初期资本主义在全球大行其道，哈耶克对决策者和公知领袖（shapers of public opinion）的影响功不可没。",
+       "answer": "As capitalism swept the globe in the early twenty-first century, Hayek’s influence on policymakers and shapers of public opinion was indispensable.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "他的著作《通往奴役之路》（The Road to Serfdom）对新右派运动（the New Right）的兴起发挥了关键性作用——正是在该运动的影响下，撒切尔夫人、里根和乔治·沃克·布什才得以成功当选国家元首。",
+       "answer": "His book The Road to Serfdom played a crucial role in the rise of the New Right movement; it was under the influence of this movement that Margaret Thatcher, Ronald Reagan and George W. Bush were successfully elected heads of state.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "其他政治哲学家尽管在学术领域中比哈耶克更受推崇，但在对现实政治（practical politics）的影响方面却难以望其项背。",
+       "answer": "Other political philosophers, though held in higher esteem in academic circles than Hayek, cannot match him in their influence on practical politics.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-11",
+     "name": "Unit 11",
+     "kind": "translation",
+     "instruction": "AI 辅助参考译文：本单元译文由 AI 辅助生成供学习参考，若与课堂老师提供的参考译文不一致，请以课堂版本为准。",
+     "questions": [
+      {
+       "index": "1",
+       "q": "以赛亚·伯林是英国哲学家、思想史学家（historian of ideas）、政治理论家、教育家和论说文作家（essayist）。",
+       "answer": "Isaiah Berlin was a British philosopher, historian of ideas, political theorist, educator and essayist.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "纵观其一生，其娓娓道来的精妙（conversational brilliance）、对自由主义的捍卫、对政治极端主义（political extremism）的批判以及关于思想史的著述都令世人称道。",
+       "answer": "Throughout his life, he was admired for his conversational brilliance, his defense of liberalism, his critique of political extremism, and his writings on the history of ideas.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "伯林的文章《两种自由概念》重新燃起了英语世界对政治理论的兴趣，直到今天仍是该领域最权威、讨论最多的文献（text）之一。",
+       "answer": "Berlin’s essay “Two Concepts of Liberty” rekindled the English-speaking world’s interest in political theory and remains to this day one of the most authoritative and most discussed texts in the field.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "无论其拥护者还是反对者，大家公认的事实是，任何关于政治自由的意义与价值的理论探讨都必须以伯林对积极自由和消极自由的区分为基本起点。",
+       "answer": "Among both his supporters and his critics, it is a generally acknowledged fact that any theoretical discussion of the meaning and value of political liberty must take as its starting point Berlin’s distinction between positive and negative liberty.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "年老后，伯林撰写的大量文章被广泛传播，这更引起学术界对其研究，尤其是价值多元论（value pluralism）思想的研究兴趣。",
+       "answer": "In his later years, the wide circulation of Berlin’s numerous essays further stimulated scholarly interest in his work, especially in his idea of value pluralism.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-12",
+     "kind": "translation",
+     "kindLabel": "汉译英",
+     "name": "Unit 12",
+     "modules": [],
+     "instruction": "",
+     "wordBanks": [],
+     "questions": [
+      {
+       "index": "1",
+       "q": "卢梭断言：\"真正的民主从未存在过，也永远不会存在。\"该断言明确申明了以人民与政府的完美结合为特色的纯粹民主（pure democracy）不可能存在，从而证伪了那些认为卢梭的政治理论只是一味追求完全与透明（fullness and transparency）的通常误解。",
+       "answer": "Rousseau asserts that there has never been a real democracy, and there never will be\" That lid statement of the impossibility of a pure democracy, where the people and the government would be perfectly unified, gives lie to the common assumption that his political theory seeks a state of fullness and transparency.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "当然，纯粹民主无法实现的这一特性并未使卢梭对民主简单地一拒了之。",
+       "answer": "The un realizable chat act er of pure democracy does not lead Rousseau to reject democracy tout court.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "但是，民主在卢梭的思想中却是以两种形式（form）出现的。",
+       "answer": "However, democracy appears in his thinking in two forms.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "首先，卢梭将民主设想为一种狭义上的政府模式（mode of government），即人民不经其他中介（mediation）而直接管理自己的直接民主制。",
+       "answer": "First, he conceives democracy in the limited sense of a mode of government, by which he means direct democracy where the people govern themselves without any mediation.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "也是更重要的，卢梭将民主与主权（sovereignty）联系起来，这种对民主的重新定义被视为卢梭\"最伟大的创新\"。",
+       "answer": "Second, more importantly, he relates democracy to sovereignty, this redefinition of democracy is considered \"his greatest innovation\".",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "对卢梭而言，民主对任何合法政治秩序（legitimate political order）来说都是\"奠基之地（ground of inscription）\"，因为当市民社会的正当性无法用自然或天命来解释时，市民机构和制度（civil institutions and structures）便只能通过人民意志来获得其合法性了。",
+       "answer": "For Rousseau, democracy acts \"as the ground of in seri pti on\" for any legitimate political order, for, in the absence of a natural or divine justification for civil society, civil institutions and struetures can only be sanctioned by the will of the people",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-13",
+     "name": "Unit 13",
+     "kind": "translation",
+     "instruction": "AI 辅助参考译文：本单元译文由 AI 辅助生成供学习参考，若与课堂老师提供的参考译文不一致，请以课堂版本为准。",
+     "questions": [
+      {
+       "index": "1",
+       "q": "历史的通常定义（common definition）是指过往之事，是不可更改之事的集合（collection）。",
+       "answer": "The common definition of history refers to past events — the collection of things that cannot be changed.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "但对历史学家而言，历史的定义要窄得多：历史是一个艺术术语，指对有文字记载的历史的研究。",
+       "answer": "For historians, however, the definition of history is much narrower: history is an art term referring to the study of recorded history.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "尽管历史学家也会借鉴考古学（archeology）或物理学的相关证据，但历史研究的重点仍是历史著述（historical writings）。",
+       "answer": "Although historians may also draw on evidence from archeology or the physical sciences, the focus of historical research remains historical writings.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "通常定义下的历史可以告诉我们过去发生了哪些事，但无法解释这些事为何以及如何对当前之事产生重要影响。",
+       "answer": "History in the common sense can tell us what happened in the past, but it cannot explain why and how these events have a significant impact on the present.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "在历史学家手中，历史成为一种文学形式，同时具有主观性（subjectivity）与客观性（objectivity）。",
+       "answer": "In the hands of historians, history becomes a literary form that is at once subjective and objective.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "在历史学家那里，研究与记录历史其实是在尝试解读我们的过去、现在与未来。",
+       "answer": "For historians, researching and recording history is in fact an attempt to interpret our past, present and future.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "7",
+       "q": "好的历史学家会厘清（get...right）事实，并从中提炼出指导性原则（guiding principles）和普适性理念（universal concepts）。",
+       "answer": "A good historian gets the facts right and distills from them guiding principles and universal concepts.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "8",
+       "q": "通过详实的细节和普适性理念，历史学家使我们了解其人、其地、其时。",
+       "answer": "Through concrete details and universal concepts, historians help us understand the people, the places, and the times.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "9",
+       "q": "如此一来，好的历史学家使我们与过去之间建立起个人层面的联系（personal relationship），并让我们从中学习，获得成长。",
+       "answer": "In this way, a good historian establishes for us a personal relationship with the past, enabling us to learn from it and grow.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-14",
+     "kind": "translation",
+     "kindLabel": "汉译英",
+     "name": "Unit 14",
+     "modules": [],
+     "instruction": "",
+     "wordBanks": [],
+     "questions": [
+      {
+       "index": "1",
+       "q": "随着时间的推移，越来越多的人将伯特兰·罗素视为20世纪最伟大的思想家之一。",
+       "answer": "The reputation of Bertrand Russell as one of the greatest thinkers of the twentieth century has only increased with time.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "罗素于1872年生于贵族世家（aristocratic family），是公认的分析哲学（analytic philosophy）鼻祖之一，而分析哲学乃当今英语国家（English-speaking countries）的主流哲学传统。",
+       "answer": "Born in 1872 into an aristocratic family, Russell is widely regarded as one of the founders of Analytic philosophy, which is today the dominant philosophical tradition in the English-speaking world.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "20世纪初，罗素发表了一系列重要著作，将逻辑学（logic）加以改造并置于哲学探究（philosophic inquiry）的中心。",
+       "answer": "In a seminal series of publications in the early years of the last century, Russell transformed logic and placed it at the centre of philosophic inquiry.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "罗素的这些著作，连同其后来探讨其他哲学根本问题的著作一起，对哲学研究产生了深远影响，令即使与其意见相左的学者亦受益良多。",
+       "answer": "The impact of these, and later works in which he confronted other fundamental problems of philosophy, has been profound, even on scholars who have disputed his conclusions.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "作为知识分子（intellectual life），罗素不仅是一位社会批评家、政治思想家和人道主义者（humanist），还在20世纪诸多重大问题上积极发声。",
+       "answer": "In a parallel intellectual life as social critic, political thinker and humanist, Russell addressed many issues of vital import to the history of the twentieth century.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "他支持女性参政（women's suffrage），一战时因反战（pacifism）而入狱，还是\"核裁军运动\"（Campaign for Nuclear Disarmament）的发起人之一。",
+       "answer": "He supported women's suffrage, was imprisoned for his pacifism during World War I and was a founder of the Campaign for Nuclear Disarmament.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "7",
+       "q": "罗素为普通大众（the general public）写作，创作了《西方哲学史》等家喻户晓的著作，并于1950年获诺贝尔文学奖。",
+       "answer": "He wrote a number of books aimed at the general public, including A History of Western Philosophy which became enormously popular, and in 1950 he was awarded the Nobel Prize in Literature.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-15",
+     "name": "Unit 15",
+     "kind": "translation",
+     "instruction": "AI 辅助参考译文：本单元译文由 AI 辅助生成供学习参考，若与课堂老师提供的参考译文不一致，请以课堂版本为准。",
+     "questions": [
+      {
+       "index": "1",
+       "q": "后冷战时期，对西方尤其是美国的决策者们（policymakers）影响最为深远的首推塞缪尔·亨廷顿1993年发表的《文明的冲突？》。",
+       "answer": "In the post-Cold War era, no work had a more profound influence on Western, especially American, policymakers than Samuel P. Huntington’s “The Clash of Civilizations?” published in 1993.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "该文提出，世界将重回文明主导之模式，未来纷争将主要发端于文明间的冲突。",
+       "answer": "The article argued that the world would return to a pattern dominated by civilizations, and that future conflicts would arise primarily from clashes between civilizations.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "该文面世于冷战初歇、亟待全新视角（prism）解读国际关系之际，一经推出即备受瞩目。",
+       "answer": "Appearing at a time when the Cold War had just ended and a fresh prism was urgently needed to interpret international relations, the article attracted enormous attention as soon as it was published.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "该文现在广受诟病，批评者指出，该文过于化繁就简（oversimplification），也并未料中其出版后十年间的情况。",
+       "answer": "The article has since come under wide criticism; critics point out that it is an oversimplification and that it failed to foresee the developments of the decade following its publication.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "首先，他未能充分考虑各种本土文化（indigenous cultures），虽然这些文化的确共同构成一种独立的文明。",
+       "answer": "First, he failed to take full account of various indigenous cultures, which together do constitute a distinctive civilization.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "该文还预测，未来纷争将主要源于非西方文明对西方文明的影响力和价值观（power and values）作出的反应，并忽视了另外一种同样可能的情形，即西方国家利用其军事优势（military superiority）维持其优势地位。",
+       "answer": "The article also predicted that future conflicts would arise mainly from the responses of non-Western civilizations to the influence and values of the West, while overlooking another equally possible scenario: Western nations using their military superiority to maintain their dominant position.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "7",
+       "q": "亨廷顿为应对未来可能的威胁给出了政策建议（policy prescriptions），其本质无异于（equate to）强调加强西方的力量来预防（forestall）任何对西方优势的减损。",
+       "answer": "To counter possible future threats, Huntington offered policy prescriptions that in essence amount to strengthening the West’s power so as to forestall any erosion of Western primacy.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-2",
+     "kind": "translation",
+     "kindLabel": "汉译英",
+     "name": "Unit 2",
+     "modules": [],
+     "instruction": "",
+     "wordBanks": [],
+     "questions": [
+      {
+       "index": "1",
+       "q": "爱有多种，各有侧重——比如，朋友之间看重坦诚、平等，父子之爱却无需如此；男欢女爱必得二人独享（exclusive），莫逆之交却不拘多寡。",
+       "answer": "There are different kinds of love with their respective essential elements: for instance, personal revelation and equality are essential to friendship but not to the love between parents and children, and sexual love is of its nature exclusive whereas friendship is not.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "然而，有一种要素却是众爱皆备。",
+       "answer": "There is, however, one essential element which is in all forms of love.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "那便是接受。",
+       "answer": "It is acceptance.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "对很多人而言，\"接受\"一词饱含无奈。",
+       "answer": "To many people the word \"acceptance\" means resigned acceptance.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "这个词让他们联想到高考失利的学生被迫接受现实，重新规划人生。",
+       "answer": "When they hear it they think of a student failing to qualify for entry to university and having to accept that and form a different life-plan.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "对他们而言，\"爱是接受\"的观点似乎是在主张，\"我爱你\"的意思其实是\"我会勉强自己适应（accommodate）你的存在\"或其他类似的说法。",
+       "answer": "To them, \"love is acceptance\" seems to mean that \"I love you\" means, in essence, \"I will reluctantly accommodate myself to your existence,\" or words to that effect.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "7",
+       "q": "但是，接受说到底是对自己认为好的人或物的喜爱。",
+       "answer": "In its simplest form, however, acceptance is being in favor of a being who or which is judged to be good.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "8",
+       "q": "与无奈接受不同，真正的接受并非源自敌对或怨恨（abhorrence）。",
+       "answer": "Unlike resigned acceptance, it is not preceded by opposition or abhorrence.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "9",
+       "q": "真正的接受基于被接受之人或物的价值。",
+       "answer": "Acceptance presupposes value in the being who or which is accepted.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "10",
+       "q": "接受会对人心产生重大影响。",
+       "answer": "Acceptance produces a significant result in people's hearts.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-3",
+     "kind": "translation",
+     "kindLabel": "汉译英",
+     "name": "Unit 3",
+     "modules": [],
+     "instruction": "",
+     "wordBanks": [],
+     "questions": [
+      {
+       "index": "1",
+       "q": "纵观历史，很多哲学巨擘都曾对人生意义的问题作出解答，尽管他们通常使用的并非人生意义而是其他术语。",
+       "answer": "Many major historical figures in philosophy have provided an answer to the question of what makes life meaningful, although they typically have not put it in these terms.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "著名的例子如亚里士多德（Aristotle）的人性功能论（human function）和康德的至善论（the highest good）",
+       "answer": "Consider, for instance, Aristotle on the human function and Kant on the highest good.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "尽管人生意义的问题由来已久，但直到最近的五十年间，人生意义才成为英美哲学里一个还算独立的领域（distinct field），而直到最近三十年间，该领域才出现了真正具有深度的探讨。",
+       "answer": "Despite the venerable pedigree, it is only in the last 50 years or so that something approaching a distinct field on the meaning of life has been established in Anglo-American philosophy, and it is only in the last 30 years that debate with real depth has appeared.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "当英语世界的哲学家们逐渐认识到，人生的意义与其他如福祉（well-being）、美德（virtuous character）、正确行为（right action）等常见的伦理学范畴（ethical categories）一样也可以进行深度的理性探讨（rational enquiry）时，他们对人生意义的兴趣便会一直持续。",
+       "answer": "English-speaking philosophers can be expected to continue to find life's meaning of interest as they increasingly realize that it is a distinct topic that admits of rational enquiry to no less a degree than more familiar ethical categories such as well-being, virtuous character, and right action.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-4",
+     "kind": "translation",
+     "kindLabel": "汉译英",
+     "name": "Unit 4",
+     "modules": [],
+     "instruction": "",
+     "wordBanks": [],
+     "questions": [
+      {
+       "index": "1",
+       "q": "所谓人性，是指所有\"正常\"人共有的一系列特点，包括思维方式、感觉方式和行为方式等。探讨人性的学科包括社会学、生物社会学（sociobiology）和心理学等。哲学家和神学家（theologian）也研究人性。",
+       "answer": "Human nature is the concept that there are a set of characteristics, including ways of thinking, feeling and behaving, that all \"normal\" human beings have in common. The branches of science associated with the study of human nature include sociology, sociobiology and psychology.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "从古到今，是否存在不变的人性（invariable human nature）一直颇具争议。",
+       "answer": "The existence of an invariable human nature is a subject of much historical debate, continuing into modern times.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "众所周知，达尔文从科学的角度论证了人类和其他动物并没有真正确定的本性，这一观点如今已成共识。",
+       "answer": "Most famously, Darwin gave a widely accepted scientific argument that humans and other animal species have no truly fixed nature.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "19世纪中期以来，黑格尔（Hegel）、马克思（Marx）、尼采、萨特等思想家以及很多结构主义者（structuralist）、后现代学者（postmodernist）等都对人性的概念提出过质疑。",
+       "answer": "Since the mid-19th century, the concept of human nature has been called into question by thinkers such as Hegel, Marx, Nietzsche, Sartre, and a number of structuralists and postmodernists.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "在关于人性的诸多讨论中，自由意志是一个基本问题。",
+       "answer": "The issue of free will underlies much of the debate about human nature.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "此外，是否存在超越（transcend）人体特性（human's physical attributes）之外的灵魂以及该灵魂与肉体（physical body）之间的关系，这一问题也常被议及。",
+       "answer": "Another often discussed aspect of human nature is the existence and relationship of the physical body with a soul that transcends the human's physical attributes.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-5",
+     "name": "Unit 5",
+     "kind": "translation",
+     "instruction": "AI 辅助参考译文：本单元译文由 AI 辅助生成供学习参考，若与课堂老师提供的参考译文不一致，请以课堂版本为准。",
+     "questions": [
+      {
+       "index": "1",
+       "q": "死亡是人类面临的共同命运（common fate）。",
+       "answer": "Death is a common fate faced by all human beings.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "然而，尽管世人皆有一死，在努力理解与掌控死亡的过程中，不同的人和社会却形成了迥然各异的死亡观（approaches to mortality），这些不同的观点反映出这些人和社会的爱憎好恶。",
+       "answer": "Yet although all mortals must die, different people and societies have developed strikingly different approaches to mortality in their efforts to understand and control death, and these divergent views reflect the likes and dislikes of those people and societies.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "正如一位历史学家所言，死亡对传统中国社会来说并非像在西方社会早期那样重要。",
+       "answer": "As one historian has observed, death was never as important to traditional Chinese society as it was in the early West.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "例如，中国没有宏大叙事（grand narratives）讲述悲剧英雄在生命无可挽回的悲壮尽头（violent and inevitable end）如何找到真正的自我，展现其至高美德（highest virtue）。",
+       "answer": "For example, China has no grand narratives telling of how a tragic hero, at the violent and inevitable end of his life, finds his true self and displays his highest virtue.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "在中国早期，死亡并非什么了不起的事，而是更多被看作生命的一个自然特征。",
+       "answer": "In early China, death was not regarded as anything extraordinary; rather, it was seen more as a natural feature of life.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "中国死亡观的这些独特之处对中国死亡观的研究颇具意义，因为它们不仅揭示了中国文化的特性，更对探究人类死亡观的一般性理论具有启示意义。",
+       "answer": "These distinctive features of the Chinese view of death are highly significant for the study of Chinese attitudes toward death, for they not only reveal the distinctive character of Chinese culture but also shed light on general theories concerning human views of death.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-6",
+     "name": "Unit 6",
+     "kind": "translation",
+     "instruction": "AI 辅助参考译文：本单元译文由 AI 辅助生成供学习参考，若与课堂老师提供的参考译文不一致，请以课堂版本为准。",
+     "questions": [
+      {
+       "index": "1",
+       "q": "勒内·笛卡尔常被誉为现代哲学之父。",
+       "answer": "René Descartes is often hailed as the father of modern philosophy.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "这个头衔可谓实至名归，因为正是笛卡尔破除了当时盛行的传统经院哲学（traditional scholastic philosophy），并发展和弘扬了新的机械论科学（mechanistic sciences）。",
+       "answer": "The title is well deserved, for it was Descartes who broke with the prevailing traditional scholastic philosophy of his day and developed and championed the new mechanistic sciences.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "笛卡尔怀疑方法的基本策略是，将那些哪怕只有些许可疑之处的理念都视为假。",
+       "answer": "The basic strategy of Descartes’ method of doubt is to treat as false any idea that admits of even the slightest doubt.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "这种“夸张的怀疑”（hyperbolic doubt）为笛卡尔客观地探究真理扫清了道路。",
+       "answer": "This “hyperbolic doubt” cleared the way for Descartes to inquire into truth objectively.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "由此，笛卡尔开始探寻真正不容置疑（beyond all doubt）之物。",
+       "answer": "From there, Descartes set out to seek something truly beyond all doubt.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "他最终发现，“我存在”是无论如何也不容置疑的，因此也是绝对确定的。",
+       "answer": "He finally discovered that “I exist” is beyond doubt under any circumstances, and is therefore absolutely certain.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "7",
+       "q": "正是从这点出发，笛卡尔进一步推演（demonstrate）了上帝的存在，进而证明了万物的确定性（certainty）。",
+       "answer": "It was from this point that Descartes went on to demonstrate the existence of God, and thereby the certainty of all things.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "8",
+       "q": "该结论一旦确立，笛卡尔便可以在此绝对确定的基础（absolutely certain foundation）上重建此前被置于怀疑之下的理念体系，包括外在于心的（external to the mind）物质世界之存在，物质的身体（material body）与非物质的心灵（immaterial mind）之间的二元区别（dualistic distinction），以及几何学（geometry）基础上的物理学机械论模型（mechanistic model of physics）等。",
+       "answer": "Once this conclusion was established, Descartes could rebuild, on this absolutely certain foundation, the whole system of ideas that had previously been cast into doubt, including the existence of the material world external to the mind, the dualistic distinction between the material body and the immaterial mind, and the mechanistic model of physics grounded in geometry.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-7",
+     "kind": "translation",
+     "kindLabel": "汉译英",
+     "name": "Unit 7",
+     "modules": [],
+     "instruction": "",
+     "wordBanks": [],
+     "questions": [
+      {
+       "index": "1",
+       "q": "埃里克·弗罗姆是执业（practicing）心理分析师，也是一位敬业的社会理论家。",
+       "answer": "Erich Fromm was both a practicing psychoanalyst and a committed social theorist.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "其作品博采弗罗伊德、马克思等各家之长，语言通俗易懂，对社会的批判（social critique）激烈尖锐，并善于将心理分析的洞见（insight）融入社会理论之中。",
+       "answer": "He had the ability to write for a popular audience, to develop a strong social critique, and to combine psychological insight with social theory, drawing on diverse sources such as Freud and Marx.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "然而，一些同事并未因其才能而喜欢他，他们对他的诸多努力提出质疑甚至担忧。",
+       "answer": "These qualities did not endear him to a number of his colleagues who viewed his efforts with some suspicion and even alarm.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "如今，他有关社会本质与人类活动的看法非常值得教育者思考，尤其是那些致力于实现更公平生活形式（fairer forms of living）的教育者们。",
+       "answer": "Today, his insights into the nature of society and human activity have a lot to say to educators – especially those committed to working for fairer forms of living.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "《逃离自由》是弗罗姆众多颇具影响的著作中最早的一部，于1941年出版。",
+       "answer": "In 1941, the first of Fromm's deeply influential books appeared: Escape From Freedom.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "该书提出，脱离了中世纪社会（medieval society）传统的羁绊也使其感到形单影只，孤立封闭。",
+       "answer": "It argued that freedom from the traditional bonds of medieval society, made him feel alone and isolated.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "7",
+       "q": "这种与地域和群体的疏离（alienation）以及由此而来的不安与恐惧有助于解释人们为何会从法西斯主义等独裁社会形态（authoritarian social orders）中寻求安全感与回报。",
+       "answer": "This alienation from place and community, and the insecurities and fears entailed, helps to explain how people seek the security and rewards of authoritarian social orders such as fascism.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-8",
+     "kind": "translation",
+     "kindLabel": "汉译英",
+     "name": "Unit 8",
+     "modules": [],
+     "instruction": "",
+     "wordBanks": [],
+     "questions": [
+      {
+       "index": "1",
+       "q": "\"我不同意你的观点，但我誓死捍卫你说话的权利。\"伏尔泰（Voltaire）的这句名言浓缩（encapsulate）了本书的核心思想，即言论自由（freedom of expression）值得积极捍卫，哪怕你痛恨那说出的话。",
+       "answer": "\"I despise what you say, but will defend to the death your right to say it.\" This declaration, attributed to Voltaire, encapsulates the idea at the core of the book: freedom of speech is worth defending vigorously even when you hate what is being spoken.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "言论自由原则是民主的核心和基本人权，对这一原则的捍卫是文明、包容社会（civilized and tolerant society）的标志。",
+       "answer": "This principle is at the heart of democracy, a basic human right, and its protection is a mark of a civilized and tolerant society.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "联合国《世界人权宣言》（Universal Declaration of Human Rights）第十九条（Article 19）和美国宪法第一修正案（the First Amendment）都明确指出保护言论自由的必要性。",
+       "answer": "Article 19 of the United Nations' Universal Declaration of Human Rights and the First Amendment to the US Constitution both explicitly recognize the need to protect free expression.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "这两个文件表明了言论自由原则的基础性地位，同时也指出若不对其加以保护，该自由便岌岌可危。",
+       "answer": "In both cases this indicates the free speech principle's fundamental importance, but it is also an acknowledgement of how fragile this freedom can be if it is not protected.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "手握法律或强权（law or force）让众对手三缄其口（gag），这种诱惑实在难抵。",
+       "answer": "The temptation to use law or force to gag opponents of one kind or another is difficult to resist.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "但若缺少了评论政客的自由，民主便可能沦为暴政（tyranny）。",
+       "answer": "Without freedom to criticize and challenge those politicians, democracies may degenerate into tyrannies.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-translation-unit-9",
+     "kind": "translation",
+     "kindLabel": "汉译英",
+     "name": "Unit 9",
+     "modules": [],
+     "instruction": "",
+     "wordBanks": [],
+     "questions": [
+      {
+       "index": "1",
+       "q": "我们是否赞同自己的行为，其根据似乎与我们判断他人行为时的原则完全相同。",
+       "answer": "The principle by which we naturally either approve or disapprove of our own conduct, seems to be altogether the same with that by which we exercise the like judgments concerning the conduct of other people.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "我们是否赞同他人的行为，根据的是当我们设身处地站在对方立场上时（bring...home to）能否充分同情（sympathize）导致其行为的情感和动机。",
+       "answer": "We either approve or disapprove of the conduct of another man according as we feel that, when we bring his case home to ourselves, we either can or cannot entirely sympathize with the sentiments and motives which directed it.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "同样，当我们站在他人的角度看待自己的行为时，是否表示赞同也取决于我们能否对影响自己行为的情感和动机有充分的理解和同情。",
+       "answer": "And, in the same manner, we either approve or disapprove of our own conduct, according as we feel that, when we place ourselves in the situation of another man, and view it, as it were, with his eyes and from his station, we either can or cannot entirely enter into and sympathize with the sentiments and motives which influenced it.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "除非我们离开自发的立场（natural station），尽量带着一定的距离感来看待自己的情感和动机，否则我们不可能全面地审视（survey）它们，也不可能对其作出任何判断。",
+       "answer": "We can never survey our own sentiments and motives, we can never form any judgment concerning them; unless we remove ourselves, as it were, from our own natural station, and endeavor to view them as at a certain distance from us.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "要做到这一点，我们只有（no other than）努力用他人的眼光或他人可能会有的看法来看待自己。",
+       "answer": "But we can do this in no other than by endeavour ing to view them with the eyes of other people, or as other people are likely to view them.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "这样一来，无论我们作出什么判断，都会与他人的判断具有某种隐秘的联系，无论这种联系是实际存在，在某种情况下可能出现，或者仅仅出于我们的想象。",
+       "answer": "Whatever judgment we can form concerning them, accordingly, must always bear some secret reference, either to what are, or to what, upon a certain condition, would be, or to what, we imagine, ought to be the judgment of others.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "7",
+       "q": "我们会努力像任何公正无私的旁观者那样审视自己的行为。",
+       "answer": "We endeavor to examine our own conduct as we imagine any other fair and impartial spectator would examine it.",
+       "type": "text",
+       "module": ""
+      },
+      {
+       "index": "8",
+       "q": "置身旁观者立场时，如果我们能够完全理解（enter into）影响自己行为的所有情绪和动机，我们就会同意心目中那位公正法官的认可（approbation），赞同自己的行为；否则，我们就会体谅他的非难（disapprobation），并且谴责这种行为。",
+       "answer": "If, upon placing ourselves in his situation, we thoroughly enter into all the passions and motives which in flu cn ced it, we approve of it, by sympathy with the approbation of this supposes equitable judge If otherwise, we enter into his disapprobation, and condemn it.",
+       "type": "text",
+       "module": ""
+      }
+     ]
+    },
+    {
      "key": "book-4-vocabulary-unit-1",
      "kind": "vocabulary",
      "kindLabel": "词汇",
@@ -11368,6 +12243,208 @@
         "within"
        ],
        "answer": "C",
+       "type": "choice",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-vocabulary-unit-12",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
+     "name": "Unit 12",
+     "modules": [],
+     "instruction": "",
+     "wordBanks": [],
+     "questions": [
+      {
+       "index": "1",
+       "q": "In motorsport it's not the color and style of your clothes that matter, it's whether they are fireproof, and the regulations ________ that everything has to comply with the relevant safety standards.",
+       "options": [
+        "stipulate",
+        "inquire",
+        "regulate",
+        "command"
+       ],
+       "answer": "A",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "For the sake of ________ in an age afflicted by mass unemployment, his parents urged him to study engineering for a year, before decamping to his real vocation, music.",
+       "options": [
+        "carefulness",
+        "prudence",
+        "deliberation",
+        "calculation"
+       ],
+       "answer": "B",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "This theory of social evolution could explain which mechanisms had produced the ideas, principles and processes which governed capitalism, why these had come ________, why they had strength, and ultimately, where their weakness was.",
+       "options": [
+        "across",
+        "around",
+        "about",
+        "apart"
+       ],
+       "answer": "C",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "This model suggests that people's acquisition of complex behavior is ________ constructing a wall, a process of building up a structure brick by brick.",
+       "options": [
+        "suggestive to",
+        "analogous to",
+        "similar with",
+        "same as"
+       ],
+       "answer": "B",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "It is an error to assume, as I did myself at one time, that theory necessarily exists in an ancillary and elucidatory relationship to criticism, which is in turn at the ________ of literature.",
+       "options": [
+        "service",
+        "servitude",
+        "serving",
+        "serve"
+       ],
+       "answer": "A",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "It's disgusting that some big banks plan to charge fees to people in ________. They got themselves in a mess by losing millions on loans to dubious borrowers, and now they want prudent customers to pay for it.",
+       "options": [
+        "good",
+        "honor",
+        "credit",
+        "trust"
+       ],
+       "answer": "C",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "7",
+       "q": "In mechanics, energy is considered in two general forms: potential energy that is held within a body ________ its location, temperature, even chemical state, and kinetic energy because of its velocity or rate of change.",
+       "options": [
+        "aged",
+        "ageing",
+        "ageist"
+       ],
+       "answer": "B",
+       "type": "choice",
+       "module": ""
+      }
+     ]
+    },
+    {
+     "key": "book-4-vocabulary-unit-14",
+     "kind": "vocabulary",
+     "kindLabel": "词汇",
+     "name": "Unit 14",
+     "modules": [],
+     "instruction": "",
+     "wordBanks": [],
+     "questions": [
+      {
+       "index": "1",
+       "q": "Critics believe the Central Government's allocation of up to 22 million dollars for care agencies will be heavily ________ back as local authorities are given the final say on how the money is spent.",
+       "options": [
+        "taken",
+        "reduced",
+        "trimmed",
+        "changed"
+       ],
+       "answer": "C",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "2",
+       "q": "He was an ecologist of international significance, widely acknowledged, respected and indeed ________ as the preeminent botanist of his time, and his prowess was all the more remarkable given that he was born into a poor family.",
+       "options": [
+        "awed",
+        "gorgeous",
+        "famous",
+        "revered"
+       ],
+       "answer": "D",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "3",
+       "q": "Although the television market appears to be a free-for-all to delight the most Darwin ist of entrepreneurs, a scrutiny of the top five private networks reveals that they are all in the hands of a holding firm which is the broadcast ________ of that business tycoon.",
+       "options": [
+        "tongue",
+        "vehicle",
+        "way",
+        "throat"
+       ],
+       "answer": "B",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "4",
+       "q": "For the elderly, the history of welfare provision seems to have been less a story of steady progress over the centuries than a(n) ________ between phases of relative generosity and meanness.",
+       "options": [
+        "oscillation",
+        "change",
+        "alternative",
+        "vibration"
+       ],
+       "answer": "A",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "5",
+       "q": "Professors were perturbed by their university president's speech and students, previously urged to \"emancipate their minds\" from the fetters of ________, found themselves once again facing the same rhetoric and cliché of former times.",
+       "options": [
+        "teaching",
+        "belief",
+        "dogma",
+        "creed"
+       ],
+       "answer": "C",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "6",
+       "q": "A feeling of gladness began to grow within her, manifesting itself in an exhilaration she found difficult to ________.",
+       "options": [
+        "vanish",
+        "subdue",
+        "restrict",
+        "refrain"
+       ],
+       "answer": "B",
+       "type": "choice",
+       "module": ""
+      },
+      {
+       "index": "7",
+       "q": "Simm el emphasizes the paradoxical nature of modernity, recognizing the essentially positive process which has allowed for hitherto unimaginable possibilities; but he is wary of the forces which lead toward reification and autonomy, both of which are ________ human interests.",
+       "options": [
+        "roaming",
+        "walking",
+        "stalking"
+       ],
+       "answer": "A",
        "type": "choice",
        "module": ""
       }
@@ -11993,208 +13070,6 @@
      ]
     },
     {
-     "key": "book-4-vocabulary-unit-12",
-     "kind": "vocabulary",
-     "kindLabel": "词汇",
-     "name": "Unit 12",
-     "modules": [],
-     "instruction": "",
-     "wordBanks": [],
-     "questions": [
-      {
-       "index": "1",
-       "q": "In motorsport it's not the color and style of your clothes that matter, it's whether they are fireproof, and the regulations ________ that everything has to comply with the relevant safety standards.",
-       "options": [
-        "stipulate",
-        "inquire",
-        "regulate",
-        "command"
-       ],
-       "answer": "A",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "2",
-       "q": "For the sake of ________ in an age afflicted by mass unemployment, his parents urged him to study engineering for a year, before decamping to his real vocation, music.",
-       "options": [
-        "carefulness",
-        "prudence",
-        "deliberation",
-        "calculation"
-       ],
-       "answer": "B",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "3",
-       "q": "This theory of social evolution could explain which mechanisms had produced the ideas, principles and processes which governed capitalism, why these had come ________, why they had strength, and ultimately, where their weakness was.",
-       "options": [
-        "across",
-        "around",
-        "about",
-        "apart"
-       ],
-       "answer": "C",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "4",
-       "q": "This model suggests that people's acquisition of complex behavior is ________ constructing a wall, a process of building up a structure brick by brick.",
-       "options": [
-        "suggestive to",
-        "analogous to",
-        "similar with",
-        "same as"
-       ],
-       "answer": "B",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "5",
-       "q": "It is an error to assume, as I did myself at one time, that theory necessarily exists in an ancillary and elucidatory relationship to criticism, which is in turn at the ________ of literature.",
-       "options": [
-        "service",
-        "servitude",
-        "serving",
-        "serve"
-       ],
-       "answer": "A",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "6",
-       "q": "It's disgusting that some big banks plan to charge fees to people in ________. They got themselves in a mess by losing millions on loans to dubious borrowers, and now they want prudent customers to pay for it.",
-       "options": [
-        "good",
-        "honor",
-        "credit",
-        "trust"
-       ],
-       "answer": "C",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "7",
-       "q": "In mechanics, energy is considered in two general forms: potential energy that is held within a body ________ its location, temperature, even chemical state, and kinetic energy because of its velocity or rate of change.",
-       "options": [
-        "aged",
-        "ageing",
-        "ageist"
-       ],
-       "answer": "B",
-       "type": "choice",
-       "module": ""
-      }
-     ]
-    },
-    {
-     "key": "book-4-vocabulary-unit-14",
-     "kind": "vocabulary",
-     "kindLabel": "词汇",
-     "name": "Unit 14",
-     "modules": [],
-     "instruction": "",
-     "wordBanks": [],
-     "questions": [
-      {
-       "index": "1",
-       "q": "Critics believe the Central Government's allocation of up to 22 million dollars for care agencies will be heavily ________ back as local authorities are given the final say on how the money is spent.",
-       "options": [
-        "taken",
-        "reduced",
-        "trimmed",
-        "changed"
-       ],
-       "answer": "C",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "2",
-       "q": "He was an ecologist of international significance, widely acknowledged, respected and indeed ________ as the preeminent botanist of his time, and his prowess was all the more remarkable given that he was born into a poor family.",
-       "options": [
-        "awed",
-        "gorgeous",
-        "famous",
-        "revered"
-       ],
-       "answer": "D",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "3",
-       "q": "Although the television market appears to be a free-for-all to delight the most Darwin ist of entrepreneurs, a scrutiny of the top five private networks reveals that they are all in the hands of a holding firm which is the broadcast ________ of that business tycoon.",
-       "options": [
-        "tongue",
-        "vehicle",
-        "way",
-        "throat"
-       ],
-       "answer": "B",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "4",
-       "q": "For the elderly, the history of welfare provision seems to have been less a story of steady progress over the centuries than a(n) ________ between phases of relative generosity and meanness.",
-       "options": [
-        "oscillation",
-        "change",
-        "alternative",
-        "vibration"
-       ],
-       "answer": "A",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "5",
-       "q": "Professors were perturbed by their university president's speech and students, previously urged to \"emancipate their minds\" from the fetters of ________, found themselves once again facing the same rhetoric and cliché of former times.",
-       "options": [
-        "teaching",
-        "belief",
-        "dogma",
-        "creed"
-       ],
-       "answer": "C",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "6",
-       "q": "A feeling of gladness began to grow within her, manifesting itself in an exhilaration she found difficult to ________.",
-       "options": [
-        "vanish",
-        "subdue",
-        "restrict",
-        "refrain"
-       ],
-       "answer": "B",
-       "type": "choice",
-       "module": ""
-      },
-      {
-       "index": "7",
-       "q": "Simm el emphasizes the paradoxical nature of modernity, recognizing the essentially positive process which has allowed for hitherto unimaginable possibilities; but he is wary of the forces which lead toward reification and autonomy, both of which are ________ human interests.",
-       "options": [
-        "roaming",
-        "walking",
-        "stalking"
-       ],
-       "answer": "A",
-       "type": "choice",
-       "module": ""
-      }
-     ]
-    },
-    {
      "key": "book-4-wordFill-unit-1",
      "kind": "wordFill",
      "kindLabel": "选词填空",
@@ -12280,6 +13155,234 @@
        "index": "9",
        "q": "How successful a computer installation is will depend largely on how clearly the customer and the supplier have defined ______ what the system is supposed to achieve",
        "answer": "at the outset",
+       "type": "text",
+       "module": "词库模块 1"
+      }
+     ]
+    },
+    {
+     "key": "book-4-wordFill-unit-12",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
+     "name": "Unit 12",
+     "modules": [
+      "词库模块 1",
+      "词库模块 2",
+      "词库模块 3",
+      "词库模块 4"
+     ],
+     "instruction": "从本模块词库中选择合适的词，并按需要变换形式。",
+     "wordBanks": [
+      {
+       "module": "词库模块 1",
+       "words": [
+        "governed",
+        "family",
+        "combine",
+        "associate",
+        "state of nature",
+        "might",
+        "slavery",
+        "conventions",
+        "alienation",
+        "social contract"
+       ]
+      },
+      {
+       "module": "词库模块 2",
+       "words": [
+        "mature",
+        "ripe",
+        "grown"
+       ]
+      },
+      {
+       "module": "词库模块 3",
+       "words": [
+        "effect",
+        "affect",
+        "influence"
+       ]
+      },
+      {
+       "module": "词库模块 4",
+       "words": [
+        "nation",
+        "state",
+        "country"
+       ]
+      }
+     ],
+     "questions": [
+      {
+       "index": "1",
+       "q": "Rousseau starts his analysis with the assertion that social order does not come from nature but is based on (1) ______: This is true in the (2) ______ which is the earliest and the only natural political society, and is also true in the State. Early thinkers use (3) ______ as an example to demonstrate that human authority is set up not for the benefit of the (4) ______ but for the leaders. This is problematic for Rousseau, for according to him, (5) ______ does not make right. The reason why people agree to give up their liberty to form a society is that in the (6) ______, they reach a point when they cannot overcome the impediments to their subsistence, so they decide to (7) ______ their forces to produce a sum of forces more powerful than those impediments. This requires a total (8) ______ of their rights, so in order to protect their liberty, they enter into a(n) (9) ______ whose clauses ensure the preservation of personal liberty for every (10) ______.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 1"
+      },
+      {
+       "index": "2",
+       "q": "Apples of these kinds are very poor keepers and should be picked and eaten as soon as they are ______.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 2"
+      },
+      {
+       "index": "3",
+       "q": "In such a _____ market it is unusual to experience the creation of new opportunities like this.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 2"
+      },
+      {
+       "index": "4",
+       "q": "You were only 18 at that time as opposed to being a ______ man today.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 2"
+      },
+      {
+       "index": "5",
+       "q": "In this short-term money market, most loans ______ within 12 months.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 2"
+      },
+      {
+       "index": "6",
+       "q": "After appointing a new sales manager, the boss decided that the time was ______ to take a further step in the gradual process of integrating the management of the services.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 2"
+      },
+      {
+       "index": "7",
+       "q": "He was a ______ man, in full possession of his civil rights.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 2"
+      },
+      {
+       "index": "8",
+       "q": "Capitalism and the modern state ______ a widening of the cultural community in that it freed the masses from the fetters of an all-powerful tradition and called on them to participate in the regeneration of a national culture.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 3"
+      },
+      {
+       "index": "9",
+       "q": "In today's society, it is doubtful how much ______ a critic has, though high claims are made for Mr White as the promoter of Abstract Expressionism.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 3"
+      },
+      {
+       "index": "10",
+       "q": "She frowned at Paul who ______ an air of exaggerated innocence.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 3"
+      },
+      {
+       "index": "11",
+       "q": "Literary critics are divided into at least two camps, one favoring attention being paid mostly to the text itself, while the other prefers to take other questions into account, including the ______ the writer's life may have on the text.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 3"
+      },
+      {
+       "index": "12",
+       "q": "If you catch this disease when you are pregnant, your unborn child could be seriously ______ and born deaf, blind or brain damaged.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 3"
+      },
+      {
+       "index": "13",
+       "q": "Though the eastern urban regions were in favor of the proposal, the ______ area and particularly the western regions were overwhelmingly against the proposal.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 4"
+      },
+      {
+       "index": "14",
+       "q": "Mr Allen accused the government of standing by while our former preeminence as a manufacturing ______ has been steadily eroded.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 4"
+      },
+      {
+       "index": "15",
+       "q": "The Faculty of Public Health Medicine has published the first report from the working committee set up to investigate available indicators of the ______ health.",
+       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
+       "type": "text",
+       "module": "词库模块 4"
+      }
+     ]
+    },
+    {
+     "key": "book-4-wordFill-unit-14",
+     "kind": "wordFill",
+     "kindLabel": "选词填空",
+     "name": "Unit 14",
+     "modules": [
+      "词库模块 1"
+     ],
+     "instruction": "从本模块词库中选择合适的词，并按需要变换形式。",
+     "wordBanks": [
+      {
+       "module": "词库模块 1",
+       "words": [
+        "that is to say",
+        "absent from",
+        "mark off",
+        "refer to",
+        "as such",
+        "relate to"
+       ]
+      }
+     ],
+     "questions": [
+      {
+       "index": "1",
+       "q": "In boxing, obvious attacks on the eyes are prohibited, though the accidental mis-directed punch is not interpreted ______.",
+       "answer": "as such",
+       "type": "text",
+       "module": "词库模块 1"
+      },
+      {
+       "index": "2",
+       "q": "It would be revealing to know more about the lessons he draws from this historical experience, yet unfortunately the experience is all but ______.",
+       "answer": "absent from",
+       "type": "text",
+       "module": "词库模块 1"
+      },
+      {
+       "index": "3",
+       "q": "The performance raised vital questions about the way women ______ one another when they are free to make real choices.",
+       "answer": "relate to",
+       "type": "text",
+       "module": "词库模块 1"
+      },
+      {
+       "index": "4",
+       "q": "Naturally enough, this view of faith as a divine gift rather than the product of a human effort was used to ______ the believers from the nonbelievers.",
+       "answer": "mark off",
+       "type": "text",
+       "module": "词库模块 1"
+      },
+      {
+       "index": "5",
+       "q": "The results of these studies were published in catalogs of private and public collections, and in what in French are termed catalogs raisonnés, ______, complete lists of artists' works.",
+       "answer": "that is to say",
+       "type": "text",
+       "module": "词库模块 1"
+      },
+      {
+       "index": "6",
+       "q": "In south Wales these manor houses were often heavily fortified and because of this, are frequently ______ as castles.",
+       "answer": "referred to",
        "type": "text",
        "module": "词库模块 1"
       }
@@ -12784,774 +13887,6 @@
        "answer": "obstacle",
        "type": "text",
        "module": "括号提示词近义词填空"
-      }
-     ]
-    },
-    {
-     "key": "book-4-wordFill-unit-12",
-     "kind": "wordFill",
-     "kindLabel": "选词填空",
-     "name": "Unit 12",
-     "modules": [
-      "词库模块 1",
-      "词库模块 2",
-      "词库模块 3",
-      "词库模块 4"
-     ],
-     "instruction": "从本模块词库中选择合适的词，并按需要变换形式。",
-     "wordBanks": [
-      {
-       "module": "词库模块 1",
-       "words": [
-        "governed",
-        "family",
-        "combine",
-        "associate",
-        "state of nature",
-        "might",
-        "slavery",
-        "conventions",
-        "alienation",
-        "social contract"
-       ]
-      },
-      {
-       "module": "词库模块 2",
-       "words": [
-        "mature",
-        "ripe",
-        "grown"
-       ]
-      },
-      {
-       "module": "词库模块 3",
-       "words": [
-        "effect",
-        "affect",
-        "influence"
-       ]
-      },
-      {
-       "module": "词库模块 4",
-       "words": [
-        "nation",
-        "state",
-        "country"
-       ]
-      }
-     ],
-     "questions": [
-      {
-       "index": "1",
-       "q": "Rousseau starts his analysis with the assertion that social order does not come from nature but is based on (1) ______: This is true in the (2) ______ which is the earliest and the only natural political society, and is also true in the State. Early thinkers use (3) ______ as an example to demonstrate that human authority is set up not for the benefit of the (4) ______ but for the leaders. This is problematic for Rousseau, for according to him, (5) ______ does not make right. The reason why people agree to give up their liberty to form a society is that in the (6) ______, they reach a point when they cannot overcome the impediments to their subsistence, so they decide to (7) ______ their forces to produce a sum of forces more powerful than those impediments. This requires a total (8) ______ of their rights, so in order to protect their liberty, they enter into a(n) (9) ______ whose clauses ensure the preservation of personal liberty for every (10) ______.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 1"
-      },
-      {
-       "index": "2",
-       "q": "Apples of these kinds are very poor keepers and should be picked and eaten as soon as they are ______.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 2"
-      },
-      {
-       "index": "3",
-       "q": "In such a _____ market it is unusual to experience the creation of new opportunities like this.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 2"
-      },
-      {
-       "index": "4",
-       "q": "You were only 18 at that time as opposed to being a ______ man today.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 2"
-      },
-      {
-       "index": "5",
-       "q": "In this short-term money market, most loans ______ within 12 months.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 2"
-      },
-      {
-       "index": "6",
-       "q": "After appointing a new sales manager, the boss decided that the time was ______ to take a further step in the gradual process of integrating the management of the services.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 2"
-      },
-      {
-       "index": "7",
-       "q": "He was a ______ man, in full possession of his civil rights.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 2"
-      },
-      {
-       "index": "8",
-       "q": "Capitalism and the modern state ______ a widening of the cultural community in that it freed the masses from the fetters of an all-powerful tradition and called on them to participate in the regeneration of a national culture.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 3"
-      },
-      {
-       "index": "9",
-       "q": "In today's society, it is doubtful how much ______ a critic has, though high claims are made for Mr White as the promoter of Abstract Expressionism.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 3"
-      },
-      {
-       "index": "10",
-       "q": "She frowned at Paul who ______ an air of exaggerated innocence.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 3"
-      },
-      {
-       "index": "11",
-       "q": "Literary critics are divided into at least two camps, one favoring attention being paid mostly to the text itself, while the other prefers to take other questions into account, including the ______ the writer's life may have on the text.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 3"
-      },
-      {
-       "index": "12",
-       "q": "If you catch this disease when you are pregnant, your unborn child could be seriously ______ and born deaf, blind or brain damaged.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 3"
-      },
-      {
-       "index": "13",
-       "q": "Though the eastern urban regions were in favor of the proposal, the ______ area and particularly the western regions were overwhelmingly against the proposal.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 4"
-      },
-      {
-       "index": "14",
-       "q": "Mr Allen accused the government of standing by while our former preeminence as a manufacturing ______ has been steadily eroded.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 4"
-      },
-      {
-       "index": "15",
-       "q": "The Faculty of Public Health Medicine has published the first report from the working committee set up to investigate available indicators of the ______ health.",
-       "answer": "教师用书对应页未提供本题答案，暂不作推测。",
-       "type": "text",
-       "module": "词库模块 4"
-      }
-     ]
-    },
-    {
-     "key": "book-4-wordFill-unit-14",
-     "kind": "wordFill",
-     "kindLabel": "选词填空",
-     "name": "Unit 14",
-     "modules": [
-      "词库模块 1"
-     ],
-     "instruction": "从本模块词库中选择合适的词，并按需要变换形式。",
-     "wordBanks": [
-      {
-       "module": "词库模块 1",
-       "words": [
-        "that is to say",
-        "absent from",
-        "mark off",
-        "refer to",
-        "as such",
-        "relate to"
-       ]
-      }
-     ],
-     "questions": [
-      {
-       "index": "1",
-       "q": "In boxing, obvious attacks on the eyes are prohibited, though the accidental mis-directed punch is not interpreted ______.",
-       "answer": "as such",
-       "type": "text",
-       "module": "词库模块 1"
-      },
-      {
-       "index": "2",
-       "q": "It would be revealing to know more about the lessons he draws from this historical experience, yet unfortunately the experience is all but ______.",
-       "answer": "absent from",
-       "type": "text",
-       "module": "词库模块 1"
-      },
-      {
-       "index": "3",
-       "q": "The performance raised vital questions about the way women ______ one another when they are free to make real choices.",
-       "answer": "relate to",
-       "type": "text",
-       "module": "词库模块 1"
-      },
-      {
-       "index": "4",
-       "q": "Naturally enough, this view of faith as a divine gift rather than the product of a human effort was used to ______ the believers from the nonbelievers.",
-       "answer": "mark off",
-       "type": "text",
-       "module": "词库模块 1"
-      },
-      {
-       "index": "5",
-       "q": "The results of these studies were published in catalogs of private and public collections, and in what in French are termed catalogs raisonnés, ______, complete lists of artists' works.",
-       "answer": "that is to say",
-       "type": "text",
-       "module": "词库模块 1"
-      },
-      {
-       "index": "6",
-       "q": "In south Wales these manor houses were often heavily fortified and because of this, are frequently ______ as castles.",
-       "answer": "referred to",
-       "type": "text",
-       "module": "词库模块 1"
-      }
-     ]
-    },
-    {
-     "key": "book-4-translation-unit-1",
-     "kind": "translation",
-     "kindLabel": "汉译英",
-     "name": "Unit 1",
-     "modules": [],
-     "instruction": "",
-     "wordBanks": [],
-     "questions": [
-      {
-       "index": "1",
-       "q": "很多生物（organism）都具有至少初级形式的（rudimentary form）自我意识形式，以此来感知自身与环境的区别。",
-       "answer": "Many organisms exhibit at least a rudimentary form of self-awareness by which they experience themselves as distinct from their environment.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "2",
-       "q": "然而，人类的自我意识更加深奥，这使人具有反思、自省（introspection and self-reflection）等人类独有的能力。",
-       "answer": "However, humans are capable of more profound forms of self-awareness that make possible uniquely human capacities such as introspection and self-reflection.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "3",
-       "q": "自我意识通常分为两种形式，分别对应人类关注自身的两种角度（vantage point）。",
-       "answer": "A distinction typically is drawn between forms of self-consciousness corresponding to the two distinct vantage points from which people can direct attention toward themselves.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "4",
-       "q": "所谓私我意识（private self-consciousness），是指人倾向于从个人角度来聚焦自我，关注（attend to）旁人不能轻易了解的自我的某些方面，如思想与情感等。",
-       "answer": "Private self-consciousness is the tendency to focus on oneself from a personal vantage point and attend to aspects of the self that are not readily apparent to others, such as one's thoughts and feelings.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "5",
-       "q": "所谓公我意识（public self-consciousness），则指人倾向于从真实或假想的他者角度来聚焦自我、关注旁人可以了解的自我的某些方面，如外表、行为等。",
-       "answer": "Public self-consciousness is the tendency to focus on oneself from the perceived vantage point of real or imagined others and to attend to aspects of the self that are observable by others, such as facets of one's appearance and behavior.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "6",
-       "q": "更强的私我意识意味着更好的自我认知，以及不论是好是坏都想增进自我认知的更浓厚兴趣。",
-       "answer": "Private self-consciousness is associated with better access to self-knowledge, and a greater interest in new self-knowledge regardless of whether that knowledge is positive.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "7",
-       "q": "因此，这类人更能表里如一，言行一致。",
-       "answer": "As a result, their attitudes are more predictive of their behavior.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "8",
-       "q": "公我意识意味着在意别人对自己的看法。",
-       "answer": "Public self consciousness is associated with phenomena that involve perceptions of how other people view the self.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "9",
-       "q": "公我意识强的人更容易屈从于群体压力，并能更准确判断别人对自己的评价。",
-       "answer": "People high in public self-consciousness are more likely to conform to group pressure, and they are more accurate in their perception of how others perceive them.",
-       "type": "text",
-       "module": ""
-      }
-     ]
-    },
-    {
-     "key": "book-4-translation-unit-2",
-     "kind": "translation",
-     "kindLabel": "汉译英",
-     "name": "Unit 2",
-     "modules": [],
-     "instruction": "",
-     "wordBanks": [],
-     "questions": [
-      {
-       "index": "1",
-       "q": "爱有多种，各有侧重——比如，朋友之间看重坦诚、平等，父子之爱却无需如此；男欢女爱必得二人独享（exclusive），莫逆之交却不拘多寡。",
-       "answer": "There are different kinds of love with their respective essential elements: for instance, personal revelation and equality are essential to friendship but not to the love between parents and children, and sexual love is of its nature exclusive whereas friendship is not.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "2",
-       "q": "然而，有一种要素却是众爱皆备。",
-       "answer": "There is, however, one essential element which is in all forms of love.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "3",
-       "q": "那便是接受。",
-       "answer": "It is acceptance.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "4",
-       "q": "对很多人而言，\"接受\"一词饱含无奈。",
-       "answer": "To many people the word \"acceptance\" means resigned acceptance.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "5",
-       "q": "这个词让他们联想到高考失利的学生被迫接受现实，重新规划人生。",
-       "answer": "When they hear it they think of a student failing to qualify for entry to university and having to accept that and form a different life-plan.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "6",
-       "q": "对他们而言，\"爱是接受\"的观点似乎是在主张，\"我爱你\"的意思其实是\"我会勉强自己适应（accommodate）你的存在\"或其他类似的说法。",
-       "answer": "To them, \"love is acceptance\" seems to mean that \"I love you\" means, in essence, \"I will reluctantly accommodate myself to your existence,\" or words to that effect.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "7",
-       "q": "但是，接受说到底是对自己认为好的人或物的喜爱。",
-       "answer": "In its simplest form, however, acceptance is being in favor of a being who or which is judged to be good.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "8",
-       "q": "与无奈接受不同，真正的接受并非源自敌对或怨恨（abhorrence）。",
-       "answer": "Unlike resigned acceptance, it is not preceded by opposition or abhorrence.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "9",
-       "q": "真正的接受基于被接受之人或物的价值。",
-       "answer": "Acceptance presupposes value in the being who or which is accepted.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "10",
-       "q": "接受会对人心产生重大影响。",
-       "answer": "Acceptance produces a significant result in people's hearts.",
-       "type": "text",
-       "module": ""
-      }
-     ]
-    },
-    {
-     "key": "book-4-translation-unit-3",
-     "kind": "translation",
-     "kindLabel": "汉译英",
-     "name": "Unit 3",
-     "modules": [],
-     "instruction": "",
-     "wordBanks": [],
-     "questions": [
-      {
-       "index": "1",
-       "q": "纵观历史，很多哲学巨擘都曾对人生意义的问题作出解答，尽管他们通常使用的并非人生意义而是其他术语。",
-       "answer": "Many major historical figures in philosophy have provided an answer to the question of what makes life meaningful, although they typically have not put it in these terms.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "2",
-       "q": "著名的例子如亚里士多德（Aristotle）的人性功能论（human function）和康德的至善论（the highest good）",
-       "answer": "Consider, for instance, Aristotle on the human function and Kant on the highest good.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "3",
-       "q": "尽管人生意义的问题由来已久，但直到最近的五十年间，人生意义才成为英美哲学里一个还算独立的领域（distinct field），而直到最近三十年间，该领域才出现了真正具有深度的探讨。",
-       "answer": "Despite the venerable pedigree, it is only in the last 50 years or so that something approaching a distinct field on the meaning of life has been established in Anglo-American philosophy, and it is only in the last 30 years that debate with real depth has appeared.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "4",
-       "q": "当英语世界的哲学家们逐渐认识到，人生的意义与其他如福祉（well-being）、美德（virtuous character）、正确行为（right action）等常见的伦理学范畴（ethical categories）一样也可以进行深度的理性探讨（rational enquiry）时，他们对人生意义的兴趣便会一直持续。",
-       "answer": "English-speaking philosophers can be expected to continue to find life's meaning of interest as they increasingly realize that it is a distinct topic that admits of rational enquiry to no less a degree than more familiar ethical categories such as well-being, virtuous character, and right action.",
-       "type": "text",
-       "module": ""
-      }
-     ]
-    },
-    {
-     "key": "book-4-translation-unit-4",
-     "kind": "translation",
-     "kindLabel": "汉译英",
-     "name": "Unit 4",
-     "modules": [],
-     "instruction": "",
-     "wordBanks": [],
-     "questions": [
-      {
-       "index": "1",
-       "q": "所谓人性，是指所有\"正常\"人共有的一系列特点，包括思维方式、感觉方式和行为方式等。探讨人性的学科包括社会学、生物社会学（sociobiology）和心理学等。哲学家和神学家（theologian）也研究人性。",
-       "answer": "Human nature is the concept that there are a set of characteristics, including ways of thinking, feeling and behaving, that all \"normal\" human beings have in common. The branches of science associated with the study of human nature include sociology, sociobiology and psychology.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "2",
-       "q": "从古到今，是否存在不变的人性（invariable human nature）一直颇具争议。",
-       "answer": "The existence of an invariable human nature is a subject of much historical debate, continuing into modern times.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "3",
-       "q": "众所周知，达尔文从科学的角度论证了人类和其他动物并没有真正确定的本性，这一观点如今已成共识。",
-       "answer": "Most famously, Darwin gave a widely accepted scientific argument that humans and other animal species have no truly fixed nature.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "4",
-       "q": "19世纪中期以来，黑格尔（Hegel）、马克思（Marx）、尼采、萨特等思想家以及很多结构主义者（structuralist）、后现代学者（postmodernist）等都对人性的概念提出过质疑。",
-       "answer": "Since the mid-19th century, the concept of human nature has been called into question by thinkers such as Hegel, Marx, Nietzsche, Sartre, and a number of structuralists and postmodernists.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "5",
-       "q": "在关于人性的诸多讨论中，自由意志是一个基本问题。",
-       "answer": "The issue of free will underlies much of the debate about human nature.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "6",
-       "q": "此外，是否存在超越（transcend）人体特性（human's physical attributes）之外的灵魂以及该灵魂与肉体（physical body）之间的关系，这一问题也常被议及。",
-       "answer": "Another often discussed aspect of human nature is the existence and relationship of the physical body with a soul that transcends the human's physical attributes.",
-       "type": "text",
-       "module": ""
-      }
-     ]
-    },
-    {
-     "key": "book-4-translation-unit-7",
-     "kind": "translation",
-     "kindLabel": "汉译英",
-     "name": "Unit 7",
-     "modules": [],
-     "instruction": "",
-     "wordBanks": [],
-     "questions": [
-      {
-       "index": "1",
-       "q": "埃里克·弗罗姆是执业（practicing）心理分析师，也是一位敬业的社会理论家。",
-       "answer": "Erich Fromm was both a practicing psychoanalyst and a committed social theorist.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "2",
-       "q": "其作品博采弗罗伊德、马克思等各家之长，语言通俗易懂，对社会的批判（social critique）激烈尖锐，并善于将心理分析的洞见（insight）融入社会理论之中。",
-       "answer": "He had the ability to write for a popular audience, to develop a strong social critique, and to combine psychological insight with social theory, drawing on diverse sources such as Freud and Marx.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "3",
-       "q": "然而，一些同事并未因其才能而喜欢他，他们对他的诸多努力提出质疑甚至担忧。",
-       "answer": "These qualities did not endear him to a number of his colleagues who viewed his efforts with some suspicion and even alarm.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "4",
-       "q": "如今，他有关社会本质与人类活动的看法非常值得教育者思考，尤其是那些致力于实现更公平生活形式（fairer forms of living）的教育者们。",
-       "answer": "Today, his insights into the nature of society and human activity have a lot to say to educators – especially those committed to working for fairer forms of living.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "5",
-       "q": "《逃离自由》是弗罗姆众多颇具影响的著作中最早的一部，于1941年出版。",
-       "answer": "In 1941, the first of Fromm's deeply influential books appeared: Escape From Freedom.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "6",
-       "q": "该书提出，脱离了中世纪社会（medieval society）传统的羁绊也使其感到形单影只，孤立封闭。",
-       "answer": "It argued that freedom from the traditional bonds of medieval society, made him feel alone and isolated.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "7",
-       "q": "这种与地域和群体的疏离（alienation）以及由此而来的不安与恐惧有助于解释人们为何会从法西斯主义等独裁社会形态（authoritarian social orders）中寻求安全感与回报。",
-       "answer": "This alienation from place and community, and the insecurities and fears entailed, helps to explain how people seek the security and rewards of authoritarian social orders such as fascism.",
-       "type": "text",
-       "module": ""
-      }
-     ]
-    },
-    {
-     "key": "book-4-translation-unit-8",
-     "kind": "translation",
-     "kindLabel": "汉译英",
-     "name": "Unit 8",
-     "modules": [],
-     "instruction": "",
-     "wordBanks": [],
-     "questions": [
-      {
-       "index": "1",
-       "q": "\"我不同意你的观点，但我誓死捍卫你说话的权利。\"伏尔泰（Voltaire）的这句名言浓缩（encapsulate）了本书的核心思想，即言论自由（freedom of expression）值得积极捍卫，哪怕你痛恨那说出的话。",
-       "answer": "\"I despise what you say, but will defend to the death your right to say it.\" This declaration, attributed to Voltaire, encapsulates the idea at the core of the book: freedom of speech is worth defending vigorously even when you hate what is being spoken.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "2",
-       "q": "言论自由原则是民主的核心和基本人权，对这一原则的捍卫是文明、包容社会（civilized and tolerant society）的标志。",
-       "answer": "This principle is at the heart of democracy, a basic human right, and its protection is a mark of a civilized and tolerant society.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "3",
-       "q": "联合国《世界人权宣言》（Universal Declaration of Human Rights）第十九条（Article 19）和美国宪法第一修正案（the First Amendment）都明确指出保护言论自由的必要性。",
-       "answer": "Article 19 of the United Nations' Universal Declaration of Human Rights and the First Amendment to the US Constitution both explicitly recognize the need to protect free expression.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "4",
-       "q": "这两个文件表明了言论自由原则的基础性地位，同时也指出若不对其加以保护，该自由便岌岌可危。",
-       "answer": "In both cases this indicates the free speech principle's fundamental importance, but it is also an acknowledgement of how fragile this freedom can be if it is not protected.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "5",
-       "q": "手握法律或强权（law or force）让众对手三缄其口（gag），这种诱惑实在难抵。",
-       "answer": "The temptation to use law or force to gag opponents of one kind or another is difficult to resist.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "6",
-       "q": "但若缺少了评论政客的自由，民主便可能沦为暴政（tyranny）。",
-       "answer": "Without freedom to criticize and challenge those politicians, democracies may degenerate into tyrannies.",
-       "type": "text",
-       "module": ""
-      }
-     ]
-    },
-    {
-     "key": "book-4-translation-unit-9",
-     "kind": "translation",
-     "kindLabel": "汉译英",
-     "name": "Unit 9",
-     "modules": [],
-     "instruction": "",
-     "wordBanks": [],
-     "questions": [
-      {
-       "index": "1",
-       "q": "我们是否赞同自己的行为，其根据似乎与我们判断他人行为时的原则完全相同。",
-       "answer": "The principle by which we naturally either approve or disapprove of our own conduct, seems to be altogether the same with that by which we exercise the like judgments concerning the conduct of other people.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "2",
-       "q": "我们是否赞同他人的行为，根据的是当我们设身处地站在对方立场上时（bring...home to）能否充分同情（sympathize）导致其行为的情感和动机。",
-       "answer": "We either approve or disapprove of the conduct of another man according as we feel that, when we bring his case home to ourselves, we either can or cannot entirely sympathize with the sentiments and motives which directed it.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "3",
-       "q": "同样，当我们站在他人的角度看待自己的行为时，是否表示赞同也取决于我们能否对影响自己行为的情感和动机有充分的理解和同情。",
-       "answer": "And, in the same manner, we either approve or disapprove of our own conduct, according as we feel that, when we place ourselves in the situation of another man, and view it, as it were, with his eyes and from his station, we either can or cannot entirely enter into and sympathize with the sentiments and motives which influenced it.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "4",
-       "q": "除非我们离开自发的立场（natural station），尽量带着一定的距离感来看待自己的情感和动机，否则我们不可能全面地审视（survey）它们，也不可能对其作出任何判断。",
-       "answer": "We can never survey our own sentiments and motives, we can never form any judgment concerning them; unless we remove ourselves, as it were, from our own natural station, and endeavor to view them as at a certain distance from us.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "5",
-       "q": "要做到这一点，我们只有（no other than）努力用他人的眼光或他人可能会有的看法来看待自己。",
-       "answer": "But we can do this in no other than by endeavour ing to view them with the eyes of other people, or as other people are likely to view them.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "6",
-       "q": "这样一来，无论我们作出什么判断，都会与他人的判断具有某种隐秘的联系，无论这种联系是实际存在，在某种情况下可能出现，或者仅仅出于我们的想象。",
-       "answer": "Whatever judgment we can form concerning them, accordingly, must always bear some secret reference, either to what are, or to what, upon a certain condition, would be, or to what, we imagine, ought to be the judgment of others.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "7",
-       "q": "我们会努力像任何公正无私的旁观者那样审视自己的行为。",
-       "answer": "We endeavor to examine our own conduct as we imagine any other fair and impartial spectator would examine it.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "8",
-       "q": "置身旁观者立场时，如果我们能够完全理解（enter into）影响自己行为的所有情绪和动机，我们就会同意心目中那位公正法官的认可（approbation），赞同自己的行为；否则，我们就会体谅他的非难（disapprobation），并且谴责这种行为。",
-       "answer": "If, upon placing ourselves in his situation, we thoroughly enter into all the passions and motives which in flu cn ced it, we approve of it, by sympathy with the approbation of this supposes equitable judge If otherwise, we enter into his disapprobation, and condemn it.",
-       "type": "text",
-       "module": ""
-      }
-     ]
-    },
-    {
-     "key": "book-4-translation-unit-12",
-     "kind": "translation",
-     "kindLabel": "汉译英",
-     "name": "Unit 12",
-     "modules": [],
-     "instruction": "",
-     "wordBanks": [],
-     "questions": [
-      {
-       "index": "1",
-       "q": "卢梭断言：\"真正的民主从未存在过，也永远不会存在。\"该断言明确申明了以人民与政府的完美结合为特色的纯粹民主（pure democracy）不可能存在，从而证伪了那些认为卢梭的政治理论只是一味追求完全与透明（fullness and transparency）的通常误解。",
-       "answer": "Rousseau asserts that there has never been a real democracy, and there never will be\" That lid statement of the impossibility of a pure democracy, where the people and the government would be perfectly unified, gives lie to the common assumption that his political theory seeks a state of fullness and transparency.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "2",
-       "q": "当然，纯粹民主无法实现的这一特性并未使卢梭对民主简单地一拒了之。",
-       "answer": "The un realizable chat act er of pure democracy does not lead Rousseau to reject democracy tout court.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "3",
-       "q": "但是，民主在卢梭的思想中却是以两种形式（form）出现的。",
-       "answer": "However, democracy appears in his thinking in two forms.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "4",
-       "q": "首先，卢梭将民主设想为一种狭义上的政府模式（mode of government），即人民不经其他中介（mediation）而直接管理自己的直接民主制。",
-       "answer": "First, he conceives democracy in the limited sense of a mode of government, by which he means direct democracy where the people govern themselves without any mediation.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "5",
-       "q": "也是更重要的，卢梭将民主与主权（sovereignty）联系起来，这种对民主的重新定义被视为卢梭\"最伟大的创新\"。",
-       "answer": "Second, more importantly, he relates democracy to sovereignty, this redefinition of democracy is considered \"his greatest innovation\".",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "6",
-       "q": "对卢梭而言，民主对任何合法政治秩序（legitimate political order）来说都是\"奠基之地（ground of inscription）\"，因为当市民社会的正当性无法用自然或天命来解释时，市民机构和制度（civil institutions and structures）便只能通过人民意志来获得其合法性了。",
-       "answer": "For Rousseau, democracy acts \"as the ground of in seri pti on\" for any legitimate political order, for, in the absence of a natural or divine justification for civil society, civil institutions and struetures can only be sanctioned by the will of the people",
-       "type": "text",
-       "module": ""
-      }
-     ]
-    },
-    {
-     "key": "book-4-translation-unit-14",
-     "kind": "translation",
-     "kindLabel": "汉译英",
-     "name": "Unit 14",
-     "modules": [],
-     "instruction": "",
-     "wordBanks": [],
-     "questions": [
-      {
-       "index": "1",
-       "q": "随着时间的推移，越来越多的人将伯特兰·罗素视为20世纪最伟大的思想家之一。",
-       "answer": "The reputation of Bertrand Russell as one of the greatest thinkers of the twentieth century has only increased with time.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "2",
-       "q": "罗素于1872年生于贵族世家（aristocratic family），是公认的分析哲学（analytic philosophy）鼻祖之一，而分析哲学乃当今英语国家（English-speaking countries）的主流哲学传统。",
-       "answer": "Born in 1872 into an aristocratic family, Russell is widely regarded as one of the founders of Analytic philosophy, which is today the dominant philosophical tradition in the English-speaking world.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "3",
-       "q": "20世纪初，罗素发表了一系列重要著作，将逻辑学（logic）加以改造并置于哲学探究（philosophic inquiry）的中心。",
-       "answer": "In a seminal series of publications in the early years of the last century, Russell transformed logic and placed it at the centre of philosophic inquiry.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "4",
-       "q": "罗素的这些著作，连同其后来探讨其他哲学根本问题的著作一起，对哲学研究产生了深远影响，令即使与其意见相左的学者亦受益良多。",
-       "answer": "The impact of these, and later works in which he confronted other fundamental problems of philosophy, has been profound, even on scholars who have disputed his conclusions.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "5",
-       "q": "作为知识分子（intellectual life），罗素不仅是一位社会批评家、政治思想家和人道主义者（humanist），还在20世纪诸多重大问题上积极发声。",
-       "answer": "In a parallel intellectual life as social critic, political thinker and humanist, Russell addressed many issues of vital import to the history of the twentieth century.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "6",
-       "q": "他支持女性参政（women's suffrage），一战时因反战（pacifism）而入狱，还是\"核裁军运动\"（Campaign for Nuclear Disarmament）的发起人之一。",
-       "answer": "He supported women's suffrage, was imprisoned for his pacifism during World War I and was a founder of the Campaign for Nuclear Disarmament.",
-       "type": "text",
-       "module": ""
-      },
-      {
-       "index": "7",
-       "q": "罗素为普通大众（the general public）写作，创作了《西方哲学史》等家喻户晓的著作，并于1950年获诺贝尔文学奖。",
-       "answer": "He wrote a number of books aimed at the general public, including A History of Western Philosophy which became enormously popular, and in 1950 he was awarded the Nobel Prize in Literature.",
-       "type": "text",
-       "module": ""
       }
      ]
     }
