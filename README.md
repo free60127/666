@@ -2,9 +2,9 @@
 
 课程题库、学习工具与专业资料的免费分享站。
 
-- 在线地址：<https://free60127.github.io/666/>
+- 在线地址：<https://free60127.top/>
 - 全部内容免费使用；进度、错题、收藏保存在浏览器本地（localStorage）。
-- 部署方式：GitHub Pages，仓库根 = 站点根，站点部署在 `/666/` 子路径。
+- 部署方式：GitHub Pages（仓库根 = 站点根，部署于 `/666/` 子路径）为源站；主域名 `free60127.top` 经 Cloudflare Worker 反代源站（自动去 `/666/` 前缀、OG 地址改主域），API 走 `api.free60127.top`。
 
 ## 站点模块
 
@@ -129,7 +129,7 @@ node scripts/release.js
 
 后端 Worker（`workers/`）已部署 `/api/sync` 匿名同步接口与 `/api/feedback` 纠错接口（纠错已接入前端）。**云同步尚未在前端启用**：匿名 `deviceId` 目前等同访问密钥，可能被猜测后读取、覆盖或删除进度。在实现配对码/恢复码、payload 加密、冲突合并与设备解绑之前，不会开放自动云同步；学习数据仍保存在浏览器本地，可用学习中心的「导出/导入」备份迁移。
 
-安全边界（2026-08-21 起）：Worker CORS 已收紧为只对 `https://free60127.github.io` 回显 `Access-Control-Allow-Origin`，其余来源不带 CORS 头、由浏览器直接拦截；`/api/feedback` 的限频（同一 IP 30 秒 5 次）基于单实例内存 `Map`，多实例部署下不能作为全局限流，正式启用云同步前应改用 Cloudflare Rate Limiting、Turnstile 或 Durable Objects。
+安全边界（2026-08-21 起）：Worker CORS 已收紧为只对白名单（`https://free60127.github.io`、`https://free60127.top`）回显 `Access-Control-Allow-Origin`，其余来源不带 CORS 头、由浏览器直接拦截；`/api/feedback` 的限频（同一 IP 30 秒 5 次）基于单实例内存 `Map`，多实例部署下不能作为全局限流，正式启用云同步前应改用 Cloudflare Rate Limiting、Turnstile 或 Durable Objects。
 
 ## 自愿赞助
 
