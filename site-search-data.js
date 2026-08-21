@@ -1,7 +1,9 @@
 window.WAIYUAN_SITE_SEARCH = [
   {title:'专业课资料', category:'专业课', path:'专业课/index.html', keywords:'专业课 二外 商英 翻译 英语 语法 通用', description:'专业课、二外与通用课程资料。'},
   {title:'二外资料', category:'专业课', path:'专业课/二外/index.html', keywords:'二外 德语 法语 日语', description:'选择二外学习语种。'},
-  {title:'德语资料', category:'专业课 · 二外', path:'专业课/二外/德语/index.html', keywords:'德语 二外', description:'德语资料入口。'},
+  {title:'德语资料', category:'专业课 · 二外', path:'专业课/二外/德语/index.html', keywords:'德语 二外 德语课', description:'德语资料入口：课文翻译与模拟试卷。'},
+  {title:'德语课文翻译', category:'专业课 · 二外 · 德语', path:'专业课/二外/德语/课文翻译/index.html', keywords:'德语 课文翻译 新编大学德语 原文 译文 逐句对照', description:'《新编大学德语》第一册课文原文与中文译文逐句对照。'},
+  {title:'德语模拟试卷', category:'专业课 · 二外 · 德语', path:'专业课/二外/德语/模拟试卷/index.html', keywords:'德语 模拟试卷 期末 选择 填空 改写 阅读 翻译 自动判题', description:'《新编大学德语》第一册模拟试卷，参考期末题型在线作答自动判题。'},
   {title:'法语资料', category:'专业课 · 二外', path:'专业课/二外/法语/index.html', keywords:'法语 二外', description:'法语资料入口。'},
   {title:'商英系资料', category:'专业课', path:'专业课/商英系/index.html', keywords:'商英 商务英语', description:'商英系资料入口。'},
   {title:'翻译系资料', category:'专业课', path:'专业课/翻译系/index.html', keywords:'翻译 翻译系', description:'翻译系资料入口。'},
