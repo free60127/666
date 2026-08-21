@@ -2643,66 +2643,61 @@
         },
         {
           "number": 9,
-          "question": "听见窗外有脚步声，我便轻手轻脚走出室外，但什么也没看见。",
+          "question": "听见窗外有脚步声，我便轻手轻脚走出室外，但什么也没看见。 10他可是一个需要认真对待的人。",
           "answer": "At the sound of footsteps outside the window, I stole out of the room, but there was nothing to be seen."
         },
         {
           "number": 10,
-          "question": "他可是一个需要认真对待的人。",
+          "question": "她坚决拒绝接受他的求婚。",
           "answer": "He is a man to be reckoned with."
         },
         {
           "number": 11,
-          "question": "她坚决拒绝接受他的求婚。",
-          "answer": "She was firm in her refusal to accept his offer of marriage."
+          "question": "我已接受邀请到他们学校去交流经验。",
+          "answer": "She was firm in her refusal to accept his offer of marriage. 12.I have accepted the invitation to go to their school for an exchange of experience."
         },
         {
           "number": 12,
-          "question": "我已接受邀请到他们学校去交流经验。",
-          "answer": "I have accepted the invitation to go to their school for an exchange of experience."
-        },
-        {
-          "number": 13,
           "question": "我需要一只盛放棋子的盒子。",
           "answer": "I need a box to hold the chessmen."
         },
         {
-          "number": 14,
+          "number": 13,
           "question": "有什么可以骄傲的呢？",
           "answer": "What is there to be proud of?"
         },
         {
-          "number": 15,
+          "number": 14,
           "question": "他总是认为床上是看侦探小说的好地方。",
           "answer": "He always thinks that the bed is a good place to read detective storise."
         },
         {
-          "number": 16,
+          "number": 15,
           "question": "我每天都有许多问题需要加以考虑。",
           "answer": "Every day I have a lot of questions to consider."
         },
         {
-          "number": 17,
+          "number": 16,
           "question": "对付她的唯-方法是寸步不让。",
           "answer": "The only way to deal with her is not to give an inch."
         },
         {
-          "number": 18,
+          "number": 17,
           "question": "她不是那种可以轻视的女人。",
           "answer": "She is not a woman to be trfiled with."
         },
         {
-          "number": 19,
+          "number": 18,
           "question": "我的兄弟是被接见的第三个人。",
           "answer": "My brother was the third personto be interviewed."
         },
         {
-          "number": 20,
+          "number": 19,
           "question": "你已经使我没什么可说的了。",
           "answer": "You have left me very little to say."
         }
       ],
-      "expectedAnswerCount": 20,
+      "expectedAnswerCount": 19,
       "ocrQuestionCount": 19,
       "verified": false,
       "ocrLines": [

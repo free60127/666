@@ -1,0 +1,32 @@
+[translations 13A] PDF 无此练习块（13A/32C/32D 类），跳过
+
+[translations 16C] PDF 有但项目无的题号: 20, 21（PDF 共 21 题，项目 19 题）
+
+[translations 18B] PDF 有但项目无的题号: 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50（PDF 共 50 题，项目 30 题）
+
+[translations 27G] PDF 有但项目无的题号: 20（PDF 共 20 题，项目 19 题）
+
+[rewrite 32C] PDF 无此练习块，跳过
+
+[rewrite 32D] PDF 无此练习块，跳过
+
+[rewrite 34A] PDF 有但项目无的题号: 11, 12, 13, 14, 15, 16, 17, 18, 19, 20（PDF 共 20 题，项目 10 题）
+
+[rewrite 34A] PDF 有但项目无的题号: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10（PDF 共 20 题，项目 10 题）
+
+[改写 39B#7] 项目有答案但 PDF 无（PDF 缺此题或解析漏）
+  项目: 原句即可：Not a single hotel she stayed in could please her.
+
+[改写 39B#26] 不一致
+  项目: Not for the life of me can I understand why he is so afraid of injections.
+  PDF : Not for the life of me can I understand why...
+
+[改写 39B#36] 不一致
+  项目: Not even after he was seventy-five would he stop working.
+  PDF : that not even after he was 75 would he stop working. Not even if he was threatened with expulsion from school would he waver.
+
+[改写 39B#37] 项目有答案但 PDF 无（PDF 缺此题或解析漏）
+  项目: Not even if he was threatened with expulsion from school would he waver.
+
+[改写 39B#41] 项目有答案但 PDF 无（PDF 缺此题或解析漏）
+  项目: /
