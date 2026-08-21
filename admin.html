@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>站点管理面板 · 外院知识分享站</title>
+  <style>
+    :root{--green:#28634f;--ink:#17211f;--muted:#73817b;--line:#dfe6df;--cream:#fffefa;--orange:#d97845;--danger:#b04a3e}
+    *{box-sizing:border-box}
+    body{margin:0;background:#f4f6f2;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6}
+    header{background:var(--green);color:#fff;padding:18px 20px}
+    header h1{margin:0;font-size:20px}
+    header small{opacity:.85;font-size:12px}
+    .wrap{max-width:860px;margin:0 auto;padding:18px 16px 80px}
+    .card{background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 4px 14px rgba(35,61,49,.05)}
+    .card h2{margin:0 0 12px;font-size:16px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    input[type=text],input[type=password],textarea{width:100%;padding:10px 12px;border:1px solid #c9d6cd;border-radius:10px;font:inherit;background:#fff}
+    textarea{min-height:90px;resize:vertical}
+    label{font-size:13px;color:var(--muted);display:block;margin:10px 0 4px}
+    button{border:0;border-radius:10px;background:var(--green);color:#fff;padding:9px 16px;font:inherit;font-weight:700;cursor:pointer}
+    button.ghost{background:#eef5f0;color:var(--green);border:1px solid #c9dccd}
+    button.danger{background:#fbeae7;color:var(--danger);border:1px solid #eccac4}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .tabs{display:flex;gap:8px;margin-bottom:14px}
+    .tabs button{flex:1;background:#e6ece6;color:#4a5c53;border-radius:11px;padding:10px}
+    .tabs button.active{background:var(--green);color:#fff}
+    .fb{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:10px}
+    .fb .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:7px}
+    .fb .page{background:#eef5f0;color:var(--green);border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700}
+    .fb .time{color:var(--muted);font-size:12px;margin-left:auto}
+    .fb .q{font-weight:700;margin:4px 0}
+    .fb .detail{color:#4a5a52;font-size:14px;margin:2px 0;word-break:break-word}
+    .fb .note{background:#fff7ed;border-radius:8px;padding:6px 10px;font-size:13px;margin-top:6px}
+    .fb .actions{margin-top:9px;display:flex;gap:8px}
+    .fb .actions button{font-size:12px;padding:5px 12px}
+    .empty{color:var(--muted);text-align:center;padding:26px 0}
+    .msg{padding:10px 14px;border-radius:10px;margin:10px 0;font-size:14px;display:none}
+    .msg.ok{display:block;background:#e4f3e9;color:#276545}
+    .msg.err{display:block;background:#fbeae7;color:var(--danger)}
+    .now{color:var(--muted);font-size:13px;margin-top:6px}
+    .hint{font-size:12px;color:var(--muted);margin-top:8px}
+    [data-theme=dark] body{background:#101613;color:#d7e2da}
+    [data-theme=dark] .card,[data-theme=dark] .fb{background:#151d18;border-color:#2a3830}
+    [data-theme=dark] .fb .detail{color:#9fb3a6}
+    [data-theme=dark] input,[data-theme=dark] textarea{background:#1a241e;color:#d7e2da;border-color:#2f4036}
+    [data-theme=dark] .tabs button{background:#223029;color:#b8c8bf}
+    [data-theme=dark] button.ghost{background:#223029;border-color:#2f4036;color:#9fd0b8}
+  </style>
+</head>
+<body data-theme="">
+<header><h1>外院知识分享站 · 管理面板</h1><small>反馈查看 / 公告管理 · 仅限站点管理员使用</small></header>
+<div class="wrap">
+  <div class="card">
+    <h2>连接设置</h2>
+    <label>API 地址</label>
+    <input type="text" id="api-base" placeholder="https://api.free60127.top">
+    <label>管理员令牌（仅保存在本浏览器，不会上传到站点）</label>
+    <input type="password" id="token" placeholder="输入 ADMIN_TOKEN" autocomplete="off">
+    <div class="row" style="margin-top:12px">
+      <button id="save">保存设置</button>
+      <button class="ghost" id="test">测试连接</button>
+    </div>
+    <div class="hint">令牌只存在本机浏览器 localStorage，页面本身不含任何令牌。</div>
+  </div>
+
+  <div id="msg" class="msg"></div>
+
+  <div class="tabs">
+    <button data-tab="feedback" class="active">用户反馈</button>
+    <button data-tab="notice">公告</button>
+  </div>
+
+  <div id="tab-feedback" class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">反馈列表</h2>
+      <button class="ghost" id="load-fb">刷新</button>
+    </div>
+    <div id="fb-list"><div class="empty">点击「刷新」加载反馈。</div></div>
+  </div>
+
+  <div id="tab-notice" class="card" hidden>
+    <h2>站点公告</h2>
+    <label>公告内容（发布后所有页面可见，留空可清除）</label>
+    <textarea id="notice-text" placeholder="输入公告内容，保存后生效…"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="save-notice">发布公告</button>
+      <span class="now" id="notice-time"></span>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const apiBase = $('#api-base'), token = $('#token');
+  const LS = { base: 'waiyuan-admin-api-v1', token: 'waiyuan-admin-token-v1' };
+  try {
+    apiBase.value = localStorage.getItem(LS.base) || 'https://api.free60127.top';
+    token.value = localStorage.getItem(LS.token) || '';
+  } catch (e) {}
+  const base = () => (apiBase.value.trim() || 'https://api.free60127.top').replace(/\/$/, '');
+  const auth = () => 'Bearer ' + token.value.trim();
+  const showMsg = (text, ok) => {
+    const m = $('#msg');
+    m.textContent = text;
+    m.className = 'msg ' + (ok ? 'ok' : 'err');
+    setTimeout(() => { m.className = 'msg'; }, 6000);
+  };
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmt = ts => { try { return new Date(ts).toLocaleString('zh-CN', {hour12:false}); } catch (e) { return ts || ''; } };
+
+  $('#save').addEventListener('click', () => {
+    try {
+      localStorage.setItem(LS.base, apiBase.value.trim());
+      localStorage.setItem(LS.token, token.value.trim());
+      showMsg('设置已保存到本机浏览器。', true);
+    } catch (e) { showMsg('保存失败：浏览器禁止 localStorage。', false); }
+  });
+  $('#test').addEventListener('click', async () => {
+    try {
+      const r = await fetch(base() + '/api/health');
+      const j = await r.json();
+      if (r.ok && j.ok) { showMsg('连接正常：' + j.name + '（' + j.time + '）', true); }
+      else showMsg('连接异常：HTTP ' + r.status, false);
+    } catch (e) { showMsg('无法连接 API：' + e.message, false); }
+  });
+
+  // 标签切换
+  document.querySelectorAll('.tabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      $('#tab-feedback').hidden = btn.dataset.tab !== 'feedback';
+      $('#tab-notice').hidden = btn.dataset.tab !== 'notice';
+    });
+  });
+
+  // 反馈列表
+  const renderFeedback = items => {
+    const list = $('#fb-list');
+    list.innerHTML = '';
+    if (!items.length) { list.innerHTML = '<div class="empty">暂无反馈。</div>'; return; }
+    for (const it of items) {
+      const el = document.createElement('div');
+      el.className = 'fb';
+      const meta = document.createElement('div'); meta.className = 'meta';
+      const page = document.createElement('span'); page.className = 'page'; page.textContent = it.page || '（无页面）';
+      const time = document.createElement('span'); time.className = 'time'; time.textContent = fmt(it.ts);
+      meta.append(page, time);
+      el.append(meta);
+      if (it.question) { const q = document.createElement('div'); q.className = 'q'; q.textContent = it.question; el.append(q); }
+      if (it.answer) { const d = document.createElement('div'); d.className = 'detail'; d.textContent = '答案：' + it.answer; el.append(d); }
+      if (it.type) { const d = document.createElement('div'); d.className = 'detail'; d.textContent = '类型：' + it.type; el.append(d); }
+      if (it.note) { const n = document.createElement('div'); n.className = 'note'; n.textContent = '备注：' + it.note; el.append(n); }
+      if (it.contact) { const d = document.createElement('div'); d.className = 'detail'; d.textContent = '联系方式：' + it.contact; el.append(d); }
+      const actions = document.createElement('div'); actions.className = 'actions';
+      const del = document.createElement('button'); del.className = 'danger'; del.textContent = '删除这条反馈';
+      del.addEventListener('click', async () => {
+        if (!confirm('确定删除这条反馈？删除后不可恢复。')) return;
+        try {
+          const r = await fetch(base() + '/api/feedback?key=' + encodeURIComponent(it.key), { method: 'DELETE', headers: { Authorization: auth() } });
+          const j = await r.json();
+          if (r.ok && j.ok) { showMsg('已删除。', true); loadFeedback(); }
+          else showMsg('删除失败：' + (j.error || r.status), false);
+        } catch (e) { showMsg('删除失败：' + e.message, false); }
+      });
+      actions.append(del);
+      el.append(actions);
+      list.append(el);
+    }
+  };
+  const loadFeedback = async () => {
+    const btn = $('#load-fb');
+    btn.disabled = true; btn.textContent = '加载中…';
+    try {
+      const r = await fetch(base() + '/api/feedback', { headers: { Authorization: auth() } });
+      const j = await r.json();
+      if (r.ok && j.ok) { renderFeedback(j.items || []); showMsg('共 ' + j.count + ' 条反馈。', true); }
+      else if (r.status === 401) showMsg('令牌无效或未填写，请在上方输入正确令牌后重试。', false);
+      else showMsg('加载失败：' + (j.error || r.status), false);
+    } catch (e) { showMsg('请求失败：' + e.message, false); }
+    btn.disabled = false; btn.textContent = '刷新';
+  };
+  $('#load-fb').addEventListener('click', loadFeedback);
+
+  // 公告
+  const loadNotice = async () => {
+    try {
+      const r = await fetch(base() + '/api/notice');
+      const j = await r.json();
+      if (r.ok) { $('#notice-text').value = j.text || ''; $('#notice-time').textContent = j.updatedAt ? '上次更新：' + fmt(j.updatedAt) : '（暂无公告）'; }
+    } catch (e) { /* 静默，公告可稍后保存时再验证 */ }
+  };
+  $('#save-notice').addEventListener('click', async () => {
+    try {
+      const r = await fetch(base() + '/api/notice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: auth() },
+        body: JSON.stringify({ text: $('#notice-text').value.trim() }),
+      });
+      const j = await r.json();
+      if (r.ok && j.ok) { showMsg('公告已发布。', true); loadNotice(); }
+      else if (r.status === 401) showMsg('令牌无效，公告未发布。', false);
+      else showMsg('发布失败：' + (j.error || r.status), false);
+    } catch (e) { showMsg('请求失败：' + e.message, false); }
+  });
+
+  loadNotice();
+})();
+</script>
+</body>
+</html>

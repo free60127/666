@@ -60,6 +60,7 @@ async function route(request, env) {
       if (path === '/api/feedback') {
         if (request.method === 'POST') return handleFeedback(request, env);
         if (request.method === 'GET') return requireAdmin(request, env, () => handleListFeedback(request, env));
+        if (request.method === 'DELETE') return requireAdmin(request, env, () => handleDeleteFeedback(request, env));
         return methodNotAllowed();
       }
 
@@ -158,6 +159,16 @@ async function handleListFeedback(request, env) {
   }
   items.sort((a, b) => (a.ts < b.ts ? 1 : -1));
   return json({ ok: true, count: items.length, items });
+}
+
+/* ---------- 删除反馈（需 ADMIN_TOKEN）----------
+   DELETE /api/feedback?key=feedback:xxx  只允许删 feedback: 前缀键 */
+
+async function handleDeleteFeedback(request, env) {
+  const key = new URL(request.url).searchParams.get('key') || '';
+  if (!key || !key.startsWith('feedback:')) return json({ error: 'key required (feedback:...)' }, 400);
+  await env.STUDY_KV.delete(key);
+  return json({ ok: true, deleted: key });
 }
 
 /* ---------- 进度同步（匿名设备 ID 即钥匙）----------
