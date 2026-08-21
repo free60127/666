@@ -74,7 +74,8 @@ async function route(request, env) {
 
       return json({ error: 'not found', path }, 404);
     } catch (err) {
-      return json({ error: 'internal error', detail: String(err && err.message || err) }, 500);
+      console.error('waiyuan-study route error:', err);  // 错误细节仅进 Worker 日志，不对外暴露
+      return json({ error: 'internal error' }, 500);
     }
 }
 
@@ -213,6 +214,12 @@ async function handleProxy(request, path) {
       .replace(/(href|src)="\/666\//g, `$1="/proxy/`)   // 站点绝对路径 /666/x -> 反代 /proxy/x
       .replace(/(href|src)="\/(?!\/)/g, `$1="/proxy/`)   // 其他根绝对路径 -> /proxy/x
       .replace(/(href|src)="(?!https?:|\/\/|#|data:)/g, `$1="/proxy/`); // 相对路径 -> /proxy/x
+    // body 已重写，原响应长度/编码/缓存标签全部失效，必须移除
+    headers.delete('content-length');
+    headers.delete('content-encoding');
+    headers.delete('etag');
+    headers.delete('last-modified');
+    headers.set('cache-control', 'no-cache');
   }
   headers.set('access-control-allow-origin', '*');
   return new Response(body, { status: upstream.status, headers });
