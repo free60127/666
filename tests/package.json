@@ -1,0 +1,16 @@
+{
+  "name": "study-platform-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "外院知识分享站 · 浏览器行为测试（Playwright + 系统 Edge）",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed"
+  },
+  "dependencies": {
+    "playwright": "^1.62.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}

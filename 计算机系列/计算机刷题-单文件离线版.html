@@ -1546,7 +1546,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-1545'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-1607'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -2314,8 +2314,24 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     const isAttempt = target.matches('.option,.confirm,[data-action="choose"],[data-action="confirm"]');
     if (!isAnswer && !isAttempt && !/answer|choose|confirm/i.test(action)) return;
     setTimeout(() => {
-      const key = card.dataset.unifiedReady;
-      const current = [...document.querySelectorAll(cardSelector)].find(item => item.dataset.unifiedReady === key) || card;
+      // 思政/计算机判题后整卡重渲染（页面 render()），事件目标已脱离 DOM——
+      // 先从点击坐标反查新卡，拿不到再退回到旧卡上的 key 等本引擎 enhance 完成后补记。
+      let current = card;
+      try {
+        const hit = document.elementFromPoint(event.clientX, event.clientY);
+        if (hit) { const hitCard = hit.closest(cardSelector); if (hitCard) current = hitCard; }
+      } catch (_) {}
+      if (!current.dataset.unifiedReady) {
+        const waitKey = card.dataset.unifiedReady;  // 同题重渲染后 key 不变（stableId+title 确定性哈希）
+        setTimeout(() => {
+          const re = waitKey ? [...document.querySelectorAll(cardSelector)].find(item => item.dataset.unifiedReady === waitKey) : null;
+          if (!re) return;
+          const result = resultFromCard(re);
+          record(re, result === null ? undefined : result);
+          prepareCard(re);
+        }, 150);
+        return;
+      }
       const result = resultFromCard(current);
       record(current, result === null ? undefined : result);
       prepareCard(current);  // 展开答案后挂自评按钮

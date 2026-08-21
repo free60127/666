@@ -12,13 +12,19 @@
      把子域名设为 free60127，或把下方 GC_SITE 改成你的子域名。
      未注册时统计不会上报，但绝不影响站点功能。 */
   const GC_SITE = 'https://free60127.goatcounter.com/count';
-  try {
-    const s = document.createElement('script');
-    s.setAttribute('data-goatcounter', GC_SITE);
-    s.async = true;
-    s.src = '//gc.zgo.at/count.js';
-    document.head.appendChild(s);
-  } catch (e) { /* 统计失败不影响页面 */ }
+  const injectGoatCounter = () => {
+    try {
+      const s = document.createElement('script');
+      s.setAttribute('data-goatcounter', GC_SITE);
+      s.async = true;
+      s.src = '//gc.zgo.at/count.js';
+      document.head.appendChild(s);
+    } catch (e) { /* 统计失败不影响页面 */ }
+  };
+  // 统计脚本必须等 window load 后再注入：async 脚本的下载/连接失败会推迟
+  // load 事件（网络差时页面白等），先完成页面加载再异步补挂统计。
+  if (document.readyState === 'complete') injectGoatCounter();
+  else window.addEventListener('load', injectGoatCounter, { once: true });
 
   /* ---------- 云端 API 配置 ----------
      默认指向 Cloudflare Worker；绑定自定义域名后改为 https://api.free60127.top

@@ -1,4 +1,4 @@
-﻿scripts/build/report.json
+scripts/build/report.json
 Thumbs.db
 Desktop.ini
 .DS_Store
@@ -11,3 +11,8 @@ Desktop.ini
 !.env.example
 
 textbook/
+
+# playwright test artifacts
+tests/node_modules/
+tests/test-results/
+tests/playwright-report/
