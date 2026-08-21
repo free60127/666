@@ -248,7 +248,7 @@
       path: location.pathname,
       scope: card.dataset.unifiedScope || old.scope || 'bank',
       reviewed: true,
-      viewed: old.viewed || answeredNow || true,  // 作答必然看过
+      viewed: old.viewed || answeredNow,  // 看过（视口停留 1s）或本次作答才算已浏览；未看过的题保持未浏览
       answered: answeredNow || old.answered || false,
       ok: auto ? (result === true) : self ? (self === 'correct') : old.ok,
       wrong: auto ? (result === false) : self ? (self === 'wrong') : old.wrong,

@@ -189,10 +189,21 @@ function validateContentBooks(file, data) {
       const checkNoEntities = (text, where) => {
         if (!text) return;
         const hit = String(text).match(/&(?:[a-zA-Z]+|#\d+);/);
-        if (hit) fail(file, `${book.key}/${unit.key}: HTML 实体残留 "${hit[0]}" in ${where} (index ${question?.index ?? '?'})`);
+        const qIndex = typeof question !== 'undefined' && question ? question.index : '?';  // wordBanks 调用时 question 未声明
+        if (hit) fail(file, `${book.key}/${unit.key}: HTML 实体残留 "${hit[0]}" in ${where} (index ${qIndex})`);
+      };
+      // 内容污染检查（2026-08-21 治理后拦截回归）：<strong> 标签、页码残留、中文间空格
+      const checkNoPollution = (text, where) => {
+        if (!text) return;
+        const s = String(text);
+        const qIndex = typeof question !== 'undefined' && question ? question.index : '?';
+        if (/<strong/i.test(s)) fail(file, `${book.key}/${unit.key}: <strong> 标签残留 in ${where} (index ${qIndex})`);
+        if (/Reading Critically/i.test(s)) fail(file, `${book.key}/${unit.key}: 页码残留 "Reading Critically" in ${where} (index ${qIndex})`);
+        if (/[\u4e00-\u9fff]\s+[\u4e00-\u9fff]/.test(s)) fail(file, `${book.key}/${unit.key}: 中文间空格残留 in ${where} (index ${qIndex})`);
       };
       checkNoEntities(unit.instruction, `instruction`);
-      (unit.wordBanks || []).forEach((bank, bi) => (bank.words || []).forEach((word, wi) => checkNoEntities(word, `wordBanks[${bi}].words[${wi}]`)));
+      checkNoPollution(unit.instruction, `instruction`);
+      (unit.wordBanks || []).forEach((bank, bi) => (bank.words || []).forEach((word, wi) => { checkNoEntities(word, `wordBanks[${bi}].words[${wi}]`); checkNoPollution(word, `wordBanks[${bi}].words[${wi}]`); }));
       for (const question of questions) {
         if (!isObject(question)) { fail(file, `${book.key}/${unit.key}: question must be an object`); continue; }
         if (question.index === undefined) fail(file, `${book.key}/${unit.key}: question index missing: "${String(question.q || '').slice(0, 40)}…"`);
@@ -203,11 +214,16 @@ function validateContentBooks(file, data) {
         checkNoEntities(question.q, `q`);
         checkNoEntities(question.answer, `answer`);
         (question.options || []).forEach((option, i) => checkNoEntities(option, `options[${i}]`));
+        checkNoPollution(question.q, `q`);
+        checkNoPollution(question.answer, `answer`);
+        (question.options || []).forEach((option, i) => checkNoPollution(option, `options[${i}]`));
         const type = String(question.type || '');
         if (type !== 'choice' && type !== 'text') fail(file, `${book.key}/${unit.key}: invalid type "${type}" (index ${question.index ?? '?'})`);
         const options = question.options || [];
+        if (type === 'text' && Array.isArray(options) && options.length) fail(file, `${book.key}/${unit.key}: text 题带 options（应转 choice/multi）(index ${question.index ?? '?'})`);
         if (type === 'choice') {
           if (!Array.isArray(options) || options.length < 2) fail(file, `${book.key}/${unit.key}: choice question needs >=2 options (index ${question.index ?? '?'})`);
+          options.forEach((option, i) => { if (!String(option || '').trim()) fail(file, `${book.key}/${unit.key}: 空选项 options[${i}] (index ${question.index ?? '?'})`); });
           const answer = String(question.answer || '').trim().replace(/^参考答案[:：]\s*/i, '');
           if (/^[A-Z]+$/i.test(answer)) {
             for (const letter of answer.toUpperCase()) {

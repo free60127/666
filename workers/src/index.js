@@ -134,6 +134,7 @@ async function handleFeedback(request, env) {
     page: clean(body.page),
     question: clean(body.question),
     answer: clean(body.answer),
+    type: clean(body.type).slice(0, 20),
     note: clean(body.note),
     contact: clean(body.contact).slice(0, 200),
     ts: new Date().toISOString(),

@@ -2184,7 +2184,7 @@
         "title": "在VFP的程序流程中，迫使程序退出循环而执行循环终端语句的后续语句，使循环流程断路的命令是（）。",
         "hint": "VFP 程序设计",
         "options": [
-          "",
+          "LOOP",
           "RETURN",
           "EXIT",
           "CONTINUE"

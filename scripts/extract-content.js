@@ -74,20 +74,20 @@ function parseUnitBody(bodyHtml) {
       current.options = parseOptions(bodyHtml.slice(part.block.start, part.block.end));
     } else if (part.kind === 'answer' && current) {
       const text = stripTags(part.groups[1]).trim();
-      // 仅当「整个答案」就是选项字母序列（如 A / A、C / C&D）才视为选择题字母；
+      // 仅当「整个答案」就是选项字母序列（如 A / A、C / C&D / C or D）才视为选择题字母；
       // 必须首尾锚定——文本答案（如 "a, the, with" / "convey, handle"）的首字母
-      // 恰好是 A-E 时不能被截断（曾把这两类误截成 "A" / "C"）。
+      // 恰好是 A-F 时不能被截断（曾把这两类误截成 "A" / "C"）。
       // 文本答案统一剥掉「正确答案/参考答案：」前缀，保留纯答案文本。
-      const letter = text.match(/^(?:正确答案|参考答案)\s*[:：]\s*([A-E](?:\s*[&、,，]\s*[A-E])*)\s*$/i);
+      const letter = text.match(/^(?:正确答案|参考答案)\s*[:：]\s*([A-F](?:\s*(?:[&、,，]|or)\s*[A-F])*)\s*$/i);
       current.answer = letter
-        ? letter[1].toUpperCase().replace(/[^A-E]/g, '')
+        ? letter[1].toUpperCase().replace(/\s+(?:or|OR)\s+/g, ' or ').replace(/[^A-F or]/g, '')
         : text.replace(/^(?:正确答案|参考答案)\s*[:：]\s*/, '');
     }
   }
   // type 推断：有选项且答案是指向选项的字母 → choice，否则 text
   for (const q of questions) {
     const hasOptions = Array.isArray(q.options) && q.options.length;
-    const isChoice = hasOptions && /^[A-E]+$/i.test(q.answer || '');
+    const isChoice = hasOptions && /^[A-F]+(?: or [A-F])?$/i.test(q.answer || '');
     q.type = isChoice ? 'choice' : 'text';
     // 模块归属：该题在旧 HTML 中位于哪个 h3 模块标题之下（按位置判定）。
     // 渲染端据此把题目按题型模块交错展示，词库紧跟其所属模块。
@@ -162,7 +162,7 @@ function parseOptions(blockHtml) {
 
 function cleanOption(divHtml) {
   let s = divHtml.replace(/^<div[^>]*>/, '').replace(/<\/div>$/, '');
-  s = s.replace(/<strong>\s*[A-Ea-e][.、．)）]\s*<\/strong>/gi, ''); // 去掉任意位置的 "A." 前缀
+  s = s.replace(/<strong>\s*[A-Fa-f][.、．)）]\s*<\/strong>/gi, ''); // 去掉任意位置的 "A." 前缀
   s = s.replace(/<span class="[^"]*"><\/span>/g, ''); // 去掉空装饰 span
   s = s.trim();
   return s || null;

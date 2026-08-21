@@ -1518,7 +1518,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-0851'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260821-1014'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -2202,7 +2202,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
       path: location.pathname,
       scope: card.dataset.unifiedScope || old.scope || 'bank',
       reviewed: true,
-      viewed: old.viewed || answeredNow || true,  // 作答必然看过
+      viewed: old.viewed || answeredNow,  // 看过（视口停留 1s）或本次作答才算已浏览；未看过的题保持未浏览
       answered: answeredNow || old.answered || false,
       ok: auto ? (result === true) : self ? (self === 'correct') : old.ok,
       wrong: auto ? (result === false) : self ? (self === 'wrong') : old.wrong,

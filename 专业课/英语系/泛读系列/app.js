@@ -94,21 +94,29 @@
     body.innerHTML = instruction + html + leftover;
   }
 
-  function showAnswer(cardNode, q, right) {
+  function showAnswer(cardNode, q, right, raw) {
     const ansNode = cardNode.querySelector('.answer');
     const toggle = cardNode.querySelector('.answer-toggle');
     if (ansNode && toggle) {
       ansNode.hidden = false;
-      ansNode.textContent = '正确答案：' + right.map(i => `${letterOf(i)}．${q.options[i]}`).join('；');
+      ansNode.textContent = '正确答案：' + (raw && raw.includes(' or ') ? raw.split(/\s+or\s+/i).map(l => `${l.toUpperCase()}．${q.options[l.toUpperCase().charCodeAt(0) - 65] || ''}`).join(' 或 ') : right.map(i => `${letterOf(i)}．${q.options[i]}`).join('；'));
       toggle.textContent = '收起答案';
     }
+  }
+
+  // 答案字母解析：支持 A-F 六选项；"C&F"→"CF"（数据已规范化）；"A or D" 二选一均可
+  function answerLetters(q) {
+    const ans = String(q.answer || '').trim();
+    const or = ans.match(/^([A-F])\s+or\s+([A-F])$/i);
+    if (or) return {right: [or[1].toUpperCase().charCodeAt(0) - 65, or[2].toUpperCase().charCodeAt(0) - 65], isOr: true, raw: ans};
+    return {right: [...ans.match(/[A-F]/g) || []].map(l => l.charCodeAt(0) - 65), isOr: false, raw: ans};
   }
 
   function choose(unitKey, index, optIndex) {
     const unit = unitOf(unitKey);
     const q = unit && unit.questions[index];
     if (!q || q.type !== 'choice' || !q.options) return;
-    const right = [...String(q.answer || '').match(/[A-E]/g) || []].map(l => l.charCodeAt(0) - 65);
+    const {right, isOr, raw} = answerLetters(q);
     const cardNode = document.getElementById(`${unitKey}-q${index}`);
     if (!cardNode) return;
     const buttons = [...cardNode.querySelectorAll('.option')];
@@ -119,22 +127,22 @@
         else if (i === optIndex) btn.classList.add('wrong');
         btn.disabled = true;
       });
-      showAnswer(cardNode, q, right);
+      showAnswer(cardNode, q, right, raw);
       return;
     }
-    // 多选（答案含多个字母，如 "CD"）：点击切换选中态，
-    // 选中数量达到答案数时自动判定，避免逐一猜选。
+    // 多选（答案含多个字母，如 "CF"）：点击切换选中态，
+    // 普通多选在选中数量达到答案数时自动判定；"A or D" 型选中任一即判定。
     const btn = buttons[optIndex];
     if (!btn || btn.disabled) return;
     btn.classList.toggle('selected');
     const picked = buttons.map((b, i) => b.classList.contains('selected') ? i : -1).filter(i => i >= 0);
-    if (picked.length < right.length) return;
+    if (picked.length < (isOr ? 1 : right.length)) return;
     buttons.forEach((b, i) => {
-      if (right.includes(i)) b.classList.add('correct');
+      if (right.includes(i) && picked.includes(i)) b.classList.add('correct');
       else if (picked.includes(i)) b.classList.add('wrong');
       b.disabled = true;
     });
-    showAnswer(cardNode, q, right);
+    showAnswer(cardNode, q, right, raw);
   }
 
   function toggleAnswer(unitKey, index) {
@@ -148,8 +156,9 @@
     if (!ansNode.hidden) { ansNode.hidden = true; toggle.textContent = '点击展开答案'; return; }
     ansNode.hidden = false;
     if (q && q.type === 'choice' && q.options) {
-      const letters = [...String(q.answer || '').match(/[A-E]/g) || []];
-      ansNode.textContent = '正确答案：' + letters.map(l => `${l}．${q.options[l.charCodeAt(0) - 65]}`).join('；');
+      const {right, raw} = answerLetters(q);
+      const isOr = raw.includes(' or ');
+      ansNode.textContent = '正确答案：' + (isOr ? raw.split(/\s+or\s+/i).map(l => `${l.toUpperCase()}．${q.options[l.toUpperCase().charCodeAt(0) - 65] || ''}`).join(' 或 ') : right.map(l => `${l}．${q.options[l]}`).join('；'));
     } else {
       ansNode.textContent = (q && q.answer) || '原文未提供标准答案，请结合教材复习。';
     }
@@ -163,7 +172,7 @@
       questions.push({
         question: clean(q.q),
         options: (q.options || []).map(clean),
-        answer: q.type === 'choice' ? [...String(q.answer || '').match(/[A-E]/g) || []].map(l => `${l}. ${q.options[l.charCodeAt(0) - 65] || ''}`).join('\n') : (q.answer || ''),
+        answer: q.type === 'choice' ? (String(q.answer || '').match(/^[A-F]\s+or\s+[A-F]$/i) ? String(q.answer || '').toUpperCase() : [...String(q.answer || '').match(/[A-F]/g) || []].map(l => `${l}. ${q.options[l.charCodeAt(0) - 65] || ''}`).join('\n')) : (q.answer || ''),
         type: q.type === 'choice' ? '选择' : '填空/翻译'
       });
     }
