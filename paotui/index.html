@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>外院跑腿 - 发布任务 · 校内接单</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="icon" href="../favicon.svg">
+  <link rel="stylesheet" href="style.css?v=20260822-1700">
+  <meta property="og:title" content="外院跑腿">
+  <meta property="og:description" content="校内跑腿：发布任务、在线接单，线下当面结算">
+  <meta property="og:url" content="https://free60127.top/paotui/">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🛵 外院跑腿</div>
+    <div class="auth-area" id="auth-area">
+      <button id="auth-open-btn" class="btn small">👤 登录 / 注册</button>
+      <button id="auth-email" class="btn small ghost hidden"></button>
+      <button id="auth-logout-btn" class="btn small ghost hidden">退出</button>
+    </div>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="open">待接单</button>
+    <button class="tab" data-tab="doing">进行中</button>
+    <button class="tab" data-tab="done">已完成</button>
+    <button class="tab" data-tab="mine-posted">我发布的</button>
+    <button class="tab" data-tab="mine-taken">我接的</button>
+  </nav>
+  <main>
+    <div id="task-list" class="task-list"></div>
+    <div id="empty" class="empty hidden">这里还没有任务～点右下角发布第一个吧</div>
+    <button id="load-more" class="load-more hidden">加载更多</button>
+  </main>
+  <button id="fab-publish" class="fab">＋ 发布任务</button>
+
+  <!-- 发布弹窗 -->
+  <div id="publish-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3>发布任务</h3>
+      <div class="field"><label>标题 *</label><input id="p-title" maxlength="60" placeholder="帮取快递 / 带饭…"></div>
+      <div class="field"><label>详细描述</label><textarea id="p-desc" maxlength="500" rows="3" placeholder="取件码、具体要求…"></textarea></div>
+      <div class="field-row">
+        <div class="field"><label>赏金（元）*</label><input id="p-reward" type="number" min="0" max="99999" placeholder="5"></div>
+        <div class="field"><label>截止时间（选填）</label><input id="p-deadline" type="datetime-local"></div>
+      </div>
+      <div class="field"><label>取件地点 *</label><input id="p-pickup" maxlength="50" placeholder="菜鸟驿站"></div>
+      <div class="field"><label>送达地点 *</label><input id="p-dropoff" maxlength="50" placeholder="女生宿舍 3 栋"></div>
+      <div class="field"><label>联系方式（选填）</label><input id="p-contact" maxlength="100" placeholder="手机号 / 微信号"></div>
+      <div class="hint" id="pub-hint"></div>
+      <div class="modal-actions">
+        <button id="pub-cancel" class="btn ghost">取消</button>
+        <button id="pub-submit" class="btn primary">发布</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 详情弹窗 -->
+  <div id="detail-modal" class="modal hidden">
+    <div class="modal-box">
+      <div id="detail-body"></div>
+    </div>
+  </div>
+
+  <!-- 登录弹窗 -->
+  <div id="auth-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3 id="auth-title">登录</h3>
+      <div class="tabs mini" id="auth-tabs">
+        <button class="tab active" data-aview="login">登录</button>
+        <button class="tab" data-aview="register">注册</button>
+      </div>
+      <div class="field"><label>邮箱</label><input id="auth-email-input" type="email" placeholder="you@example.com"></div>
+      <div class="field" id="nick-field" hidden><label>昵称（≤20 字）</label><input id="auth-nick-input" maxlength="20" placeholder="同学怎么称呼你"></div>
+      <div class="field"><label>密码（≥8 位）</label><input id="auth-password-input" type="password"></div>
+      <div class="hint" id="auth-hint"></div>
+      <div class="modal-actions">
+        <button id="auth-close" class="btn ghost">关闭</button>
+        <button id="auth-submit" class="btn primary">登录</button>
+      </div>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="../学习中心/auth.js?v=20260822-1700"></script>
+  <script src="app.js?v=20260822-1700"></script>
+</body>
+</html>

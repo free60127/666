@@ -511,4 +511,4 @@ async function adminResetCode(db, env, request) {
     .bind(email, await sha256Hex(code), now + RESET_TTL_MS, now).run();
   return json({ ok: true, code: code, expiresInSeconds: RESET_TTL_MS / 1000 });
 }
-export { handleAuth, hashToken };
+export { handleAuth, hashToken, sessionUser };
