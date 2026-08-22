@@ -713,6 +713,7 @@ async function cleanupDb(env) {
       db.prepare("DELETE FROM stats WHERE key LIKE 'stats:uv:day:%' AND substr(key, 14) < ?1").bind(daysAgo(30)),
       db.prepare('DELETE FROM login_fails WHERE updated_at < ?1').bind(now - dayMs),
       db.prepare('DELETE FROM reset_tokens WHERE expires_at < ?1').bind(now),
+      db.prepare("UPDATE errand_tasks SET status = 'cancelled', cancelled_at = ?1, cancel_reason = '任务已过期，自动取消', updated_at = ?1 WHERE status = 'open' AND deadline IS NOT NULL AND deadline < ?1").bind(now),
     ]);
   } catch (_) { /* 清理失败静默 */ }
   await processCleanupJobs(env, now);

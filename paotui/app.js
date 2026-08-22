@@ -128,7 +128,8 @@
     }
   }
   function cardHtml(t) {
-    const st = STATUS[t.status] || ['未知', ''];
+    const expired = t.status === 'open' && t.deadline && t.deadline < Date.now();
+    const st = expired ? ['已过期', 'st-cancelled'] : (STATUS[t.status] || ['未知', '']);
     const loc = (t.pickup || t.dropoff) ? '📍 ' + esc(t.pickup) + (t.dropoff ? ' → ' + esc(t.dropoff) : '') : '';
     const who = t.status === 'done' || t.status === 'doing' ? (t.takerName ? '👤 ' + esc(t.takerName) : '') : '👤 ' + esc(t.publisherName);
     return '<div class="task-card" data-id="' + t.id + '">' +
@@ -162,9 +163,11 @@
     const st = STATUS[t.status] || ['未知', ''];
     const isPublisher = me && me.id && t.publisherId === me.id;
     const isTaker = me && me.id && t.takerId === me.id;
+    const expired = t.status === 'open' && t.deadline && t.deadline < Date.now();
     let actions = '';
     if (t.status === 'open') {
-      if (isPublisher) actions += '<button class="btn danger" data-act="cancel">取消任务</button>';
+      if (expired) actions += '<span class="muted">⏰ 任务已过期，无法接单</span>';
+      else if (isPublisher) actions += '<button class="btn danger" data-act="cancel">取消任务</button>';
       else if (me && me.id) actions += '<button class="btn primary big" data-act="take">立即接单 ¥' + esc(t.reward) + '</button>';
       else actions += '<button class="btn primary big" data-act="need-login">登录后接单</button>';
     } else if (t.status === 'doing') {
@@ -174,6 +177,7 @@
     } else if (t.status === 'done') {
       if (isPublisher && !t.confirmedAt) actions += '<button class="btn primary" data-act="confirm">确认完成（结算）</button>';
       else actions += '<span class="muted">' + (t.confirmedAt ? '✅ 双方确认完成' : '已完成，等待发布者确认') + '</span>';
+      if (t.confirmedAt && (isPublisher || isTaker)) actions += '<button class="btn ghost" data-act="review">⭐ 评价对方</button>';
     } else {
       actions += '<span class="muted">' + esc(t.cancelReason || '已取消') + '</span>';
     }
@@ -186,23 +190,73 @@
       (t.dropoff ? row('🏁 送达', t.dropoff) : '') +
       row('👤 发布者', t.publisherName) +
       (t.takerName ? row('🛵 接单者', t.takerName) : '') +
-      (t.contact ? row('📞 联系', t.contact) : '') +
+      (t.contact ? row('📞 联系', t.contact) : (t.status === 'open' && !isPublisher ? row('📞 联系', '接单后可见') : '')) +
       (t.deadline ? row('⏰ 截止', fmtTime(t.deadline)) : '') +
       row('🕐 发布时间', fmtTime(t.createdAt)) +
       (t.completedAt ? row('✅ 完成时间', fmtTime(t.completedAt)) : '') +
       '</div>' +
       '<div class="detail-actions">' + actions + '</div>' +
+      '<div id="review-box"></div>' +
       '<button class="btn ghost full" data-act="close">关闭</button>';
     bodyEl.querySelectorAll('button[data-act]').forEach(btn => {
       btn.addEventListener('click', () => handleDetailAction(btn.dataset.act, t));
     });
+    loadReviews(t.id);
+  }
+  async function loadReviews(taskId) {
+    const box = $('review-box');
+    if (!box) return;
+    try {
+      const data = await api('/api/errand/reviews?taskId=' + taskId);
+      const list = data.reviews || [];
+      if (!list.length) return;
+      box.innerHTML = '<div class="review-head">💬 评价（' + list.length + '）</div>' +
+        list.map(r => '<div class="review-item"><span class="review-name">' + esc(r.reviewerName || '匿名') + '</span>' +
+          '<span class="review-stars">' + '★'.repeat(r.rating) + '<span class="dim">' + '★'.repeat(5 - r.rating) + '</span></span>' +
+          (r.comment ? '<div class="review-comment">' + esc(r.comment) + '</div>' : '') +
+          '<div class="review-time">' + fmtTime(r.createdAt) + '</div></div>').join('') +
+        '</div>';
+    } catch (e) { /* 评价加载失败静默 */ }
   }
   function row(label, val) {
     return '<div class="drow"><span class="dlabel">' + label + '</span><span class="dval">' + esc(val) + '</span></div>';
   }
+  let currentReviewTask = null;
+  let reviewRating = 5;
+  function openReviewModal(t) {
+    reviewRating = 5;
+    currentReviewTask = t;
+    $('rv-comment').value = '';
+    renderStars();
+    openModal('review-modal');
+  }
+  function renderStars() {
+    document.querySelectorAll('#rv-stars .star').forEach((s, i) => {
+      s.textContent = i < reviewRating ? '★' : '☆';
+      s.classList.toggle('on', i < reviewRating);
+    });
+    $('rv-label').textContent = ['很差', '较差', '一般', '满意', '非常满意'][reviewRating - 1];
+  }
+  async function submitReview() {
+    if (!currentReviewTask) return;
+    const comment = $('rv-comment').value.trim().slice(0, 200);
+    try {
+      await api('/api/errand/reviews', {
+        method: 'POST',
+        body: JSON.stringify({ taskId: currentReviewTask.id, rating: reviewRating, comment }),
+      });
+      closeModal('review-modal');
+      toast('评价成功，感谢反馈！');
+      openDetail(currentReviewTask.id);
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
   async function handleDetailAction(act, t) {
     if (act === 'close') { closeModal('detail-modal'); return; }
     if (act === 'need-login') { closeModal('detail-modal'); openAuthModal('login'); return; }
+    if (act === 'review') { openReviewModal(t); return; }
     const confirmText = {
       take: '确认接单？接单后请尽快联系发布者。',
       complete: '确认已送达并完成？',
@@ -338,6 +392,10 @@
   $('auth-password-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
   document.querySelectorAll('#auth-tabs .tab').forEach(b => b.addEventListener('click', () => { authView = b.dataset.aview; renderAuthView(); }));
   $('load-more').addEventListener('click', () => { page++; loadList(true); });
+  // 评价弹窗
+  $('rv-cancel').addEventListener('click', () => closeModal('review-modal'));
+  $('rv-submit').addEventListener('click', submitReview);
+  document.querySelectorAll('#rv-stars .star').forEach(s => s.addEventListener('click', () => { reviewRating = Number(s.dataset.s); renderStars(); }));
   document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); }));
 
   /* ---------- init ---------- */

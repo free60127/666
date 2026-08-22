@@ -15,6 +15,7 @@ class MemoryD1 {
     this.users = new Map(); this.sessions = new Map();
     this.rates = new Map(); this.loginFails = new Map();
     this.tasks = new Map(); this.nextTaskId = 1;
+    this.reviews = new Map(); this.nextReviewId = 1;
   }
   prepare(sql) {
     const db = this;
@@ -81,6 +82,19 @@ class MemoryD1 {
       const t = this.tasks.get(Number(args[0]));
       return t ? { status: t.status, publisher_id: t.publisher_id } : null;
     }
+    if (s.includes('SELECT status, publisher_id, deadline FROM errand_tasks')) {
+      const t = this.tasks.get(Number(args[0]));
+      return t ? { status: t.status, publisher_id: t.publisher_id, deadline: t.deadline } : null;
+    }
+    if (s.includes('FROM errand_tasks') && s.includes('confirmed_at')) {
+      const t = this.tasks.get(Number(args[0]));
+      return t ? { id: t.id, publisher_id: t.publisher_id, taker_id: t.taker_id, confirmed_at: t.confirmed_at } : null;
+    }
+    if (s.includes('FROM errand_reviews') && s.includes('reviewer_id')) {
+      const [taskId, reviewerId] = args;
+      for (const r of this.reviews.values()) if (r.task_id === taskId && r.reviewer_id === reviewerId) return r;
+      return null;
+    }
     if (s.includes('SELECT status, publisher_id, taker_id FROM errand_tasks')) {
       const t = this.tasks.get(Number(args[0]));
       return t ? { status: t.status, publisher_id: t.publisher_id, taker_id: t.taker_id } : null;
@@ -113,9 +127,29 @@ class MemoryD1 {
       const pageSize = Number(args[args.length - 2]), offset = Number(args[args.length - 1]);
       return { results: results.slice(offset, offset + pageSize) };
     }
+    if (s.includes('FROM errand_reviews')) {
+      const taskId = Number(args[0]);
+      const arr = [...this.reviews.values()].filter(r => r.task_id === taskId).sort((a, b) => b.created_at - a.created_at);
+      return { results: arr.map(r => ({ ...r, reviewer_name: (this.users.get(r.reviewer_id) || {}).nickname || null })) };
+    }
     return { results: [] };
   }
   async _run(s, args) {
+    // takeTask 特判：WHERE 含 (deadline IS NULL OR deadline > ?) OR 组，通用解析器不支持
+    if (s.startsWith('UPDATE errand_tasks') && s.includes('deadline > ?')) {
+      const [takerId, nowMs, id, userId] = args;
+      const t = this.tasks.get(id);
+      if (!t || t.status !== 'open' || t.publisher_id === userId) return { meta: { changes: 0 } };
+      if (t.deadline !== null && t.deadline !== undefined && Number(t.deadline) <= nowMs) return { meta: { changes: 0 } };
+      t.status = 'doing'; t.taker_id = takerId; t.updated_at = nowMs;
+      return { meta: { changes: 1 } };
+    }
+    if (s.startsWith('INSERT INTO errand_reviews')) {
+      const [task_id, reviewer_id, reviewee_id, rating, comment, created_at] = args;
+      const id = this.nextReviewId++;
+      this.reviews.set(id, { id, task_id, reviewer_id, reviewee_id, rating, comment, created_at });
+      return { meta: { changes: 1, last_row_id: id } };
+    }
     if (s.startsWith('INSERT INTO users')) {
       const [id, email, password_hash, nickname, recovery_encrypted, created_at, updated_at] = args;
       this.users.set(id, { id, email, password_hash, nickname, recovery_encrypted, created_at, updated_at });
@@ -215,7 +249,11 @@ check('默认列表 open 1 条', list.items.length === 1 && list.total === 1);
 const listAll = await data(await api('/api/errand/tasks?status=all'));
 check('status=all 排除 cancelled', listAll.total === 1);
 const det = await data(await api('/api/errand/tasks/1'));
-check('详情字段完整', det.task && det.task.pickup === '菜鸟驿站' && det.task.contact === '13800000000');
+check('匿名详情字段完整但联系方式脱敏', det.task && det.task.pickup === '菜鸟驿站' && det.task.contact === '');
+const detPub = await data(await api('/api/errand/tasks/1', { token: tokenA }));
+check('发布者可见联系方式', detPub.task.contact === '13800000000');
+const detOther = await data(await api('/api/errand/tasks/1', { token: tokenC }));
+check('路人详情联系方式脱敏', detOther.task.contact === '');
 const det404 = await api('/api/errand/tasks/999');
 check('不存在 404', det404.status === 404);
 
@@ -228,6 +266,8 @@ const again = await api('/api/errand/tasks/1/take', { method: 'POST', token: tok
 check('已被接走 409', again.status === 409);
 const det2 = await data(await api('/api/errand/tasks/1'));
 check('详情显示接单者昵称', det2.task.takerName === '跑腿员');
+const detB = await data(await api('/api/errand/tasks/1', { token: tokenB }));
+check('接单成功后接单者可见联系方式', detB.task.contact === '13800000000');
 
 console.log('4) 完成 + 确认');
 const wrongComplete = await api('/api/errand/tasks/1/complete', { method: 'POST', token: tokenC });
@@ -269,6 +309,52 @@ for (let i = 0; i < 31; i++) {
   if (r.status === 429) { hit429 = true; break; }
 }
 check('第 31 次发布触发 429', hit429);
+
+console.log('8) 截止时间过期：不可接单 + 自动取消');
+const tExp = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '过期任务', reward: 2, pickup: 'A', dropoff: 'B', deadline: Date.now() + 3600e3 } }));
+db.tasks.get(tExp.task.id).deadline = Date.now() - 1000; // 直接改内存模拟过期
+const expTake = await api('/api/errand/tasks/' + tExp.task.id + '/take', { method: 'POST', token: tokenB });
+check('过期任务接单被拒 409', expTake.status === 409);
+const expBody = await data(expTake);
+check('过期任务自动置为 cancelled', expBody.status === 'cancelled' && expBody.error.includes('已过期'));
+const tExp2 = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '过期任务2', reward: 2, pickup: 'A', dropoff: 'B', deadline: Date.now() + 3600e3 } }));
+db.tasks.get(tExp2.task.id).deadline = Date.now() - 1000;
+const expList = await data(await api('/api/errand/tasks?status=open'));
+  // 过期任务仍会出现在 open 列表（前端展示已过期徽标 + 禁用接单；cron 兜底清理为 cancelled）
+check('过期任务在 open 列表可见（前端标记已过期）', expList.items.some(t => t.id === tExp2.task.id));
+
+console.log('9) 评价（确认完成后双方互评）');
+// 任务1 已确认：A 评 B
+const revNoAuth = await api('/api/errand/reviews', { method: 'POST', body: { taskId: 1, rating: 5 } });
+check('未登录评价 401', revNoAuth.status === 401);
+const revBadRating = await api('/api/errand/reviews', { method: 'POST', token: tokenA, body: { taskId: 1, rating: 6 } });
+check('评分越界 400', revBadRating.status === 400);
+const revOther = await api('/api/errand/reviews', { method: 'POST', token: tokenC, body: { taskId: 1, rating: 5 } });
+check('路人不能评价 403', revOther.status === 403);
+const revA = await api('/api/errand/reviews', { method: 'POST', token: tokenA, body: { taskId: 1, rating: 5, comment: '跑得快' } });
+check('A 评价 B 201', revA.status === 201);
+const revDup = await api('/api/errand/reviews', { method: 'POST', token: tokenA, body: { taskId: 1, rating: 4 } });
+check('重复评价 400', revDup.status === 400);
+// 新任务走完闭环：B 评 A
+const tRev = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '评价闭环', reward: 3, pickup: 'X', dropoff: 'Y' } }));
+await api('/api/errand/tasks/' + tRev.task.id + '/take', { method: 'POST', token: tokenB });
+await api('/api/errand/tasks/' + tRev.task.id + '/complete', { method: 'POST', token: tokenB });
+await api('/api/errand/tasks/' + tRev.task.id + '/confirm', { method: 'POST', token: tokenA });
+const revBeforeConfirm = await api('/api/errand/reviews', { method: 'POST', token: tokenA, body: { taskId: tRev.task.id, rating: 5 } });
+// 上面 confirm 已确认，直接 B 评 A
+const revB = await api('/api/errand/reviews', { method: 'POST', token: tokenB, body: { taskId: tRev.task.id, rating: 4, comment: '联系顺畅' } });
+check('B 评价 A 201', revB.status === 201);
+const revList1 = await data(await api('/api/errand/reviews?taskId=1'));
+check('任务1 评价列表 1 条', revList1.reviews.length === 1 && revList1.reviews[0].reviewerName === '发布者' && revList1.reviews[0].rating === 5);
+const revList2 = await data(await api('/api/errand/reviews?taskId=' + tRev.task.id));
+check('新任务互评 2 条（双方各一条）', revList2.reviews.length === 2 && revList2.reviews.some(r => r.reviewerName === '跑腿员') && revList2.reviews.some(r => r.reviewerName === '发布者'));
+const revAnon = await data(await api('/api/errand/reviews?taskId=1'));
+check('匿名可看评价列表', revAnon.reviews.length === 1);
+// 未确认任务不可评：新建任务只接单不确认
+const tUn = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '未确认', reward: 1, pickup: 'A', dropoff: 'B' } }));
+await api('/api/errand/tasks/' + tUn.task.id + '/take', { method: 'POST', token: tokenB });
+const revUn = await api('/api/errand/reviews', { method: 'POST', token: tokenA, body: { taskId: tUn.task.id, rating: 5 } });
+check('未确认任务不能评价 400', revUn.status === 400);
 
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
 process.exit(failed ? 1 : 0);

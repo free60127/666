@@ -6,7 +6,7 @@
   <title>外院跑腿 - 发布任务 · 校内接单</title>
   <meta name="robots" content="noindex,nofollow">
   <link rel="icon" href="../favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20260822-1749">
+  <link rel="stylesheet" href="style.css?v=20260822-1823">
   <script>(function(){try{var t=localStorage.getItem('waiyuan-web-theme-v1')||(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
   <meta property="og:title" content="外院跑腿">
   <meta property="og:description" content="校内跑腿：发布任务、在线接单，线下当面结算">
@@ -64,6 +64,25 @@
     </div>
   </div>
 
+  <!-- 评价弹窗 -->
+  <div id="review-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3>评价对方</h3>
+      <div class="field"><label>评分</label>
+        <div class="stars" id="rv-stars">
+          <button type="button" class="star on" data-s="1">★</button><button type="button" class="star on" data-s="2">★</button><button type="button" class="star on" data-s="3">★</button><button type="button" class="star on" data-s="4">★</button><button type="button" class="star on" data-s="5">★</button>
+        </div>
+        <span class="rv-label" id="rv-label">非常满意</span>
+      </div>
+      <div class="field"><label>评语（选填，200 字内）</label><textarea id="rv-comment" maxlength="200" rows="3" placeholder="服务怎么样？"></textarea></div>
+      <div class="hint" id="rv-hint"></div>
+      <div class="modal-actions">
+        <button id="rv-cancel" class="btn ghost">取消</button>
+        <button id="rv-submit" class="btn primary">提交评价</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 登录弹窗 -->
   <div id="auth-modal" class="modal hidden">
     <div class="modal-box">
@@ -84,7 +103,7 @@
   </div>
   <div id="toast" class="toast hidden"></div>
 
-  <script src="../学习中心/auth.js?v=20260822-1749"></script>
-  <script src="app.js?v=20260822-1749"></script>
+  <script src="../学习中心/auth.js?v=20260822-1823"></script>
+  <script src="app.js?v=20260822-1823"></script>
 </body>
 </html>

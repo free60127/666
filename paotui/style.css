@@ -113,3 +113,19 @@ html[data-theme="dark"] .st-done { background: #22313b; color: #7fb4d8; }
 html[data-theme="dark"] .st-cancelled { background: #2a2f31; color: var(--muted); }
 html[data-theme="dark"] .task-card { box-shadow: 0 1px 4px rgba(0,0,0,.35); }
 html[data-theme="dark"] .modal { background: rgba(0,0,0,.6); }
+
+/* 评价 */
+.stars { display: inline-flex; gap: 2px; }
+.stars .star { border: none; background: none; font-size: 26px; line-height: 1; color: #d8d8d8; padding: 0 2px; }
+.stars .star.on { color: #f5a623; }
+.rv-label { margin-left: 8px; font-size: 13px; color: var(--muted); }
+.review-head { margin: 12px 0 6px; font-size: 14px; font-weight: 700; }
+.review-item { border-top: 1px solid var(--border); padding: 8px 0; font-size: 13px; }
+.review-name { font-weight: 600; margin-right: 8px; }
+.review-stars { color: #f5a623; }
+.review-stars .dim { color: #d8d8d8; }
+.review-comment { color: var(--text); margin-top: 3px; }
+.review-time { color: var(--muted); font-size: 11px; margin-top: 3px; }
+html[data-theme="dark"] .stars .star { color: #4a4a4a; }
+html[data-theme="dark"] .stars .star.on { color: #f5a623; }
+html[data-theme="dark"] .review-stars .dim { color: #4a4a4a; }

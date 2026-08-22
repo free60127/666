@@ -51,6 +51,18 @@ const mapTask = (r) => r ? ({
   publisherName: r.publisher_name, takerName: r.taker_name,
 }) : null;
 
+/* 联系方式脱敏：仅发布者本人、以及已接单状态下的接单者可见；其余一律空字符串 */
+function canSeeContact(user, row) {
+  if (!user) return false;
+  if (user.id === row.publisher_id) return true;
+  if (user.id === row.taker_id && (row.status === 'doing' || row.status === 'done')) return true;
+  return false;
+}
+function sanitizeContact(task, user, row) {
+  if (!canSeeContact(user, row)) task.contact = '';
+  return task;
+}
+
 /* ---------- 发布任务 ---------- */
 async function createTask(db, request) {
   const user = await sessionUser(db, request);
@@ -104,7 +116,7 @@ async function listTasks(db, request) {
     const rows = await db.prepare(
       TASK_SELECT + where + ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?'
     ).bind(...params, pageSize, (page - 1) * pageSize).all();
-    const items = (rows && rows.results ? rows.results : []).map(mapTask);
+    const items = (rows && rows.results ? rows.results : []).map(mapTask).map(t => { t.contact = ''; return t; });
     return json({ items, total: Number(countRow && countRow.c) || 0, page, pageSize });
   } catch (error) {
     console.error('errand list error:', error);
@@ -127,7 +139,7 @@ async function myTasks(db, request) {
     const rows = await db.prepare(
       TASK_SELECT + 'WHERE ' + col + ' = ? ORDER BY t.created_at DESC LIMIT ? OFFSET ?'
     ).bind(user.id, pageSize, (page - 1) * pageSize).all();
-    const items = (rows && rows.results ? rows.results : []).map(mapTask);
+    const items = (rows && rows.results ? rows.results : []).map(r => sanitizeContact(mapTask(r), user, r));
     return json({ items, total: Number(countRow && countRow.c) || 0, page, pageSize, role });
   } catch (error) {
     console.error('errand mine error:', error);
@@ -135,11 +147,13 @@ async function myTasks(db, request) {
   }
 }
 
-/* ---------- 详情 ---------- */
-async function taskDetail(db, id) {
+/* ---------- 详情（可选鉴权；联系方式仅双方可见） ---------- */
+async function taskDetail(db, request, id) {
   const row = await db.prepare(TASK_SELECT + 'WHERE t.id = ?').bind(id).first().catch(() => null);
   if (!row) return json({ error: '任务不存在' }, 404);
-  return json({ task: mapTask(row) });
+  const user = await sessionUser(db, request).catch(() => null);
+  const task = sanitizeContact(mapTask(row), user, row);
+  return json({ task });
 }
 
 /* ---------- 接单（原子抢占） ---------- */
@@ -152,12 +166,19 @@ async function takeTask(db, request, id) {
   try {
     const result = await db.prepare(
       'UPDATE errand_tasks SET status = \'doing\', taker_id = ?, updated_at = ? ' +
-      'WHERE id = ? AND status = \'open\' AND publisher_id != ?'
-    ).bind(user.id, now, id, user.id).run();
+      'WHERE id = ? AND status = \'open\' AND publisher_id != ? AND (deadline IS NULL OR deadline > ?)'
+    ).bind(user.id, now, id, user.id, now).run();
     if (!result || !result.meta || Number(result.meta.changes) !== 1) {
-      const row = await db.prepare('SELECT status, publisher_id FROM errand_tasks WHERE id = ?').bind(id).first().catch(() => null);
+      const row = await db.prepare('SELECT status, publisher_id, deadline FROM errand_tasks WHERE id = ?').bind(id).first().catch(() => null);
       if (!row) return json({ error: '任务不存在' }, 404);
       if (row.publisher_id === user.id) return json({ error: '不能接自己发布的任务' }, 400);
+      if (row.status === 'open' && row.deadline && Number(row.deadline) <= now) {
+        await db.prepare(
+          'UPDATE errand_tasks SET status = \'cancelled\', cancelled_at = ?, cancel_reason = ?, updated_at = ? ' +
+          'WHERE id = ? AND status = \'open\''
+        ).bind(now, '任务已过期，自动取消', now, id).run().catch(() => {});
+        return json({ error: '任务已过期，无法接单', status: 'cancelled' }, 409);
+      }
       return json({ error: row.status === 'open' ? '手慢了，任务已被接走' : '任务当前不可接单', status: row.status }, 409);
     }
     const row = await db.prepare(TASK_SELECT + 'WHERE t.id = ?').bind(id).first();
@@ -225,6 +246,57 @@ async function cancelTask(db, request, id) {
   }
 }
 
+/* ---------- 评价（确认完成后双方互评，每人一次） ---------- */
+const REVIEW_SELECT =
+  'SELECT r.id, r.task_id, r.reviewer_id, r.reviewee_id, r.rating, r.comment, r.created_at, u.nickname AS reviewer_name ' +
+  'FROM errand_reviews r LEFT JOIN users u ON u.id = r.reviewer_id ';
+const mapReview = (r) => r ? ({ id: r.id, taskId: r.task_id, reviewerId: r.reviewer_id, revieweeId: r.reviewee_id,
+  rating: r.rating, comment: r.comment, createdAt: r.created_at, reviewerName: r.reviewer_name }) : null;
+
+async function createReview(db, request) {
+  const user = await sessionUser(db, request);
+  if (!user) return json({ error: 'unauthorized' }, 401);
+  const body = await request.json().catch(() => null);
+  if (!body) return json({ error: 'invalid json' }, 400);
+  const taskId = Math.floor(num(body.taskId));
+  if (!Number.isInteger(taskId) || taskId <= 0) return json({ error: 'invalid taskId' }, 400);
+  const rating = Math.floor(num(body.rating));
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return json({ error: '评分需为 1~5 的整数' }, 400);
+  const comment = String(body.comment || '').trim().slice(0, 200);
+  try {
+    const task = await db.prepare('SELECT id, publisher_id, taker_id, confirmed_at FROM errand_tasks WHERE id = ?').bind(taskId).first();
+    if (!task) return json({ error: '任务不存在' }, 404);
+    if (!task.confirmed_at) return json({ error: '任务确认完成后才能评价' }, 400);
+    const isPublisher = task.publisher_id === user.id;
+    const isTaker = task.taker_id === user.id;
+    if (!isPublisher && !isTaker) return json({ error: '只有任务双方可以评价' }, 403);
+    const revieweeId = isPublisher ? task.taker_id : task.publisher_id;
+    if (!revieweeId) return json({ error: '对方账号不存在' }, 400);
+    const dup = await db.prepare('SELECT id FROM errand_reviews WHERE task_id = ? AND reviewer_id = ?').bind(taskId, user.id).first();
+    if (dup) return json({ error: '已评价过该任务' }, 400);
+    const result = await db.prepare(
+      'INSERT INTO errand_reviews (task_id, reviewer_id, reviewee_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(taskId, user.id, revieweeId, rating, comment, Date.now()).run();
+    const row = await db.prepare(REVIEW_SELECT + 'WHERE r.id = ?').bind(result.meta.last_row_id).first();
+    return json({ ok: true, review: mapReview(row) }, 201);
+  } catch (error) {
+    console.error('errand review error:', error);
+    return json({ error: 'internal error' }, 500);
+  }
+}
+
+async function listReviews(db, request) {
+  const url = new URL(request.url);
+  const taskId = Math.floor(num(url.searchParams.get('taskId')));
+  if (!Number.isInteger(taskId) || taskId <= 0) return json({ error: 'invalid taskId' }, 400);
+  try {
+    const rows = await db.prepare(REVIEW_SELECT + 'WHERE r.task_id = ? ORDER BY r.created_at DESC').bind(taskId).all();
+    return json({ reviews: (rows && rows.results ? rows.results : []).map(mapReview) });
+  } catch (error) {
+    console.error('errand reviews list error:', error);
+    return json({ error: 'internal error' }, 500);
+  }
+}
 /* ---------- 入口 ---------- */
 export async function handleErrand(request, env, path) {
   const db = env.DB;
@@ -232,11 +304,13 @@ export async function handleErrand(request, env, path) {
   if (path === '/api/errand/tasks' && request.method === 'POST') return createTask(db, request);
   if (path === '/api/errand/tasks' && request.method === 'GET') return listTasks(db, request);
   if (path === '/api/errand/mine' && request.method === 'GET') return myTasks(db, request);
+  if (path === '/api/errand/reviews' && request.method === 'POST') return createReview(db, request);
+  if (path === '/api/errand/reviews' && request.method === 'GET') return listReviews(db, request);
   const m = path.match(/^\/api\/errand\/tasks\/(\d+)(?:\/(take|complete|confirm|cancel))?$/);
   if (m) {
     const id = Number(m[1]);
     const action = m[2];
-    if (!action && request.method === 'GET') return taskDetail(db, id);
+    if (!action && request.method === 'GET') return taskDetail(db, request, id);
     if (action === 'take' && request.method === 'POST') return takeTask(db, request, id);
     if (action === 'complete' && request.method === 'POST') return completeTask(db, request, id);
     if (action === 'confirm' && request.method === 'POST') return confirmTask(db, request, id);
