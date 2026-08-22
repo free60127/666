@@ -66,6 +66,23 @@ node $W secret put SMTP_PASS   # QQ 邮箱 SMTP 授权码（QQ 邮箱设置 → 
 - SMTP 邮件主题使用 RFC 2047 Base64，正文使用 UTF-8 Base64；SMTP 连接在成功和异常路径都会释放。
 - 注销账号后的 KV 清理任务使用 cleanup_jobs 表和 Cron 指数退避重试；部署前必须应用 migrations/0005_cleanup_jobs.sql。
 
+## 会员付费（2026-08-22 路线 C：payjs 聚合支付）
+
+| 方法 | 路径 | 说明 | 鉴权 |
+|---|---|---|---|
+| POST | `/api/pay/create` | 下单 `{product}` → payjs native → `{outTradeNo, qrcode, totalFee, expiresIn}`（二维码内容需前端渲染） | 会话（10 分钟最多 10 单） |
+| GET | `/api/pay/status?out_trade_no=` | 查询订单：`pending/paid/closed`；pending 时兜底主动查 payjs（同订单 25 秒最多 1 次），回调丢失也能开通 | 会话（仅本人） |
+| POST | `/api/pay/notify` | payjs 异步回调（form）：MD5 验签 + 金额/单号校验，幂等；成功后订单置 paid + 会员期 `MAX` 叠加 | 公开（验签） |
+| GET | `/api/pay/me` | `{memberUntil, isMember}`（门禁用） | 会话 |
+
+- 商品：`member30` = 2 元 / 30 天（`PRODUCTS` 表，金额单位分；续费不缩短现有会员期）。
+- 数据：`pay_orders` 表（0009 迁移）+ `users.member_until`（毫秒时间戳，0 = 非会员）。
+- 签名：payjs 参数按 key ASCII 升序拼接 + `&key=密钥`，**MD5 大写**（Worker 无 WebCrypto MD5，内置 blueimp-md5 转 ESM：`workers/src/md5.js`，已验证与 node crypto 一致）。
+- 未支付订单 10 分钟过期（status 查询时惰性置 closed）。
+- 需配置 secret：`PAYJS_MCHID`（payjs 商户号）、`PAYJS_KEY`（payjs 通信密钥）。未配置时 create 返回 500「支付通道未配置」，notify 返回 fail。
+- 前端：`会员中心/index.html`（登录/扫码/轮询自动开通）；门禁 `member-gate.js`（页面 `<body data-member-only="1">` 启用：未登录→引导登录、非会员→引导开通、会员→放行）。
+- 风险说明（路线 C 二清灰区）：资金先进 payjs 商户号 T+1 结算，平台跑路/封号可能损失；小额运营 + 及时提现。
+
 ## 安全边界（2026-08-22 加固后）
 
 
