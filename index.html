@@ -21,8 +21,8 @@
   <meta name="apple-mobile-web-app-title" content="外院分享站">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>外院知识分享站</title>
-  <link rel="stylesheet" href="home.css?v=20260822-1740">
-<link rel="stylesheet" href="reading-tools.css?v=20260822-1740" data-reading-tools-asset><script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
+  <link rel="stylesheet" href="home.css?v=20260822-1749">
+<link rel="stylesheet" href="reading-tools.css?v=20260822-1749" data-reading-tools-asset><script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
 </head>
 <body data-reading-tools="true">
   <main class="site-shell">
@@ -44,7 +44,6 @@
       <a class="series-card textbook" href="电子版教材/index.html"><i>📖</i><small>E-TEXTBOOKS</small><h2>电子版教材</h2><p>扫码获取电子版教材资料</p><b>查看二维码 →</b></a>
       <a class="series-card certification" href="考证/index.html"><i>🎓</i><small>CERTIFICATION</small><h2>考证</h2><p>英语专四与后续考证资料</p><b>查看资料 →</b></a>
       <a class="series-card vocabulary" href="背单词/index.html"><i>词</i><small>VOCABULARY</small><h2>背单词</h2><p>英语专四、专八每日学习与智能复习</p><b>开始学习 →</b></a>
-      <a class="series-card errand" href="paotui/index.html"><i>🛵</i><small>ERRAND</small><h2>跑腿</h2><p>发布任务、接单互助，校园跑腿小平台</p><b>去发布/接单 →</b></a>
     </section>
     <section class="study-links" aria-label="个人学习">
       <a class="study-link favorites-link" href="学习中心/index.html?view=favorites"><i>★</i><span><b>我的收藏</b><small>查看和复习已收藏的题目</small></span><em>进入 ›</em></a>
@@ -72,17 +71,18 @@
     <button class="support" data-action="sponsor"><span>赞助支持</span><b>♥</b><small>自愿支持资料持续整理与更新</small></button>
     <button class="print-shop" data-action="print-shop"><span>打印小店</span><b>🖨️</b><small>黑白 0.2 元、彩色 0.3 元／张</small></button>
     <button class="support" data-action="feedback"><span>意见反馈</span><b>💬</b><small>使用中遇到问题？留言告诉我</small></button>
+    <a class="print-shop errand-link" href="paotui/index.html"><span>跑腿互助</span><b>🛵</b><small>校内发布任务 · 在线接单（独立小平台）</small></a>
     <p class="footnote">外院知识分享站 · 免费分享，持续完善</p>
   </main>
   <div class="modal-mask hidden" id="auth-panel" role="dialog" aria-modal="true" aria-labelledby="auth-title"><section class="modal auth-modal"><button class="close" data-action="close-auth" aria-label="关闭">×</button><p class="kicker">ACCOUNT</p><h2 id="auth-title">账号登录 / 注册</h2><div class="auth-tabs"><button type="button" data-auth-tab="login" class="active">登录</button><button type="button" data-auth-tab="register">注册</button></div><div class="auth-fields" id="auth-login-view"><input id="auth-email-input" type="email" autocomplete="email" placeholder="邮箱（同学之间不重复）"><input id="auth-password-input" type="password" autocomplete="current-password" placeholder="密码（至少 8 位）"><input id="auth-nickname-input" type="text" autocomplete="nickname" placeholder="昵称（可选）" hidden><button type="button" data-action="auth-submit" id="auth-submit-btn">登录</button><button type="button" class="auth-link" data-action="auth-forgot" id="auth-forgot-link">忘记密码？</button></div><div class="auth-fields" id="auth-forgot-view" hidden><input id="auth-forgot-email" type="email" autocomplete="email" placeholder="注册邮箱"><button type="button" data-action="auth-forgot-send" id="auth-forgot-send-btn">发送验证码</button><button type="button" class="auth-link" data-action="auth-forgot-back" id="auth-forgot-back">‹ 返回登录</button></div><div class="auth-fields" id="auth-reset-view" hidden><input id="auth-reset-email" type="email" autocomplete="email" placeholder="注册邮箱"><input id="auth-reset-code" type="text" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="8 位验证码"><input id="auth-reset-password" type="password" autocomplete="new-password" placeholder="新密码（至少 8 位）"><input id="auth-reset-recovery" type="text" autocomplete="off" spellcheck="false" placeholder="原恢复码（选填，保留云端数据）"><button type="button" data-action="auth-reset-submit" id="auth-reset-submit-btn">重置密码</button><button type="button" class="auth-link" data-action="auth-forgot-back" id="auth-reset-back">‹ 返回登录</button></div><div class="auth-fields" id="auth-manage-view" hidden><input id="auth-old-password" type="password" autocomplete="current-password" placeholder="当前密码"><input id="auth-new-password" type="password" autocomplete="new-password" placeholder="新密码（至少 8 位）"><button type="button" data-action="auth-change-submit" id="auth-change-submit-btn">修改密码</button><input id="auth-delete-password" type="password" autocomplete="current-password" placeholder="输入密码确认注销"><button type="button" class="danger" data-action="auth-delete-open" id="auth-delete-open-btn">注销账号</button><button type="button" class="danger" data-action="auth-delete-submit" id="auth-delete-submit-btn" hidden>确认注销（云端数据将删除，不可恢复）</button></div><p class="auth-hint" id="auth-hint">登录后，云端学习数据（进度/收藏/错题）可跨设备同步：本机恢复码会用你的密码加密存入账号，换设备登录同一账号自动解锁，无需再手抄恢复码。密码即钥匙，忘记密码 = 云端数据需原恢复码才能解锁，请自行记牢。修改密码会自动重新加密恢复码；注销账号会删除账号与云端备份。</p></section></div>
   <div class="modal-mask hidden" id="sponsor" role="dialog" aria-modal="true" aria-labelledby="sponsor-title"><section class="modal pay-modal"><button class="close" data-action="close-pay" aria-label="关闭">×</button><p class="kicker">SUPPORT</p><h2 id="sponsor-title">感谢你的赞助</h2><p>本站所有内容均可免费使用。若资料对你有帮助，欢迎扫码自愿赞助。</p><img src="payment-qr.jpg" alt="微信收款码" loading="lazy"><small>赞助完全自愿，不影响任何功能使用。</small></section></div>
   <div class="modal-mask hidden" id="print-shop" role="dialog" aria-modal="true" aria-labelledby="print-shop-title"><section class="modal print-modal"><button class="close" data-action="close-print-shop" aria-label="关闭">×</button><p class="kicker">PRINT SHOP</p><h2 id="print-shop-title">打印小店</h2><img src="print-shop.jpg" alt="宿舍打印店微信二维码，黑白 0.2 元、彩色 0.3 元每张" loading="lazy"><p>长期接各种试题卷、论文打印</p></section></div>
   <div class="modal-mask hidden" id="feedback" role="dialog" aria-modal="true" aria-labelledby="feedback-title"><section class="modal pay-modal"><button class="close" data-action="close-feedback" aria-label="关闭">×</button><p class="kicker">FEEDBACK</p><h2 id="feedback-title">意见反馈</h2><p>使用中遇到问题？直接留言告诉我，我会尽快处理。</p><textarea id="feedback-text" class="feedback-text" maxlength="200" rows="4" placeholder="想说的话（200 字以内）"></textarea><p class="feedback-count" id="feedback-count">0 / 200</p><button type="button" class="main-button" id="feedback-submit">提交反馈</button><p class="feedback-status" id="feedback-status" aria-live="polite"></p><p class="feedback-contact">想快速反馈请添加管理员微信 <b>f-xuan-r</b> 或发送邮箱至 <b>360476118@qq.com</b></p></section></div>
-<script defer src="site-search-data.js?v=20260822-1740"></script><script defer src="site-search.js?v=20260822-1740"></script><script defer src="home.js?v=20260822-1740"></script>
-<script defer src="reading-tools.js?v=20260822-1740" data-reading-tools-asset></script><script defer src="unified-quiz-engine.js?v=20260822-1740"></script>  <link rel="stylesheet" href="theme.css">
+<script defer src="site-search-data.js?v=20260822-1749"></script><script defer src="site-search.js?v=20260822-1749"></script><script defer src="home.js?v=20260822-1749"></script>
+<script defer src="reading-tools.js?v=20260822-1749" data-reading-tools-asset></script><script defer src="unified-quiz-engine.js?v=20260822-1749"></script>  <link rel="stylesheet" href="theme.css">
   <script defer src="common.js" data-common-injected></script>
-  <script defer src="学习中心/auth.js?v=20260822-1740"></script><script defer src="学习中心/cloud-sync.js?v=20260822-1740"></script><script defer src="home-auth.js?v=20260822-1740"></script>
-  <link rel="stylesheet" href="tomato-timer.css?v=20260822-1740">
-  <script defer src="tomato-timer.js?v=20260822-1740" data-tomato-injected></script>
+  <script defer src="学习中心/auth.js?v=20260822-1749"></script><script defer src="学习中心/cloud-sync.js?v=20260822-1749"></script><script defer src="home-auth.js?v=20260822-1749"></script>
+  <link rel="stylesheet" href="tomato-timer.css?v=20260822-1749">
+  <script defer src="tomato-timer.js?v=20260822-1749" data-tomato-injected></script>
 </body>
 </html>
