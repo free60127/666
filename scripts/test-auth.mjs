@@ -233,7 +233,6 @@ console.log('4) 登录限流（D1 邮箱锁定：连续 8 次失败 → 429）')
   check('锁过期后正确密码 200 且清计数', ok.status === 200 && !sharedDb.loginFails.has(email));
 }
 
-console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
 console.log('5) 修改密码（change-password）');
 {
   const reg = await api('/api/auth/register', { method: 'POST', body: { email: 'cp@test.com', password: 'old-pass-1' } });
@@ -309,3 +308,4 @@ console.log('7) 找回密码（forgot / reset-password / admin-reset-code）');
 }
 
 process.exit(failed ? 1 : 0);
+console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
