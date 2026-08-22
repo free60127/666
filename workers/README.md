@@ -31,7 +31,41 @@
 
 所有 API 响应 JSON。CORS：**API 路由**只对白名单来源（`https://free60127.github.io`、`https://free60127.top`）回显 `Access-Control-Allow-Origin`（其他来源无 CORS 头）；**反代**是公开静态资源，返回 `Access-Control-Allow-Origin: *`（不携带凭证）。
 
+## 账号体系（2026-08-22，D1）
+
+| 方法 | 路径 | 说明 | 鉴权 |
+|---|---|---|---|
+| POST | `/api/auth/register` | 注册 `{email, password, nickname?, recovery?}`（recovery 为恢复码保险箱 `{salt,iv,c}`） | 公开（IP+邮箱限流） |
+| POST | `/api/auth/login` | 登录 → `{token, user, recovery}`（30 天会话；连续 8 次失败锁 15 分钟） | 公开 |
+| POST | `/api/auth/logout` | 退出当前会话 | 会话 |
+| GET | `/api/auth/me` | 当前用户 + 恢复码保险箱 | 会话 |
+| POST | `/api/auth/recovery` | 更新恢复码保险箱 `{recovery}` | 会话 |
+| POST | `/api/auth/change-password` | 改密码 `{oldPassword, newPassword, recovery?}`（recovery 可选：新密码加密的保险箱，随改密原子更新；其他设备会话全部失效） | 会话 |
+| POST | `/api/auth/delete-account` | 注销 `{password}`（删用户级联会话 + 云端备份 KV `sync:user:{id}` + 活跃记录 + 重置码） | 会话 + 密码 |
+| POST | `/api/auth/forgot` | 找回密码第 1 步：向注册邮箱发 8 位数字重置码（15 分钟有效；未注册邮箱也返回 ok 防枚举；每邮箱 1 分钟 1 次） | 公开 |
+| POST | `/api/auth/reset-password` | 找回密码第 2 步 `{email, code, newPassword, recovery?}`（recovery 可选=新密码加密的原恢复码，缺省清空保险箱并提示云端数据需原恢复码；重置后全部设备退出） | 公开 |
+| POST | `/api/auth/admin-reset-code` | 管理端兜底：生成重置码（明文返回，线下转交用户）`{email}` | Bearer ADMIN_TOKEN |
+
+### 邮件（找回密码）
+
+Worker 用 **TCP sockets**（`cloudflare:sockets`，TLS 直连 smtp.qq.com:465）发信，无需第三方 HTTP 邮件服务。需配置 secret：
+
+```powershell
+node $W secret put SMTP_USER   # QQ 邮箱（如 3338095791@qq.com）
+node $W secret put SMTP_PASS   # QQ 邮箱 SMTP 授权码（QQ 邮箱设置 → 账户 → 开启 SMTP 服务生成；非 QQ 密码）
+# 可选：SMTP_HOST（缺省 smtp.qq.com）、SMTP_PORT（缺省 465）、SMTP_FROM（缺省 SMTP_USER）
+```
+
+未配置时 `/api/auth/forgot` 返回 503「邮件发送失败」，不影响注册/登录/改密码/注销；管理员可用 `admin-reset-code` 线下兜底。
+
+### 安全说明
+
+- **密码即钥匙**：恢复码保险箱用密码派生密钥（PBKDF2 150k + AES-GCM-256）加密，服务端只存密文无法解密；改密码/重置密码时前端用旧密码解密 → 新密码重新加密上传（change-password 可随请求原子更新）。
+- **忘记密码 = 云端数据需原恢复码**：重置密码会清空保险箱（除非请求携带新密码加密的原恢复码），登录后若本机无恢复码需手动「云端恢复」或联系管理员。
+- 会话 token 在库中只存 SHA-256 哈希；密码 PBKDF2(SHA-256, 10k 轮, 16B salt)（Workers 免费计划 CPU 限制，150k 会超时）。
+
 ## 安全边界（2026-08-22 加固后）
+
 
 - `/api/sync` 双模式：
   - **匿名（访客）**：恢复码 → `deviceId = SHA-256(code)`（64 位 hex），**知道恢复码才能读写数据**（服务端只存哈希）；

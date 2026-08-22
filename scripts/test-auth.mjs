@@ -10,6 +10,7 @@ class MemoryD1 {
     this.sessions = new Map();
     this.loginFails = new Map();
     this.rates = new Map();
+    this.resetTokens = new Map();
   }
   prepare(sql) {
     const db = this;
@@ -39,7 +40,7 @@ class MemoryD1 {
       if (!ses || ses.expires_at <= now) return null;
       const u = this.users.get(ses.user_id);
       if (!u) return null;
-      return { token: tokenHash, id: u.id, email: u.email, nickname: u.nickname || '', recovery_encrypted: u.recovery_encrypted };
+      return { token: tokenHash, id: u.id, email: u.email, nickname: u.nickname || '', password_hash: u.password_hash, recovery_encrypted: u.recovery_encrypted };
     }
     if (s.includes('FROM sessions') && s.includes('expires_at >')) {
       const [tokenHash, now] = args;
@@ -61,6 +62,10 @@ class MemoryD1 {
       cur.count += 1;
       return { count: cur.count };
     }
+    if (s.includes('FROM reset_tokens') && s.includes('WHERE email')) {
+      const [email] = args;
+      return this.resetTokens.get(email) || null;
+    }
     return null;
   }
   async _run(s, args) {
@@ -72,8 +77,16 @@ class MemoryD1 {
       const [tokenHash, user_id, created_at, expires_at] = args;
       this.sessions.set(tokenHash, { token: tokenHash, user_id, created_at, expires_at });
     } else if (s.startsWith('DELETE FROM sessions')) {
-      const [tokenHash] = args;
-      this.sessions.delete(tokenHash);
+      if (s.includes('AND token')) {
+        const [userId, keepTokenHash] = args;
+        for (const [k, v] of this.sessions) if (v.user_id === userId && k !== keepTokenHash) this.sessions.delete(k);
+      } else if (s.includes('WHERE user_id')) {
+        const [userId] = args;
+        for (const [k, v] of this.sessions) if (v.user_id === userId) this.sessions.delete(k);
+      } else {
+        const [tokenHash] = args;
+        this.sessions.delete(tokenHash);
+      }
     } else if (s.startsWith('DELETE FROM login_fails')) {
       const [email] = args;
       this.loginFails.delete(email);
@@ -81,16 +94,37 @@ class MemoryD1 {
       const [email, failCount, lockedUntil, updatedAt] = args;
       this.loginFails.set(email, { email, fail_count: failCount, locked_until: lockedUntil, updated_at: updatedAt });
     } else if (s.startsWith('UPDATE users')) {
-      const [recovery, now, id] = args;
-      const u = this.users.get(id);
-      if (u) { u.recovery_encrypted = recovery; u.updated_at = now; }
+      const u = this.users.get(args[args.length - 1]);
+      if (u) {
+        if (s.includes('password_hash') && s.includes('recovery_encrypted')) {
+          const [password_hash, recovery, now] = args;
+          u.password_hash = password_hash; u.recovery_encrypted = recovery; u.updated_at = now;
+        } else if (s.includes('password_hash')) {
+          const [password_hash, now] = args;
+          u.password_hash = password_hash; u.updated_at = now;
+        } else {
+          const [recovery, now] = args;
+          u.recovery_encrypted = recovery; u.updated_at = now;
+        }
+      }
+    } else if (s.startsWith('DELETE FROM users')) {
+      const [id] = args;
+      this.users.delete(id);
+      for (const [k, v] of this.sessions) if (v.user_id === id) this.sessions.delete(k);
+    } else if (s.includes('INSERT OR REPLACE INTO reset_tokens')) {
+      const [email, codeHash, expiresAt, createdAt] = args;
+      const used = 0;
+      this.resetTokens.set(email, { email, code_hash: codeHash, expires_at: expiresAt, used, created_at: createdAt });
+    } else if (s.startsWith('DELETE FROM reset_tokens')) {
+      const [email] = args;
+      this.resetTokens.delete(email);
     }
     return { meta: { changes: 1 } };
   }
 }
 
 const sharedDb = new MemoryD1(); // 所有请求共享同一数据库
-const api = async (path, { method = 'GET', token, body } = {}) => {
+const api = async (path, { method = 'GET', token, body, extraEnv = {} } = {}) => {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = 'Bearer ' + token;
   const request = new Request('https://api.free60127.top' + path, {
@@ -98,7 +132,7 @@ const api = async (path, { method = 'GET', token, body } = {}) => {
     headers,
     body: body ? JSON.stringify(body) : undefined,
   });
-  const response = await handleAuth(request, { DB: sharedDb }, path);
+  const response = await handleAuth(request, { DB: sharedDb, ...extraEnv }, path);
   const data = await response.json().catch(() => null);
   return { status: response.status, data };
 };
@@ -200,4 +234,78 @@ console.log('4) 登录限流（D1 邮箱锁定：连续 8 次失败 → 429）')
 }
 
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
+console.log('5) 修改密码（change-password）');
+{
+  const reg = await api('/api/auth/register', { method: 'POST', body: { email: 'cp@test.com', password: 'old-pass-1' } });
+  check('注册 201', reg.status === 201);
+  const token = reg.data.token;
+  const noAuth = await api('/api/auth/change-password', { method: 'POST', body: { oldPassword: 'old-pass-1', newPassword: 'new-pass-1' } });
+  check('未登录 401', noAuth.status === 401);
+  const badOld = await api('/api/auth/change-password', { method: 'POST', token, body: { oldPassword: 'wrong', newPassword: 'new-pass-1' } });
+  check('旧密码错误 401', badOld.status === 401);
+  const short = await api('/api/auth/change-password', { method: 'POST', token, body: { oldPassword: 'old-pass-1', newPassword: 'short' } });
+  check('新密码过短 400', short.status === 400);
+  const ok = await api('/api/auth/change-password', { method: 'POST', token, body: { oldPassword: 'old-pass-1', newPassword: 'new-pass-1' } });
+  check('改密码 200', ok.status === 200);
+  const oldLogin = await api('/api/auth/login', { method: 'POST', body: { email: 'cp@test.com', password: 'old-pass-1' } });
+  check('旧密码登录 401', oldLogin.status === 401);
+  const newLogin = await api('/api/auth/login', { method: 'POST', body: { email: 'cp@test.com', password: 'new-pass-1' } });
+  check('新密码登录 200', newLogin.status === 200);
+  const tokenB = newLogin.data.token;
+  const okB = await api('/api/auth/change-password', { method: 'POST', token: tokenB, body: { oldPassword: 'new-pass-1', newPassword: 'newest-1' } });
+  check('第二会话改密码 200', okB.status === 200);
+  const tA = await api('/api/auth/me', { token });
+  const tB = await api('/api/auth/me', { token: tokenB });
+  check('其他设备会话失效、当前会话保留', tA.status === 401 && tB.status === 200);
+}
+
+console.log('6) 注销账号（delete-account）');
+{
+  const reg = await api('/api/auth/register', { method: 'POST', body: { email: 'del@test.com', password: 'secret123' } });
+  const token = reg.data.token;
+  const wrong = await api('/api/auth/delete-account', { method: 'POST', token, body: { password: 'nope' } });
+  check('密码错误 401', wrong.status === 401);
+  const ok = await api('/api/auth/delete-account', { method: 'POST', token, body: { password: 'secret123' } });
+  check('注销 200', ok.status === 200);
+  const me = await api('/api/auth/me', { token });
+  check('注销后 me 401', me.status === 401);
+  const login = await api('/api/auth/login', { method: 'POST', body: { email: 'del@test.com', password: 'secret123' } });
+  check('注销后登录 401', login.status === 401);
+}
+
+console.log('7) 找回密码（forgot / reset-password / admin-reset-code）');
+{
+  const env = { ADMIN_TOKEN: 'test-admin-token', SMTP_TEST_MODE: true, SMTP_SENT: [], SMTP_USER: 'test@qq.com', SMTP_PASS: 'authcode' };
+  await api('/api/auth/register', { method: 'POST', body: { email: 'fg@test.com', password: 'secret123' } });
+  await api('/api/auth/register', { method: 'POST', body: { email: 'fg2@test.com', password: 'secret123' } });
+  const unreg = await api('/api/auth/forgot', { method: 'POST', body: { email: 'ghost@test.com' }, extraEnv: env });
+  check('未注册邮箱 200（防枚举）', unreg.status === 200);
+  check('未注册不发信', env.SMTP_SENT.length === 0);
+  const fg = await api('/api/auth/forgot', { method: 'POST', body: { email: 'fg@test.com' }, extraEnv: env });
+  check('已注册邮箱 200 且发信 1 封', fg.status === 200 && env.SMTP_SENT.length === 1 && env.SMTP_SENT[0].to === 'fg@test.com');
+  const again = await api('/api/auth/forgot', { method: 'POST', body: { email: 'fg@test.com' }, extraEnv: env });
+  check('1 分钟内重复请求 429', again.status === 429);
+  const adminNoToken = await api('/api/auth/admin-reset-code', { method: 'POST', body: { email: 'fg@test.com' }, extraEnv: env });
+  check('admin 无 token 401', adminNoToken.status === 401);
+  const admin = await api('/api/auth/admin-reset-code', { method: 'POST', token: 'test-admin-token', body: { email: 'fg@test.com' }, extraEnv: env });
+  check('admin 生成码 200 且 8 位数字', admin.status === 200 && /^[0-9]{8}$/.test(admin.data.code), JSON.stringify(admin.data));
+  const code = admin.data.code;
+  const badCode = await api('/api/auth/reset-password', { method: 'POST', body: { email: 'fg@test.com', code: '00000000', newPassword: 'new-secret' }, extraEnv: env });
+  check('错误验证码 400', badCode.status === 400);
+  const ok = await api('/api/auth/reset-password', { method: 'POST', body: { email: 'fg@test.com', code, newPassword: 'new-secret' }, extraEnv: env });
+  check('重置密码 200 且 recoveryReset', ok.status === 200 && ok.data.recoveryReset === true);
+  const oldLogin = await api('/api/auth/login', { method: 'POST', body: { email: 'fg@test.com', password: 'secret123' } });
+  check('旧密码登录 401', oldLogin.status === 401);
+  const newLogin = await api('/api/auth/login', { method: 'POST', body: { email: 'fg@test.com', password: 'new-secret' } });
+  check('新密码登录 200 且 recovery 为 null', newLogin.status === 200 && newLogin.data.recovery === null);
+  const reuse = await api('/api/auth/reset-password', { method: 'POST', body: { email: 'fg@test.com', code, newPassword: 'third-secret' }, extraEnv: env });
+  check('重置码一次性（重用 400）', reuse.status === 400);
+  const admin2 = await api('/api/auth/admin-reset-code', { method: 'POST', token: 'test-admin-token', body: { email: 'fg2@test.com' }, extraEnv: env });
+  const box = { salt: 'AAAA_salt_salt_salt_salt', iv: 'BBBB_iv_iv_iv_iv_iv_iv', c: 'CCCC_cipher_cipher' };
+  const ok2 = await api('/api/auth/reset-password', { method: 'POST', body: { email: 'fg2@test.com', code: admin2.data.code, newPassword: 'new-secret', recovery: box }, extraEnv: env });
+  check('带恢复码重置 recoveryReset=false', ok2.status === 200 && ok2.data.recoveryReset === false);
+  const login2 = await api('/api/auth/login', { method: 'POST', body: { email: 'fg2@test.com', password: 'new-secret' } });
+  check('重置后 recovery 为新保险箱', login2.status === 200 && JSON.stringify(login2.data.recovery) === JSON.stringify(box));
+}
+
 process.exit(failed ? 1 : 0);

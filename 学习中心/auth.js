@@ -118,5 +118,36 @@
     }, base);
   }
 
-  return { lockRecovery, unlockRecovery, getSession, saveSession, clearSession, isLoggedIn, register, login, logout, me, setRecovery, LS_KEY };
+  async function changePassword(token, input, base) {
+    return api('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify(input),
+    }, base);
+  }
+
+  async function deleteAccount(token, input, base) {
+    return api('/api/auth/delete-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify(input),
+    }, base);
+  }
+
+  async function forgot(email, base) {
+    return api('/api/auth/forgot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    }, base);
+  }
+
+  async function resetPassword(input, base) {
+    return api('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }, base);
+  }
+  return { lockRecovery, unlockRecovery, getSession, saveSession, clearSession, isLoggedIn, register, login, logout, me, setRecovery, changePassword, deleteAccount, forgot, resetPassword, LS_KEY };
 });

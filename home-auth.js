@@ -119,6 +119,118 @@
       if (submit) submit.disabled = false;
     }
   };
+  /* ---------- 账号管理 UI（2026-08-22，主页版）：忘记密码 / 修改密码 / 注销 ---------- */
+  const showAuthView = view => {
+    const ids = { login: 'auth-login-view', forgot: 'auth-forgot-view', reset: 'auth-reset-view', manage: 'auth-manage-view' };
+    Object.keys(ids).forEach(key => {
+      const el = $(ids[key]);
+      if (el) el.hidden = key !== view;
+    });
+  };
+  const doAuthForgotSend = async () => {
+    if (!auth()) { setHint('账号模块未加载，请刷新页面重试。', true); return; }
+    const email = ($('auth-forgot-email')?.value || '').trim();
+    if (!email) { setHint('请输入注册邮箱。', true); return; }
+    const btn = $('auth-forgot-send-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '发送中…'; }
+    try {
+      await auth().forgot(email);
+      setHint('验证码已发送（若该邮箱已注册）。请查收邮件。');
+      const resetEmail = $('auth-reset-email');
+      if (resetEmail) resetEmail.value = email;
+      showAuthView('reset');
+      $('auth-reset-code')?.focus();
+    } catch (error) {
+      setHint('发送失败：' + (error && error.message ? error.message : '网络错误') + '。', true);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '发送验证码'; }
+    }
+  };
+  const doAuthResetSubmit = async () => {
+    if (!auth()) { setHint('账号模块未加载，请刷新页面重试。', true); return; }
+    const email = ($('auth-reset-email')?.value || '').trim();
+    const code = ($('auth-reset-code')?.value || '').trim();
+    const newPassword = $('auth-reset-password')?.value || '';
+    const recoveryInput = ($('auth-reset-recovery')?.value || '').trim();
+    if (!email || !code || !newPassword) { setHint('请填写邮箱、验证码和新密码。', true); return; }
+    if (newPassword.length < 8) { setHint('新密码至少 8 位。', true); return; }
+    let recovery;
+    if (recoveryInput) {
+      try { recovery = await auth().lockRecovery(newPassword, recoveryInput); }
+      catch (_) { setHint('恢复码格式无效（可留空跳过，但云端数据将需原恢复码解锁）。', true); return; }
+    }
+    const btn = $('auth-reset-submit-btn');
+    if (btn) btn.disabled = true;
+    try {
+      const result = await auth().resetPassword({ email, code, newPassword, recovery });
+      if (result && result.recoveryReset) {
+        setHint('密码已重置。注意：云端数据需原恢复码才能解锁——请用原恢复码做云端恢复，或联系管理员。');
+      } else {
+        setHint('密码已重置，请用新密码登录。');
+      }
+      if (recoveryInput && cloud() && cloud().saveCode) cloud().saveCode(recoveryInput);
+      showAuthView('login');
+      ['auth-reset-email', 'auth-reset-code', 'auth-reset-password', 'auth-reset-recovery'].forEach(id => { const n = $(id); if (n) n.value = ''; });
+    } catch (error) {
+      setHint('重置失败：' + (error && error.message ? error.message : '网络错误') + '。', true);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+  const doAuthChangePassword = async () => {
+    if (!auth()) { setHint('账号模块未加载，请刷新页面重试。', true); return; }
+    const session = auth().getSession ? auth().getSession() : null;
+    if (!session || !session.token) { setHint('请先登录。', true); return; }
+    const oldPassword = $('auth-old-password')?.value || '';
+    const newPassword = $('auth-new-password')?.value || '';
+    if (!oldPassword || !newPassword) { setHint('请输入当前密码和新密码。', true); return; }
+    if (newPassword.length < 8) { setHint('新密码至少 8 位。', true); return; }
+    const btn = $('auth-change-submit-btn');
+    if (btn) btn.disabled = true;
+    try {
+      let recovery;
+      const meData = await auth().me(session.token);
+      if (meData && meData.recovery) {
+        try {
+          const code = await auth().unlockRecovery(oldPassword, meData.recovery);
+          recovery = await auth().lockRecovery(newPassword, code);
+        } catch (_) {
+          setHint('恢复码保险箱解锁失败：请确认当前密码正确，或先在旧设备导出数据。', true);
+          return;
+        }
+      }
+      await auth().changePassword(session.token, { oldPassword, newPassword, recovery });
+      setHint('密码已修改，其他设备已退出登录。');
+      ['auth-old-password', 'auth-new-password'].forEach(id => { const n = $(id); if (n) n.value = ''; });
+      showPanel(true);
+    } catch (error) {
+      setHint('修改失败：' + (error && error.message ? error.message : '网络错误') + '。', true);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+  const doAuthDeleteAccount = async () => {
+    if (!auth()) { setHint('账号模块未加载，请刷新页面重试。', true); return; }
+    const session = auth().getSession ? auth().getSession() : null;
+    if (!session || !session.token) { setHint('请先登录。', true); return; }
+    const password = $('auth-delete-password')?.value || '';
+    if (!password) { setHint('请输入密码确认注销。', true); return; }
+    if (!window.confirm('确定注销账号吗？账号、云端备份与学习记录将全部删除，且无法恢复！')) return;
+    const btn = $('auth-delete-submit-btn');
+    if (btn) btn.disabled = true;
+    try {
+      await auth().deleteAccount(session.token, { password });
+      if (auth()) auth().clearSession();
+      if (cloud() && cloud().clearAuth) cloud().clearAuth();
+      refreshAuthBar();
+      setHint('账号已注销。感谢使用！');
+      showPanel(true);
+    } catch (error) {
+      setHint('注销失败：' + (error && error.message ? error.message : '网络错误') + '。', true);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
   const doAuthLogout = async () => {
     const session = auth() && auth().getSession ? auth().getSession() : null;
     try { if (session && auth()) await auth().logout(session.token); } catch (_) {}
@@ -132,10 +244,24 @@
     const el = e.target.closest('[data-action]');
     if (!el) return;
     const action = el.dataset.action;
-    if (action === 'auth-open') { setAuthMode('login'); setHint(''); showPanel(false); }
+    if (action === 'auth-open') {
+      setAuthMode('login');
+      setHint('');
+      showPanel(false);
+      const session = auth() && auth().getSession ? auth().getSession() : null;
+      if (session && session.token) showAuthView('manage');
+      else showAuthView('login');
+    }
     else if (action === 'close-auth') showPanel(true);
     else if (action === 'auth-submit') doAuthSubmit();
     else if (action === 'auth-logout') doAuthLogout();
+    else if (action === 'auth-forgot') { setHint(''); showAuthView('forgot'); }
+    else if (action === 'auth-forgot-send') doAuthForgotSend();
+    else if (action === 'auth-forgot-back') { setAuthMode('login'); showAuthView('login'); }
+    else if (action === 'auth-reset-submit') doAuthResetSubmit();
+    else if (action === 'auth-change-submit') doAuthChangePassword();
+    else if (action === 'auth-delete-open') { const db = $('auth-delete-submit-btn'); if (db) db.hidden = false; }
+    else if (action === 'auth-delete-submit') doAuthDeleteAccount();
   });
   document.querySelectorAll('[data-auth-tab]').forEach(t => t.addEventListener('click', () => setAuthMode(t.dataset.authTab)));
   refreshAuthBar();

@@ -46,3 +46,14 @@ html[data-theme='dark'] .continue-card i{background:#2f3d36}
 
 /* 意见反馈弹窗（2026-08-21：文本框直传云端，200 字上限） */
 .modal .feedback-text{display:block;width:100%;min-height:96px;margin:14px 0 0;padding:12px 14px;border:1px solid #bfd2c5;border-radius:10px;background:var(--cream);color:var(--ink);font:inherit;font-size:15px;line-height:1.6;resize:vertical;outline:none}.modal .feedback-text:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(40,99,79,.12)}.main-button{display:block;width:100%;border:0;border-radius:12px;background:var(--green);color:#fff;padding:13px 14px;margin-top:10px;font:inherit;font-size:16px;font-weight:800;cursor:pointer}.main-button:hover{background:#1f513f}.main-button:disabled{opacity:.6;cursor:default}.feedback-count{margin:6px 0 0;color:#8a958f;font-size:12px;text-align:right}.feedback-status{margin:10px 0 0;font-size:13px;font-weight:700}.feedback-status.ok{color:#1e7d4f}.feedback-status.error{color:#c0392b}.feedback-contact{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;line-height:1.7}html[data-theme='dark'] .modal .feedback-text{background:#1d2823;border-color:#3a4541;color:#e6efe9}html[data-theme='dark'] .feedback-contact{color:#8d9b94}
+
+/* 账号管理（2026-08-22）：忘记密码 / 修改密码 / 注销 */
+.auth-modal .auth-fields .auth-link{width:auto;background:none;color:var(--muted);font-size:12px;font-weight:600;text-decoration:underline;padding:2px}
+.auth-modal .auth-fields .auth-link:hover{color:var(--green)}
+.auth-modal .auth-fields button.danger{background:#fff;border:1px solid #d98a8a;color:#b3261e}
+.auth-modal .auth-fields button.danger:hover{background:#fdf0f0}
+#auth-delete-submit-btn{background:#b3261e;border:1px solid #b3261e;color:#fff}
+#auth-delete-submit-btn:hover{background:#8f1d16}
+.auth-bar button.auth-email-btn{background:none;border:none;color:var(--green);font-size:13px;font-weight:800;padding:8px 0;text-decoration:underline dotted;cursor:pointer}
+
+.auth-fields[hidden]{display:none!important}

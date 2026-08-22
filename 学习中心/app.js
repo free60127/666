@@ -288,6 +288,118 @@
   let authMode = 'login';
   let insuranceBroken = false;  // 账号恢复码保险箱解密失败（防覆盖云端数据）
   const showAuthPanel = show => { const p = document.getElementById('auth-panel'); if (p) p.hidden = !show; };
+  /* ---------- 账号管理 UI（2026-08-22）：忘记密码 / 修改密码 / 注销 ---------- */
+  const showAuthView = view => {
+    const ids = { login: 'auth-login-view', forgot: 'auth-forgot-view', reset: 'auth-reset-view', manage: 'auth-manage-view' };
+    Object.keys(ids).forEach(key => {
+      const el = document.getElementById(ids[key]);
+      if (el) el.hidden = key !== view;
+    });
+  };
+  const doAuthForgotSend = async () => {
+    if (!auth()) { setStatus('账号模块未加载，请刷新页面重试。', 'error'); return; }
+    const email = (document.getElementById('auth-forgot-email')?.value || '').trim();
+    if (!email) { setStatus('请输入注册邮箱。', 'error'); return; }
+    const btn = document.getElementById('auth-forgot-send-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '发送中…'; }
+    try {
+      await auth().forgot(email);
+      setStatus('验证码已发送（若该邮箱已注册）。请查收邮件。', 'success');
+      const resetEmail = document.getElementById('auth-reset-email');
+      if (resetEmail) resetEmail.value = email;
+      showAuthView('reset');
+      document.getElementById('auth-reset-code')?.focus();
+    } catch (error) {
+      setStatus('发送失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '发送验证码'; }
+    }
+  };
+  const doAuthResetSubmit = async () => {
+    if (!auth()) { setStatus('账号模块未加载，请刷新页面重试。', 'error'); return; }
+    const email = (document.getElementById('auth-reset-email')?.value || '').trim();
+    const code = (document.getElementById('auth-reset-code')?.value || '').trim();
+    const newPassword = document.getElementById('auth-reset-password')?.value || '';
+    const recoveryInput = (document.getElementById('auth-reset-recovery')?.value || '').trim();
+    if (!email || !code || !newPassword) { setStatus('请填写邮箱、验证码和新密码。', 'error'); return; }
+    if (newPassword.length < 8) { setStatus('新密码至少 8 位。', 'error'); return; }
+    let recovery;
+    if (recoveryInput) {
+      try { recovery = await auth().lockRecovery(newPassword, recoveryInput); }
+      catch (_) { setStatus('恢复码格式无效（可留空跳过，但云端数据将需原恢复码解锁）。', 'error'); return; }
+    }
+    const btn = document.getElementById('auth-reset-submit-btn');
+    if (btn) btn.disabled = true;
+    try {
+      const result = await auth().resetPassword({ email, code, newPassword, recovery });
+      if (result && result.recoveryReset) {
+        setStatus('密码已重置。注意：云端数据需原恢复码才能解锁——请用原恢复码做云端恢复，或联系管理员。', 'success');
+      } else {
+        setStatus('密码已重置，请用新密码登录。', 'success');
+      }
+      if (recoveryInput && window.WaiyuanCloudSync && window.WaiyuanCloudSync.saveCode) window.WaiyuanCloudSync.saveCode(recoveryInput);
+      showAuthView('login');
+      ['auth-reset-email', 'auth-reset-code', 'auth-reset-password', 'auth-reset-recovery'].forEach(id => { const n = document.getElementById(id); if (n) n.value = ''; });
+    } catch (error) {
+      setStatus('重置失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+  const doAuthChangePassword = async () => {
+    if (!auth()) { setStatus('账号模块未加载，请刷新页面重试。', 'error'); return; }
+    const session = auth().getSession ? auth().getSession() : null;
+    if (!session || !session.token) { setStatus('请先登录。', 'error'); return; }
+    const oldPassword = document.getElementById('auth-old-password')?.value || '';
+    const newPassword = document.getElementById('auth-new-password')?.value || '';
+    if (!oldPassword || !newPassword) { setStatus('请输入当前密码和新密码。', 'error'); return; }
+    if (newPassword.length < 8) { setStatus('新密码至少 8 位。', 'error'); return; }
+    const btn = document.getElementById('auth-change-submit-btn');
+    if (btn) btn.disabled = true;
+    try {
+      let recovery;
+      const meData = await auth().me(session.token);
+      if (meData && meData.recovery) {
+        try {
+          const code = await auth().unlockRecovery(oldPassword, meData.recovery);
+          recovery = await auth().lockRecovery(newPassword, code);
+        } catch (_) {
+          setStatus('恢复码保险箱解锁失败：请确认当前密码正确，或先在旧设备导出数据。', 'error');
+          return;
+        }
+      }
+      await auth().changePassword(session.token, { oldPassword, newPassword, recovery });
+      setStatus('密码已修改，其他设备已退出登录。', 'success');
+      ['auth-old-password', 'auth-new-password'].forEach(id => { const n = document.getElementById(id); if (n) n.value = ''; });
+      showAuthPanel(false);
+    } catch (error) {
+      setStatus('修改失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+  const doAuthDeleteAccount = async () => {
+    if (!auth()) { setStatus('账号模块未加载，请刷新页面重试。', 'error'); return; }
+    const session = auth().getSession ? auth().getSession() : null;
+    if (!session || !session.token) { setStatus('请先登录。', 'error'); return; }
+    const password = document.getElementById('auth-delete-password')?.value || '';
+    if (!password) { setStatus('请输入密码确认注销。', 'error'); return; }
+    if (!window.confirm('确定注销账号吗？账号、云端备份与学习记录将全部删除，且无法恢复！')) return;
+    const btn = document.getElementById('auth-delete-submit-btn');
+    if (btn) btn.disabled = true;
+    try {
+      await auth().deleteAccount(session.token, { password });
+      if (auth()) auth().clearSession();
+      if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.clearAuth) window.WaiyuanCloudSync.clearAuth();
+      refreshAuthBar();
+      setStatus('账号已注销。感谢使用！', 'success');
+      showAuthPanel(false);
+    } catch (error) {
+      setStatus('注销失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
   const setAuthMode = mode => {
     authMode = mode;
     document.querySelectorAll('[data-auth-tab]').forEach(t => t.classList.toggle('active', t.dataset.authTab === mode));
@@ -295,6 +407,7 @@
     if (nickname) nickname.hidden = mode !== 'register';
     const submit = document.getElementById('auth-submit-btn');
     if (submit) submit.textContent = mode === 'register' ? '注册' : '登录';
+    showAuthView('login');
   };
   const refreshAuthBar = () => {
     const session = auth() && auth().getSession ? auth().getSession() : null;
@@ -553,9 +666,31 @@ ${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title
     if (action === 'cloud-restore-go') doCloudRestore(document.getElementById('cloud-code-input')?.value);
     if (action === 'cloud-clear') doCloudClear();
     if (action === 'copy-code') copyCloudCode();
-    if (action === 'auth-open') { showAuthPanel(true); setAuthMode('login'); document.getElementById('auth-email-input')?.focus(); }
+    if (action === 'auth-open') {
+      showAuthPanel(true);
+      const session = auth() && auth().getSession ? auth().getSession() : null;
+      if (session && session.token) {
+        showAuthView('manage');
+        document.getElementById('auth-old-password')?.focus();
+      } else {
+        setAuthMode('login');
+        showAuthView('login');
+        document.getElementById('auth-email-input')?.focus();
+      }
+    }
     if (action === 'auth-logout') doAuthLogout();
     if (action === 'auth-submit') doAuthSubmit();
+    if (action === 'auth-forgot') { showAuthPanel(true); showAuthView('forgot'); document.getElementById('auth-forgot-email')?.focus(); }
+    if (action === 'auth-forgot-send') doAuthForgotSend();
+    if (action === 'auth-forgot-back') { setAuthMode('login'); showAuthView('login'); }
+    if (action === 'auth-reset-submit') doAuthResetSubmit();
+    if (action === 'auth-change-submit') doAuthChangePassword();
+    if (action === 'auth-delete-open') {
+      const delBtn = document.getElementById('auth-delete-submit-btn');
+      if (delBtn) delBtn.hidden = false;
+      document.getElementById('auth-delete-password')?.focus();
+    }
+    if (action === 'auth-delete-submit') doAuthDeleteAccount();
     const authTab = event.target.closest('[data-auth-tab]');
     if (authTab) setAuthMode(authTab.dataset.authTab);
     if (action === 'set-goal') {

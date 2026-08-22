@@ -26,3 +26,14 @@ html[data-theme='dark'] .goal-row input{background:#2b3135;border-color:#3a4541;
 html[data-theme='dark'] .goal-track{background:#3a4541}
 html[data-theme='dark'] .course-row em{background:#3a2a26;color:#e08d7d}
 
+
+/* 账号管理（2026-08-22）：忘记密码 / 修改密码 / 注销 */
+.auth-fields .auth-link{background:none;border:none;color:var(--muted);font-size:12px;font-weight:600;text-decoration:underline;cursor:pointer;padding:2px;align-self:flex-start}
+.auth-fields .auth-link:hover{color:var(--green)}
+.auth-fields button.danger{background:#fff;border:1px solid #d98a8a;color:#b3261e}
+.auth-fields button.danger:hover{background:#fdf0f0;filter:none}
+#auth-delete-submit-btn{background:#b3261e;border:1px solid #b3261e;color:#fff}
+#auth-delete-submit-btn:hover{background:#8f1d16;filter:none}
+.auth-bar button.auth-email-btn{background:none;border:none;color:var(--green);font-size:13px;font-weight:800;padding:8px 0;text-decoration:underline dotted;cursor:pointer}
+
+.auth-fields[hidden]{display:none!important}

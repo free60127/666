@@ -73,8 +73,32 @@ function mockAuthApi(page, users) {
       return ok({ ok: true, token: 'tok-login', user: { id: user.id, email: user.email, nickname: user.nickname }, recovery: user.recovery });
     }
     if (url.pathname === '/api/auth/logout') return ok({ ok: true });
-    if (url.pathname === '/api/auth/me') return ok({ ok: true, user: { id: 'u0', email: 'me@test.com', nickname: '我' }, recovery: null });
+    if (url.pathname === '/api/auth/me') {
+      const target = users[users.length - 1] || users[0] || { id: 'u0', email: 'me@test.com', nickname: '我', recovery: null };
+      return ok({ ok: true, user: { id: target.id, email: target.email, nickname: target.nickname }, recovery: target.recovery });
+    }
     if (url.pathname === '/api/auth/recovery') { calls.recoveryCount = (calls.recoveryCount || 0) + 1; return ok({ ok: true }); }
+    if (url.pathname === '/api/auth/change-password') {
+      const body = json();
+      const target = users[users.length - 1] || users[0];
+      if (!target || body.oldPassword !== target.password) return fail(401, '旧密码不正确');
+      if (!body.newPassword || body.newPassword.length < 8) return fail(400, '密码至少 8 位');
+      if (body.recovery) { calls.newRecovery = body.recovery; }
+      return ok({ ok: true });
+    }
+    if (url.pathname === '/api/auth/delete-account') {
+      const body = json();
+      const target = users[users.length - 1] || users[0];
+      if (!target || body.password !== target.password) return fail(401, '密码不正确');
+      users.length = 0;
+      return ok({ ok: true });
+    }
+    if (url.pathname === '/api/auth/forgot') return ok({ ok: true });
+    if (url.pathname === '/api/auth/reset-password') {
+      const body = json();
+      if (body.code !== '12345678') return fail(400, '验证码错误或已过期');
+      return ok({ ok: true, recoveryReset: !body.recovery });
+    }
     return fail(404, 'no');
   });
   return calls;
@@ -246,4 +270,73 @@ test('保险箱解密失败 → 明确提示并暂停备份（P0-3）', async ({
   await page.locator('[data-action="cloud-backup"]').click();
   await expect(page.locator('#data-status')).toContainText('已暂停备份');
   expect(syncStore['user:x1']).toBeFalsy();
+});
+test('忘记密码：发送验证码 → 重置密码 → 回登录视图', async ({ page }) => {
+  const users = [{ id: 'u0', email: 'fg@example.com', password: 'secret123', nickname: '', recovery: null }];
+  mockAuthApi(page, users);
+  mockSyncApi(page, {});
+  await page.goto(BASE);
+  await page.locator('#auth-open-btn').click();
+  await page.locator('#auth-forgot-link').click();
+  await expect(page.locator('#auth-forgot-view')).toBeVisible();
+  await expect(page.locator('#auth-login-view')).toBeHidden();
+  await page.fill('#auth-forgot-email', 'fg@example.com');
+  await page.locator('#auth-forgot-send-btn').click();
+  await expect(page.locator('#auth-reset-view')).toBeVisible();
+  await expect(page.locator('#auth-reset-email')).toHaveValue('fg@example.com');
+  await page.fill('#auth-reset-code', '12345678');
+  await page.fill('#auth-reset-password', 'new-pass-1');
+  await page.locator('#auth-reset-submit-btn').click();
+  await expect(page.locator('#data-status')).toContainText('密码已重置');
+  await expect(page.locator('#auth-login-view')).toBeVisible();
+});
+
+test('修改密码：登录 → 账号管理 → 保险箱自动重加密', async ({ page }) => {
+  const box = await lockRecoveryNode('secret123', 'NEWCODE'.padEnd(43, 'X'));
+  const users = [{ id: 'cp1', email: 'cp@example.com', password: 'secret123', nickname: '小明', recovery: box }];
+  const calls = mockAuthApi(page, users);
+  mockSyncApi(page, {});
+  await page.goto(BASE);
+  await page.locator('#auth-open-btn').click();
+  await page.fill('#auth-email-input', 'cp@example.com');
+  await page.fill('#auth-password-input', 'secret123');
+  await page.locator('#auth-submit-btn').click();
+  await expect(page.locator('#auth-email')).toHaveText('👤 小明');
+  // 点击昵称打开账号管理
+  await page.locator('#auth-email').click();
+  await expect(page.locator('#auth-manage-view')).toBeVisible();
+  await page.fill('#auth-old-password', 'secret123');
+  await page.fill('#auth-new-password', 'new-pass-1');
+  await page.locator('#auth-change-submit-btn').click();
+  await expect(page.locator('#data-status')).toContainText('密码已修改');
+  // 保险箱用新密码重加密后上传（旧密码解不开新密文）
+  await expect.poll(() => calls.newRecovery ? Promise.resolve(calls.newRecovery.c) : null).toBeTruthy();
+  const box2 = calls.newRecovery;
+  const oldThrows = await page.evaluate(async ({ b }) => {
+    try { await window.WaiyuanAuth.unlockRecovery('secret123', b); return false; } catch (_) { return true; }
+  }, { b: box2 });
+  expect(oldThrows).toBe(true);
+  const code = await page.evaluate(async ({ b }) => window.WaiyuanAuth.unlockRecovery('new-pass-1', b), { b: box2 });
+  expect(code).toBe('NEWCODE'.padEnd(43, 'X'));
+});
+
+test('注销账号：确认后删除并回到未登录态', async ({ page }) => {
+  const users = [{ id: 'del1', email: 'del@example.com', password: 'secret123', nickname: '注销用户', recovery: null }];
+  mockAuthApi(page, users);
+  mockSyncApi(page, {});
+  await page.goto(BASE);
+  await page.locator('#auth-open-btn').click();
+  await page.fill('#auth-email-input', 'del@example.com');
+  await page.fill('#auth-password-input', 'secret123');
+  await page.locator('#auth-submit-btn').click();
+  await expect(page.locator('#auth-email')).toHaveText('👤 注销用户');
+  await page.locator('#auth-email').click();
+  await expect(page.locator('#auth-manage-view')).toBeVisible();
+  await page.fill('#auth-delete-password', 'secret123');
+  await page.locator('#auth-delete-open-btn').click();
+  await expect(page.locator('#auth-delete-submit-btn')).toBeVisible();
+  page.once('dialog', d => d.accept());
+  await page.locator('#auth-delete-submit-btn').click();
+  await expect(page.locator('#auth-open-btn')).toBeVisible();
+  await expect(page.locator('#auth-email')).toBeHidden();
 });

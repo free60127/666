@@ -1,3 +1,5 @@
+import { sendEmail, generateResetCode } from './smtp.js';
+
 /* ============================================================
    账号认证模块（D1 版）：注册 / 登录 / 登出 / 会话 / 恢复码保险箱
    - 密码：服务端 PBKDF2(SHA-256, 10k 轮, 16B salt) → 256bit，存 pbkdf2:iter:salt:hash（iter 自适应）
@@ -147,6 +149,11 @@ async function handleAuth(request, env, path) {
   if (path === '/api/auth/logout' && request.method === 'POST') return logout(db, request);
   if (path === '/api/auth/me' && request.method === 'GET') return me(db, request);
   if (path === '/api/auth/recovery' && request.method === 'POST') return setRecovery(db, request);
+  if (path === '/api/auth/change-password' && request.method === 'POST') return changePassword(db, request);
+  if (path === '/api/auth/delete-account' && request.method === 'POST') return deleteAccount(db, env, request);
+  if (path === '/api/auth/forgot' && request.method === 'POST') return forgot(db, env, request);
+  if (path === '/api/auth/reset-password' && request.method === 'POST') return resetPassword(db, request);
+  if (path === '/api/auth/admin-reset-code' && request.method === 'POST') return adminResetCode(db, env, request);
   return json({ error: 'method not allowed' }, 405);
 }
 
@@ -259,4 +266,154 @@ function sanitizeRecovery(value) {
   return JSON.stringify({ salt, iv, c });
 }
 
+/* ============================================================
+   账号自助管理：修改密码 / 注销账号 / 找回密码（重置码 + SMTP）
+   ============================================================ */
+const RESET_TTL_MS = 15 * 60 * 1000; // 重置码 15 分钟有效
+
+const sha256Hex = async (text) => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(text)));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+const normalizeEmail = (body) => String((body && body.email) || '').trim().toLowerCase();
+
+const passwordError = (password) => {
+  if (!password || password.length < 8) return '密码至少 8 位';
+  if (password.length > 128) return '密码过长（最多 128 位）';
+  return null;
+};
+
+async function sessionUser(db, request) {
+  const token = bearerToken(request);
+  if (!token) return null;
+  return db.prepare(
+    'SELECT u.id, u.email, u.nickname, u.password_hash, u.recovery_encrypted FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.expires_at > ?'
+  ).bind(await hashToken(token), Date.now()).first();
+}
+
+/* 修改密码：校验旧密码 → 新密码哈希；可选原子更新恢复码保险箱（body.recovery）；其他设备会话全部失效 */
+async function changePassword(db, request) {
+  const user = await sessionUser(db, request);
+  if (!user) return json({ error: 'unauthorized' }, 401);
+  const body = await readJson(request);
+  if (!body) return json({ error: 'invalid json' }, 400);
+  const err = passwordError(body.newPassword);
+  if (err) return json({ error: err }, 400);
+  if (!(await verifyPassword(body.oldPassword, user.password_hash))) return json({ error: '旧密码不正确' }, 401);
+  const { salt, hash } = await hashPassword(body.newPassword);
+  const passwordHash = 'pbkdf2:' + PBKDF2_ITERATIONS + ':' + b64(salt) + ':' + b64(hash);
+  const now = Date.now();
+  const tokenHash = await hashToken(bearerToken(request));
+  const stmts = [
+    db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').bind(passwordHash, now, user.id),
+  ];
+  if (body.recovery !== undefined) {
+    const rec = sanitizeRecovery(body.recovery);
+    if (!rec) return json({ error: 'recovery invalid' }, 400);
+    stmts.push(db.prepare('UPDATE users SET recovery_encrypted = ? WHERE id = ?').bind(rec, user.id));
+  }
+  stmts.push(db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').bind(user.id, tokenHash));
+  try {
+    await db.batch(stmts);
+  } catch (error) {
+    console.error('change-password db error:', error);
+    return json({ error: 'internal error' }, 500);
+  }
+  return json({ ok: true });
+}
+
+/* 注销账号：密码确认 → 删用户（sessions 级联）+ 云端备份 KV + 活跃记录 + 重置码 */
+async function deleteAccount(db, env, request) {
+  const user = await sessionUser(db, request);
+  if (!user) return json({ error: 'unauthorized' }, 401);
+  const body = await readJson(request);
+  if (!body) return json({ error: 'invalid json' }, 400);
+  if (!(await verifyPassword(body.password, user.password_hash))) return json({ error: '密码不正确' }, 401);
+  try {
+    await db.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
+  } catch (error) {
+    console.error('delete-account db error:', error);
+    return json({ error: 'internal error' }, 500);
+  }
+  try { await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run(); } catch (_) {}
+  try { await db.prepare('DELETE FROM reset_tokens WHERE email = ?').bind(user.email).run(); } catch (_) {}
+  try { await db.prepare('DELETE FROM activity WHERE act_key = ?').bind('user:' + user.id).run(); } catch (_) {}
+  try { if (env.STUDY_KV) await env.STUDY_KV.delete('sync:user:' + user.id); } catch (_) {}
+  return json({ ok: true });
+}
+
+/* 找回密码第 1 步：向注册邮箱发 8 位数字重置码（SMTP）。用户不存在也返回 ok（防邮箱枚举） */
+async function forgot(db, env, request) {
+  const body = await readJson(request);
+  if (!body) return json({ error: 'invalid json' }, 400);
+  const email = normalizeEmail(body);
+  if (!EMAIL_RE.test(email)) return json({ error: '邮箱格式不正确' }, 400);
+  const now = Date.now();
+  const rl = await db.prepare(
+    'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ON CONFLICT(key) DO UPDATE SET count = CASE WHEN rate.until <= ?3 THEN 1 ELSE rate.count + 1 END, until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END RETURNING count'
+  ).bind('auth:forgot:' + email, now + 60000, now, now + 60000).first().catch(() => null);
+  if (rl && rl.count > 1) return json({ error: '发送太频繁，请 1 分钟后再试' }, 429);
+  const user = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+  if (!user) return json({ ok: true });
+  const code = generateResetCode();
+  const sent = await sendEmail(env, {
+    to: email,
+    subject: '外院知识分享站 - 密码重置验证码',
+    text: '你的密码重置验证码是：' + code + '\n\n15 分钟内有效。\n\n注意：重置密码后，用旧密码加密的云端数据将无法自动解锁；请先在旧设备备份导出，或保存好原恢复码。',
+  });
+  if (!sent.ok) return json({ error: '邮件发送失败，请稍后重试或联系管理员', detail: sent.error }, 503);
+  await db.prepare('INSERT OR REPLACE INTO reset_tokens (email, code_hash, expires_at, used, created_at) VALUES (?, ?, ?, 0, ?)')
+    .bind(email, await sha256Hex(code), now + RESET_TTL_MS, now).run();
+  return json({ ok: true });
+}
+
+/* 找回密码第 2 步：校验重置码 → 设置新密码；body.recovery 可选（新密码加密的旧恢复码保险箱），缺省清空保险箱 */
+async function resetPassword(db, request) {
+  const body = await readJson(request);
+  if (!body) return json({ error: 'invalid json' }, 400);
+  const email = normalizeEmail(body);
+  const code = String(body.code || '').trim();
+  const err = passwordError(body.newPassword);
+  if (err) return json({ error: err }, 400);
+  if (!EMAIL_RE.test(email)) return json({ error: '邮箱格式不正确' }, 400);
+  if (!/^[0-9]{8}$/.test(code)) return json({ error: '验证码格式不正确' }, 400);
+  const row = await db.prepare('SELECT * FROM reset_tokens WHERE email = ?').bind(email).first();
+  if (!row || row.used || row.expires_at <= Date.now() || row.code_hash !== await sha256Hex(code)) {
+    return json({ error: '验证码错误或已过期' }, 400);
+  }
+  const user = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+  if (!user) return json({ error: '用户不存在' }, 400);
+  const { salt, hash } = await hashPassword(body.newPassword);
+  const passwordHash = 'pbkdf2:' + PBKDF2_ITERATIONS + ':' + b64(salt) + ':' + b64(hash);
+  const recovery = sanitizeRecovery(body.recovery);
+  const now = Date.now();
+  try {
+    await db.batch([
+      db.prepare('UPDATE users SET password_hash = ?, recovery_encrypted = ?, updated_at = ? WHERE id = ?')
+        .bind(passwordHash, recovery, now, user.id),
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id),
+      db.prepare('DELETE FROM reset_tokens WHERE email = ?').bind(email),
+    ]);
+  } catch (error) {
+    console.error('reset-password db error:', error);
+    return json({ error: 'internal error' }, 500);
+  }
+  return json({ ok: true, recoveryReset: recovery === null });
+}
+
+/* 管理端兜底：管理员生成一次性重置码（明文返回，线下转交用户）。Bearer = ADMIN_TOKEN */
+async function adminResetCode(db, env, request) {
+  const token = bearerToken(request);
+  if (!token || token !== env.ADMIN_TOKEN) return json({ error: 'unauthorized' }, 401);
+  const body = await readJson(request);
+  if (!body) return json({ error: 'invalid json' }, 400);
+  const email = normalizeEmail(body);
+  if (!EMAIL_RE.test(email)) return json({ error: '邮箱格式不正确' }, 400);
+  const code = generateResetCode();
+  const now = Date.now();
+  await db.prepare('INSERT OR REPLACE INTO reset_tokens (email, code_hash, expires_at, used, created_at) VALUES (?, ?, ?, 0, ?)')
+    .bind(email, await sha256Hex(code), now + RESET_TTL_MS, now).run();
+  return json({ ok: true, code: code, expiresInSeconds: RESET_TTL_MS / 1000 });
+}
 export { handleAuth, hashToken };
