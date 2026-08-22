@@ -146,4 +146,16 @@ html[data-theme="dark"] .modal { background: rgba(0,0,0,.6); }
 .review-time { color: var(--muted); font-size: 11px; margin-top: 3px; }
 html[data-theme="dark"] .stars .star { color: #4a4a4a; }
 html[data-theme="dark"] .stars .star.on { color: #f5a623; }
-html[data-theme="dark"] .review-stars .dim { color: #4a4a4a; }
+html[data-theme="dark"] .review-stars .dim { color: #4a4a4a; }/* ---------- 分享卡片（2026-08-22）---------- */
+.share-card-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  width: 100%; margin: 16px auto 8px; padding: 13px 16px;
+  border: 2px dashed var(--border); border-radius: 14px; background: var(--card);
+  color: var(--green); font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.share-card-btn small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.share-card-btn:active { background: var(--green-light); }
+.share-preview { margin: 10px 0; }
+.share-preview img { width: 100%; max-width: 380px; margin: 0 auto; display: block; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+html[data-theme="dark"] .share-card-btn { background: #1a1f21; border-color: var(--border); }
+html[data-theme="dark"] .share-card-btn:active { background: #242b2d; }

@@ -568,4 +568,39 @@ test('管理面板：清除令牌按钮清空会话令牌', async ({ page }) => 
   const cleared = await page.evaluate(() => sessionStorage.getItem('waiyuan-admin-token-v1'));
   expect(cleared).toBeNull();
 });
+test('分享卡片：底部入口生成平台卡与任务卡，可保存图片', async ({ page }) => {
+  const store = newStore();
+  store.users.push({ id: 'u0', email: 'pub@test.com', password: 'secret123', nickname: '发布者' });
+  store.tasks.push({
+    id: 1, publisherId: 'u0', title: '帮取快递', reward: 5, pickup: '菜鸟驿站', dropoff: '女生宿舍 3 栋', contact: '13800000000', deadline: Date.now() + 3600000,
+    status: 'open', takerId: null, createdAt: Date.now(), updatedAt: Date.now(),
+    completedAt: null, confirmedAt: null, cancelledAt: null, cancelReason: '', publisherName: '发布者', takerName: null,
+  });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE);
+  // 底部入口可见
+  await expect(page.locator('#share-card-btn')).toBeVisible();
+  // 打开任务详情（供任务卡使用）后关闭
+  await page.locator('.task-card').first().click();
+  await expect(page.locator('#detail-modal')).toBeVisible();
+  await page.locator('#detail-modal [data-act=close]').click();
+  // 打开分享面板 → 平台卡默认生成
+  await page.locator('#share-card-btn').click();
+  await expect(page.locator('#share-modal')).toBeVisible();
+  await expect(page.locator('#share-preview img')).toBeVisible();
+  const src1 = await page.locator('#share-preview img').getAttribute('src');
+  expect(src1.startsWith('data:image/png')).toBe(true);
+  // 切任务卡
+  await page.locator('#share-tabs .tab[data-stype=task]').click();
+  await expect(page.locator('#share-preview img')).toBeVisible();
+  const src2 = await page.locator('#share-preview img').getAttribute('src');
+  expect(src2).not.toBe(src1);
+  // 保存图片触发下载
+  const dl = page.waitForEvent('download');
+  await page.locator('#share-save').click();
+  const d = await dl;
+  expect(d.suggestedFilename()).toContain('任务卡.png');
+});
+
 

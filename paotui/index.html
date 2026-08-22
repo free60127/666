@@ -6,7 +6,7 @@
   <title>外院跑腿 - 发布任务 · 校内接单</title>
   <meta name="robots" content="noindex,nofollow">
   <link rel="icon" href="../favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20260822-2013">
+  <link rel="stylesheet" href="style.css?v=20260822-2200">
   <script>(function(){try{var t=localStorage.getItem('waiyuan-web-theme-v1')||(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
   <meta property="og:title" content="外院跑腿">
   <meta property="og:description" content="校内跑腿：发布任务、在线接单，线下当面结算">
@@ -33,6 +33,7 @@
     <div id="task-list" class="task-list"></div>
     <div id="empty" class="empty hidden">这里还没有任务～点右下角发布第一个吧</div>
     <button id="load-more" class="load-more hidden">加载更多</button>
+  <button id="share-card-btn" class="share-card-btn">📤 分享卡片<small>生成海报发给同学，帮跑腿平台拉点人气</small></button>
   </main>
   <button id="fab-publish" class="fab">＋ 发布任务</button>
 
@@ -101,6 +102,23 @@
     </div>
   </div>
 
+  <!-- 分享卡片弹窗 -->
+  <div id="share-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3>📤 分享卡片</h3>
+      <div class="tabs mini" id="share-tabs">
+        <button class="tab active" data-stype="platform">🛵 平台卡</button>
+        <button class="tab" data-stype="task">📋 任务卡</button>
+      </div>
+      <div class="share-preview" id="share-preview"></div>
+      <div class="modal-actions">
+        <button id="share-cancel" class="btn ghost">关闭</button>
+        <button id="share-save" class="btn primary">💾 保存图片</button>
+      </div>
+      <div class="hint">长按图片可保存 / 转发给同学；任务卡需要先打开过某个任务详情</div>
+    </div>
+  </div>
+
   <!-- 登录弹窗 -->
   <div id="auth-modal" class="modal hidden">
     <div class="modal-box">
@@ -121,7 +139,8 @@
   </div>
   <div id="toast" class="toast hidden"></div>
 
-  <script src="../学习中心/auth.js?v=20260822-2013"></script>
-  <script src="app.js?v=20260822-2013"></script>
+  <script src="qrcode.js?v=20260822-2200"></script>
+  <script src="../学习中心/auth.js?v=20260822-2200"></script>
+  <script src="app.js?v=20260822-2200"></script>
 </body>
 </html>

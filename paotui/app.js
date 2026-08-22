@@ -160,6 +160,7 @@
     }
   }
   function renderDetail(t) {
+    currentShareTask = t;
     const bodyEl = $('detail-body');
     const st = STATUS[t.status] || ['未知', ''];
     const isPublisher = me && me.id && t.publisherId === me.id;
@@ -226,6 +227,8 @@
     return '<div class="drow"><span class="dlabel">' + label + '</span><span class="dval">' + esc(val) + '</span></div>';
   }
   let currentReviewTask = null;
+  let currentShareTask = null;   // 最近打开的详情任务（分享任务卡用）
+  let shareType = 'platform';   // platform | task
   let reviewRating = 5;
   function openReviewModal(t) {
     reviewRating = 5;
@@ -503,6 +506,148 @@
     loadList(false);
   }
 
+  /* ---------- 分享卡片（2026-08-22）---------- */
+  function setQrUtf8() { if (window.qrcode && qrcode.stringToBytesFuncs) qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8']; }
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+    const lines = []; let line = '';
+    for (const ch of String(text)) {
+      const test = line + ch;
+      if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = ch; }
+      else line = test;
+      if (lines.length >= maxLines) break;
+    }
+    if (line && lines.length < maxLines) lines.push(line);
+    lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineHeight));
+    return lines.length;
+  }
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function loadImage(src) {
+    return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = src; });
+  }
+  async function drawShareCard(type) {
+    const W = 720, H = 960;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    const F = '"PingFang SC","Microsoft YaHei",sans-serif';
+    // 背景
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#173f30'); g.addColorStop(1, '#28634f');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(255,255,255,.05)';
+    ctx.beginPath(); ctx.arc(W - 40, 30, 200, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.06)';
+    ctx.beginPath(); ctx.arc(20, H - 20, 130, 0, Math.PI * 2); ctx.fill();
+    // 品牌头
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 40px ' + F;
+    ctx.fillText('🛵 外院跑腿', 48, 92);
+    ctx.fillStyle = 'rgba(255,255,255,.78)'; ctx.font = '20px ' + F;
+    ctx.fillText('外院知识分享站 · 校内互助', 52, 130);
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(48, 160); ctx.lineTo(W - 48, 160); ctx.stroke();
+    let qrSize = 220, qrData = 'https://free60127.top/paotui/';
+    if (type === 'task' && currentShareTask) {
+      const t = currentShareTask;
+      ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.font = '22px ' + F;
+      ctx.fillText('任务详情', 48, 216);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 42px ' + F;
+      const lines = wrapText(ctx, t.title || '跑腿任务', 48, 280, W - 96, 56, 3);
+      const titleBottom = 280 + lines * 56;
+      ctx.fillStyle = '#f0a45c'; ctx.font = 'bold 64px ' + F;
+      ctx.fillText('¥' + t.reward, 48, titleBottom + 76);
+      ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.font = '26px ' + F;
+      ctx.fillText('📦 ' + (t.pickup || '待定'), 48, titleBottom + 132);
+      ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.font = '26px ' + F;
+      ctx.fillText('↓', 48, titleBottom + 172);
+      ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.font = '26px ' + F;
+      wrapText(ctx, '🏁 ' + (t.dropoff || '待定'), 48, titleBottom + 212, W - 96, 36, 2);
+      const routeBottom = titleBottom + 212 + 36;
+      ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = '22px ' + F;
+      if (t.deadline) ctx.fillText('⏰ 截止 ' + fmtTime(t.deadline), 48, routeBottom + 36);
+      ctx.fillText('👤 发布者 ' + (t.publisherName || '同学'), 48, routeBottom + 72);
+      qrSize = 190;
+    } else {
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 48px ' + F;
+      ctx.fillText('校内跑腿互助', 48, 240);
+      ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '26px ' + F;
+      ctx.fillText('发布任务 · 在线接单 · 线下当面结算', 48, 292);
+      const chips = ['取快递', '带饭', '送文件', '帮排队'];
+      ctx.font = '22px ' + F;
+      let cx = 48;
+      chips.forEach((c, i) => {
+        const w = ctx.measureText(c).width + 36;
+        ctx.fillStyle = 'rgba(255,255,255,.12)';
+        roundRect(ctx, cx, 320, w, 48, 24); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.fillText(c, cx + 18, 351);
+        cx += w + 14;
+      });
+      qrSize = 240;
+    }
+    // 二维码
+    const qr = window.qrcode(0, 'M');
+    qr.addData(qrData, 'Byte');
+    qr.make();
+    const qrUrl = qr.createDataURL(5, 10);
+    try {
+      const img = await loadImage(qrUrl);
+      const qx = (W - qrSize) / 2;
+      const qy = type === 'task' && currentShareTask ? H - qrSize - 190 : H - qrSize - 200;
+      ctx.fillStyle = '#fff';
+      roundRect(ctx, qx - 16, qy - 16, qrSize + 32, qrSize + 32, 16); ctx.fill();
+      ctx.drawImage(img, qx, qy, qrSize, qrSize);
+      ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '22px ' + F; ctx.textAlign = 'center';
+      ctx.fillText(type === 'task' && currentShareTask ? '扫码去接单 · 手慢无' : '长按识别二维码 → 进入跑腿平台', W / 2, qy + qrSize + 44);
+    } catch (e) { /* 二维码生成失败不阻塞卡片 */ }
+    // 底部
+    ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(48, H - 108); ctx.lineTo(W - 48, H - 108); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.72)'; ctx.font = '18px ' + F;
+    ctx.fillText('外院知识分享站 · 跑腿互助', W / 2, H - 66);
+    ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.font = '16px ' + F;
+    ctx.fillText('free60127.top/paotui', W / 2, H - 36);
+    return cv;
+  }
+  function renderShareTabs() {
+    document.querySelectorAll('#share-tabs .tab').forEach(b => {
+      b.disabled = b.dataset.stype === 'task' && !currentShareTask;
+      b.classList.toggle('active', b.dataset.stype === shareType);
+    });
+  }
+  async function renderSharePreview() {
+    const box = $('share-preview');
+    box.innerHTML = '<div class="loading">生成中…</div>';
+    try {
+      const cv = await drawShareCard(shareType);
+      const img = document.createElement('img');
+      img.src = cv.toDataURL('image/png');
+      img.alt = '分享卡片';
+      box.innerHTML = '';
+      box.append(img);
+    } catch (e) { box.innerHTML = '<div class="empty">生成失败：' + esc(e.message) + '</div>'; }
+  }
+  function openShareModal() {
+    if (!window.qrcode) { toast('二维码组件加载失败，请刷新重试', true); return; }
+    setQrUtf8();
+    renderShareTabs();
+    openModal('share-modal');
+    renderSharePreview();
+  }
+  function saveShareCard() {
+    const img = $('share-preview').querySelector('img');
+    if (!img) return;
+    const a = document.createElement('a');
+    a.href = img.src;
+    a.download = shareType === 'task' ? '外院跑腿任务卡.png' : '外院跑腿平台卡.png';
+    document.body.append(a); a.click(); a.remove();
+    toast('已保存到相册 / 下载目录（未生效可长按图片保存）');
+  }
+
+
   /* ---------- 事件绑定 ---------- */
   document.querySelectorAll('#tabs .tab').forEach(b => b.addEventListener('click', () => {
     if ((b.dataset.tab === 'mine-posted' || b.dataset.tab === 'mine-taken') && (!me || !me.id)) {
@@ -532,6 +677,15 @@
   $('dp-cancel').addEventListener('click', () => closeModal('dispute-modal'));
   $('dp-submit').addEventListener('click', submitDispute);
   $('dp-files').addEventListener('change', handleDisputeFiles);
+  // 分享卡片
+  $('share-card-btn').addEventListener('click', openShareModal);
+  $('share-cancel').addEventListener('click', () => closeModal('share-modal'));
+  $('share-save').addEventListener('click', saveShareCard);
+  document.querySelectorAll('#share-tabs .tab').forEach(b => b.addEventListener('click', () => {
+    if (b.disabled) { toast('请先打开一个任务详情再生成任务卡', true); return; }
+    shareType = b.dataset.stype;
+    renderShareTabs(); renderSharePreview();
+  }));
 
   /* ---------- init ---------- */
   initTheme();
