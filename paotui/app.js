@@ -16,6 +16,23 @@
     cancelled: ['已取消', 'st-cancelled'],
   };
 
+  /* ---------- 暗色主题（与主站同键 waiyuan-web-theme-v1） ---------- */
+  const THEME_KEY = 'waiyuan-web-theme-v1';
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    var btn = document.getElementById('theme-toggle');
+    if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
+    try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* ignore */ }
+  }
+  function initTheme() {
+    var btn = document.getElementById('theme-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      applyTheme(cur === 'dark' ? 'light' : 'dark');
+    });
+  }
+
   /* ---------- 工具 ---------- */
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -324,5 +341,6 @@
   document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); }));
 
   /* ---------- init ---------- */
+  initTheme();
   refreshMe().then(() => loadList(false));
 })();

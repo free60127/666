@@ -52,7 +52,9 @@ test.describe('阅读工具条（桌面端）', () => {
     await page.goto('/');
     const tools = page.locator('.reading-tools');
     await expect(tools).not.toHaveClass(/reading-tools--collapsed/);
-    await expect(page.locator('.reading-tools__button--tomato')).toBeVisible();
+    // 番茄钟入口去重：桌面端工具条隐藏 🍅、右下角浮标可见（只保留一个入口）
+    await expect(page.locator('.reading-tools__button--tomato')).toBeHidden();
+    await expect(page.locator('.tomato-timer__toggle')).toBeVisible();
     await expect(page.locator('.reading-tools__button--top')).toBeVisible();
   });
 });

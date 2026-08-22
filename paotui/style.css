@@ -84,3 +84,32 @@ main { max-width: 720px; margin: 0 auto; padding: 12px; padding-bottom: 90px; }
 
 .toast { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); background: rgba(30,42,38,.92); color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 14px; z-index: 99; max-width: 86vw; text-align: center; }
 .toast.err { background: rgba(190,60,50,.95); }
+
+/* 暗色模式（与主站同键 waiyuan-web-theme-v1，同域自动同步） */
+html[data-theme="dark"] {
+  --green: #3f9c7a;
+  --green-dark: #173f30;
+  --green-light: #1e3a30;
+  --orange: #f0a45c;
+  --red: #e26a63;
+  --bg: #14181a;
+  --card: #1e2426;
+  --text: #dde4e0;
+  --muted: #8b9692;
+  --border: #2e373a;
+}
+html[data-theme="dark"] body { background: var(--bg); }
+html[data-theme="dark"] .topbar { background: var(--green-dark); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+html[data-theme="dark"] input, html[data-theme="dark"] textarea { background: #242b2d; color: var(--text); border-color: var(--border); }
+html[data-theme="dark"] .tabs { background: #1a1f21; border-color: var(--border); }
+html[data-theme="dark"] .tab { background: #262d2f; color: var(--muted); }
+html[data-theme="dark"] .modal-box { background: var(--card); }
+html[data-theme="dark"] .btn.danger { background: #262d2f; border-color: var(--red); }
+html[data-theme="dark"] .load-more { background: #242b2d; border-color: var(--border); }
+html[data-theme="dark"] .detail-desc { color: #c3ccc8; }
+html[data-theme="dark"] .st-open { background: var(--green-light); color: #7fd0a8; }
+html[data-theme="dark"] .st-doing { background: #3a2f22; color: #f0a45c; }
+html[data-theme="dark"] .st-done { background: #22313b; color: #7fb4d8; }
+html[data-theme="dark"] .st-cancelled { background: #2a2f31; color: var(--muted); }
+html[data-theme="dark"] .task-card { box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+html[data-theme="dark"] .modal { background: rgba(0,0,0,.6); }

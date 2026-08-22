@@ -51,6 +51,9 @@ body.reading-tools-enabled>:not(.reading-tools):not(#a4-mobile-download-panel){z
 html[data-theme='dark'] .reading-tools button.reading-tools__toggle{background:#28634f!important;color:#fff!important}
 html[data-theme='dark'] .reading-tools--collapsed button.reading-tools__toggle{background:#2c3a33!important;color:#dfe6e2!important}
 @media(max-width:560px){.reading-tools{right:12px;bottom:14px;gap:8px}.reading-tools__button{width:54px;height:54px}.reading-tools__font-menu{width:146px}}
+/* 番茄钟入口去重（2026-08-22）：桌面端用右下角浮标、工具条隐藏 🍅；移动端折叠后浮标隐藏、展开工具条显示 🍅 */
+.reading-tools__button--tomato{display:none}
+@media(max-width:560px){.reading-tools__button--tomato{display:flex}}
 html.word-lookup-open{overflow:hidden}
 .word-lookup{position:fixed;inset:0;z-index:100010;display:none;zoom:1!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
 .word-lookup.is-open{display:block}
@@ -1578,7 +1581,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-1700'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-1725'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
