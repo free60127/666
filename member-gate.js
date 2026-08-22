@@ -55,7 +55,8 @@
 
   const loadAuth = cb => {
     const s = document.createElement('script');
-    s.src = prefix + '学习中心/auth.js?v=20260822-2236';
+    // 不带版本号：与 common.js 一致，靠 ETag/Last-Modified 取最新（硬编码版本号会让 auth.js 永久缓存旧版）
+    s.src = prefix + '学习中心/auth.js';
     s.onload = () => cb(true);
     s.onerror = () => cb(false);
     document.head.appendChild(s);
