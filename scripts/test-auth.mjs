@@ -307,5 +307,5 @@ console.log('7) 找回密码（forgot / reset-password / admin-reset-code）');
   check('重置后 recovery 为新保险箱', login2.status === 200 && JSON.stringify(login2.data.recovery) === JSON.stringify(box));
 }
 
-process.exit(failed ? 1 : 0);
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
+process.exit(failed ? 1 : 0);
