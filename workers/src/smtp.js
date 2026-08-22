@@ -55,33 +55,43 @@ export async function sendEmail(env, { to, subject, text, html }) {
   const port = Number(env.SMTP_PORT || 465);
   const from = env.SMTP_FROM || env.SMTP_USER;
   try {
-    const socket = connect({ hostname: host, port, tls: true });
+    const socket = connect({ hostname: host, port }, { secureTransport: 'on' });
+    await socket.opened; // 连接 + TLS 握手完成
     const writer = socket.writable.getWriter();
     const reader = socket.readable.getReader();
     const buffer = [];
     const write = async (line) => { await writer.write(ENCODER.encode(line + '\r\n')); };
-    const read = () => readLine(reader, buffer, 15000);
+    let step = 'connect';
+    const read = async () => { try { return await readLine(reader, buffer, 15000); } catch (e) { throw new Error(step + ': ' + e.message); } };
+    step = 'greeting';
     const reply = await read();
     await expectCode(reply, 220, 'greeting');
+    step = 'ehlo';
     await write('EHLO waiyuan-study');
     let line = await read();
     while (line.length >= 4 && line[3] === '-') line = await read();
     await expectCode(line, 250, 'EHLO');
+    step = 'auth-login';
     await write('AUTH LOGIN');
     line = await read();
     await expectCode(line, 334, 'AUTH');
+    step = 'auth-user';
     await write(b64(env.SMTP_USER));
     line = await read();
     await expectCode(line, 334, 'AUTH user');
+    step = 'auth-pass';
     await write(b64(env.SMTP_PASS));
     line = await read();
     await expectCode(line, 235, 'AUTH login');
+    step = 'mail-from';
     await write('MAIL FROM:<' + from + '>');
     line = await read();
     await expectCode(line, 250, 'MAIL FROM');
+    step = 'rcpt-to';
     await write('RCPT TO:<' + to + '>');
     line = await read();
     await expectCode(line, 250, 'RCPT TO');
+    step = 'data';
     await write('DATA');
     line = await read();
     await expectCode(line, 354, 'DATA');
@@ -94,10 +104,13 @@ export async function sendEmail(env, { to, subject, text, html }) {
       '',
       text,
     ].join('\r\n');
-    await write(body.replace(/^[.].*/gm, '.$&'));
+    step = 'data-body';
+    await write(body.replace(/^[.].*/gm, '.    await write(body.replace(/^[.].*/gm, '.$&'));'));
+    step = 'data-dot';
     await write('.');
     line = await read();
     await expectCode(line, 250, 'DATA end');
+    step = 'quit';
     await write('QUIT');
     await read().catch(() => {});
     writer.releaseLock();
