@@ -55,7 +55,7 @@
 
   const loadAuth = cb => {
     const s = document.createElement('script');
-    s.src = prefix + '学习中心/auth.js?v=20260822-2229';
+    s.src = prefix + '学习中心/auth.js?v=20260822-2236';
     s.onload = () => cb(true);
     s.onerror = () => cb(false);
     document.head.appendChild(s);

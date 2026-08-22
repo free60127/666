@@ -134,8 +134,8 @@ class MemoryD1 {
       if (key) target = this.payOrders.get(key);
       if (id) for (const o of this.payOrders.values()) if (o.id === id) target = o;
       if (!target) return { meta: { changes: 0 } };
-      const pendingGuard = wherePart.includes("status = 'pending'") && target.status !== 'pending';
-      if (pendingGuard) return { meta: { changes: 0 } };
+      if (wherePart.includes("status = 'pending'") && target.status !== 'pending') return { meta: { changes: 0 } };
+      if (wherePart.includes("status != 'paid'") && target.status === 'paid') return { meta: { changes: 0 } };
       for (const [k, v] of sets) target[k] = v;
       return { meta: { changes: 1 } };
     }
@@ -306,6 +306,34 @@ console.log('组 4：我的会员 + 续费叠加');
   await handlePay(new Request('https://api.free60127.top/api/pay/notify', { method: 'POST', body: fd }), env, '/api/pay/notify');
   const me = await jres(await api('/api/pay/me', { token: t }));
   check('续费 MAX 叠加：30 天盖过 10 天', me.body.isMember === true && Math.abs(me.body.memberUntil - (Date.now() + 30 * 24 * 3600 * 1000)) < 60000);
+}
+
+console.log('组 5：过期订单回调恢复（钱到账必须开通）');
+{
+  const t = await register('e1@test.com', 'password123');
+  const c = await jres(await api('/api/pay/create', { method: 'POST', token: t, body: { product: 'member30' } }));
+  const out = c.body.outTradeNo;
+  const order = db.payOrders.get(out);
+  order.expires_at = Date.now() - 1000; // 模拟已过期
+  await api('/api/pay/status?out_trade_no=' + out, { token: t });
+  check('过期订单被惰性置 closed', db.payOrders.get(out).status === 'closed');
+  // 过期后 payjs 才回调（用户实际已扫码付款）
+  const { default: md5 } = await import('../workers/src/md5.js');
+  const params = { return_code: '1', out_trade_no: out, total_fee: '200', payjs_order_id: 'PJX9', transaction_id: 'TX9' };
+  const sorted = Object.keys(params).sort();
+  const str = sorted.map(k => k + '=' + String(params[k])).join('&') + '&key=' + SECRET.PAYJS_KEY;
+  const fd = new FormData();
+  for (const [k, v] of Object.entries({ ...params, sign: md5(str).toUpperCase() })) fd.append(k, v);
+  const res = await handlePay(new Request('https://api.free60127.top/api/pay/notify', { method: 'POST', body: fd }), env, '/api/pay/notify');
+  check('回调 success + 订单回置 paid', (await res.text()) === 'success' && db.payOrders.get(out).status === 'paid');
+  const me = await jres(await api('/api/pay/me', { token: t }));
+  check('会员已开通', me.body.isMember === true);
+  // 幂等复查：再回调一次会员期不变
+  const fd2 = new FormData();
+  for (const [k, v] of Object.entries({ ...params, sign: md5(str).toUpperCase() })) fd2.append(k, v);
+  await handlePay(new Request('https://api.free60127.top/api/pay/notify', { method: 'POST', body: fd2 }), env, '/api/pay/notify');
+  const me2 = await jres(await api('/api/pay/me', { token: t }));
+  check('重复回调不叠加', me2.body.memberUntil === me.body.memberUntil);
 }
 
 restoreFetch();

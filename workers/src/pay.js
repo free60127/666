@@ -141,17 +141,18 @@ async function createOrder(request, env) {
   });
 }
 
-/** 支付完成：订单置 paid + 会员期 MAX 叠加；原子 batch；幂等（已 paid 直接返回） */
+/** 支付完成：订单置 paid + 会员期 MAX 叠加。
+ *  仅当本次把订单从非 paid 改为 paid（changes>0）才叠加会员期——重复回调/并发轮询幂等；
+ *  订单过期被惰性置 closed 后回调也放行（用户已付款必须开通，状态回置 paid）。 */
 async function markPaid(env, order, payjsOrderId, now) {
   const product = PRODUCTS[order.product];
-  if (!product) return null;
+  if (!product) return { changed: false, memberUntil: null };
+  const r = await env.DB.prepare("UPDATE pay_orders SET status = 'paid', paid_at = ?, payjs_order_id = ? WHERE id = ? AND status != 'paid'")
+    .bind(now, payjsOrderId || '', order.id).run();
+  if (!r.meta || r.meta.changes < 1) return { changed: false, memberUntil: null };
   const memberUntil = now + product.days * 24 * 3600 * 1000;
-  await env.DB.batch([
-    env.DB.prepare("UPDATE pay_orders SET status = 'paid', paid_at = ?, payjs_order_id = ? WHERE id = ? AND status = 'pending'")
-      .bind(now, payjsOrderId || '', order.id),
-    env.DB.prepare('UPDATE users SET member_until = MAX(member_until, ?) WHERE id = ?').bind(memberUntil, order.user_id),
-  ]);
-  return memberUntil;
+  await env.DB.prepare('UPDATE users SET member_until = MAX(member_until, ?) WHERE id = ?').bind(memberUntil, order.user_id).run();
+  return { changed: true, memberUntil };
 }
 
 /** 主动查单（payjs check），返回 1=已支付 0=未支付 null=查询失败 */
@@ -189,10 +190,10 @@ async function orderStatus(request, env) {
       if (!rl.failed && rl.count <= 1) {
         const payStatus = await queryPayjs(env, order);
         if (payStatus === 1) {
-          const memberUntil = await markPaid(env, order, order.payjs_order_id, now);
-          if (memberUntil) {
+          const result = await markPaid(env, order, order.payjs_order_id, now);
+          if (result.changed) {
             order.status = 'paid';
-            order.memberUntil = memberUntil;
+            order.memberUntil = result.memberUntil;
           }
         }
       }
@@ -225,7 +226,8 @@ async function payNotify(request, env) {
     console.error('pay notify amount mismatch:', params.total_fee, '!=', order.amount);
     return new Response('fail', { status: 200 });
   }
-  if (order.status === 'pending') {
+  if (order.status !== 'paid') {
+    // pending 正常开通；closed（惰性过期）也放行——用户已付款，状态回置 paid
     await markPaid(env, order, String(params.payjs_order_id || ''), Date.now());
   }
   return new Response('success', { status: 200 });
