@@ -167,7 +167,7 @@ if (ADMIN) {
   check('审计日志 无token 401', logsNoAuth.status === 401, 's=' + logsNoAuth.status);
   const logs = await api('/errand/admin/logs?pageSize=50', { token: ADMIN });
   const larr = (logs.data && logs.data.logs) || [];
-  check('审计日志 含 resolve 与 delete', logs.status === 200 && larr.some(l => l.action === 'errand.dispute.resolve') && larr.some(l => l.action === 'errand.task.delete' && /线上验证任务/.test(l.detail || '')), 's=' + logs.status);
+  check('审计日志 含 resolve 与 delete', logs.status === 200 && larr.some(l => l.action === 'errand.dispute.resolve' && (l.detail || '').indexOf('dispute ' + did) === 0) && larr.some(l => l.action === 'errand.task.delete' && (l.detail || '').indexOf('task ' + tid) === 0), 's=' + logs.status);
   check('审计日志 admin 前缀脱敏', larr.filter(l => l.action === 'errand.task.delete').every(l => l.admin && l.admin.length <= 12), '');
 } else {
   console.log('  - 无 ADMIN_TOKEN，跳过管理端验证');
