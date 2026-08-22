@@ -137,15 +137,13 @@ const json = (data, status = 200) =>
 
 const methodNotAllowed = () => json({ error: 'method not allowed' }, 405);
 
-/* ---------- 站点统计（2026-08-22）：反代 HTML 页面时计数 PV/UV ----------
+/* ---------- 站点统计（2026-08-22 → 08-22 迁 D1）：反代 HTML 页面时计数 PV/UV ----------
  * 覆盖：free60127.top 主域直连 + /proxy/ 兼容路径（即所有经本 Worker 的页面访问）；
  *      直接访问 github.io 源站不经 Worker，不计入（README 已注明）。
- * 存储（STUDY_KV）：
- *   stats:pv:total                   累计 PV
- *   stats:pv:day:{YYYY-MM-DD}        每日 PV
- *   stats:page:{encodeURIComponent}  页面累计 PV
- *   stats:uv:day:{date}:{vid}        当日访客去重键（TTL 48h，vid = Cookie 或 IP 哈希）
- *   stats:uv:day:{date}              每日 UV 计数
+ * 存储（D1 stats / uv_seen 表，键名与旧 KV 一致便于迁移；2026-08-22 自 KV 迁出——
+ *      KV 免费每日写/删/列仅 1000 次，统计高频写触顶 429；D1 免费 10 万写/日）：
+ *   stats:key = stats:pv:total | stats:pv:day:{YYYY-MM-DD} | stats:page:{path} | stats:uv:day:{date}
+ *   uv_seen(day, vid) 当日访客去重（替代 KV TTL 键）
  * 日期用 UTC+8 自然日（中国用户）。计数失败静默，绝不影响页面响应。 */
 const STATS_COOKIE = 'waiyuan_vid';
 const todayCn = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
@@ -156,23 +154,29 @@ async function sha256Hex(text) {
 }
 const randomHex16 = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
 
-async function kvIncr(env, key, ttl) {
-  const cur = Number(await env.STUDY_KV.get(key)) || 0;
-  await env.STUDY_KV.put(key, String(cur + 1), ttl ? { expirationTtl: ttl } : undefined);
-  return cur + 1;
+/** D1 原子自增（stats 表）：INSERT ... ON CONFLICT ... RETURNING 单语句原子 */
+async function d1Incr(db, key) {
+  const row = await db.prepare(
+    'INSERT INTO stats (key, value) VALUES (?1, 1) ON CONFLICT(key) DO UPDATE SET value = stats.value + 1 RETURNING value'
+  ).bind(key).first();
+  return (row && row.value) || 1;
 }
 
-/** PV/UV 通用计数（主域后端统计与 GitHub 直连前端上报共用同一套键） */
+/** PV/UV 通用计数（主域后端统计与 GitHub 直连前端上报共用同一套键；2026-08-22 迁 D1） */
 async function countPvUv(env, path, vid) {
+  const db = env.DB;
+  if (!db) return;  // 无 D1 时不计数（静默）
   const today = todayCn();
-  await kvIncr(env, 'stats:pv:total');
-  await kvIncr(env, 'stats:pv:day:' + today);
-  // 注意：path 是 URL.pathname（本身已是百分号编码），不可再 encodeURIComponent（会双编码导致乱码）
-  await kvIncr(env, 'stats:page:' + path);
-  const uvKey = 'stats:uv:day:' + today + ':' + vid;
-  if (!(await env.STUDY_KV.get(uvKey))) {
-    await env.STUDY_KV.put(uvKey, '1', { expirationTtl: 172800 });
-    await kvIncr(env, 'stats:uv:day:' + today);
+  await db.batch([
+    db.prepare('INSERT INTO stats (key, value) VALUES (?1, 1) ON CONFLICT(key) DO UPDATE SET value = stats.value + 1').bind('stats:pv:total'),
+    db.prepare('INSERT INTO stats (key, value) VALUES (?1, 1) ON CONFLICT(key) DO UPDATE SET value = stats.value + 1').bind('stats:pv:day:' + today),
+    // 注意：path 是 URL.pathname（本身已是百分号编码），不可再 encodeURIComponent（会双编码导致乱码）
+    db.prepare('INSERT INTO stats (key, value) VALUES (?1, 1) ON CONFLICT(key) DO UPDATE SET value = stats.value + 1').bind('stats:page:' + path),
+  ]);
+  // UV 去重：INSERT OR IGNORE 的 changes=1 表示当日新访客，才计 UV
+  const ins = await db.prepare('INSERT OR IGNORE INTO uv_seen (day, vid) VALUES (?1, ?2)').bind(today, vid).run();
+  if (ins.meta && ins.meta.changes > 0) {
+    await db.prepare('INSERT INTO stats (key, value) VALUES (?1, 1) ON CONFLICT(key) DO UPDATE SET value = stats.value + 1').bind('stats:uv:day:' + today).run();
   }
 }
 
@@ -212,10 +216,10 @@ async function handleVisit(request, env) {
   return json({ ok: true });
 }
 
-/* ---------- 学习活跃上报 / 排行榜（2026-08-22）----------
+/* ---------- 学习活跃上报 / 排行榜（2026-08-22 → 08-22 迁 D1）----------
  * 前端（unified-quiz-engine.js）每 60s 心跳 POST /api/activity {learned}：
- *   账号（Bearer 会话）→ 键 user:{id}；匿名 → 键 anon:{deviceId(64hex)}。
- * 存储：act:{key}:{YYYY-MM-DD} = {minutes, learned}（TTL 8 天，覆盖周榜窗口）。
+ *   账号（Bearer 会话）→ user:{id}；匿名 → anon:{deviceId(64hex)}。
+ * 存储：D1 activity(act_key, date)（自 KV act:{key}:{date} 迁出，2026-08-22）。
  * 排行：GET /api/rank?period=day|week（ADMIN_TOKEN）→ Top50 按分钟降序。 */
 const HEARTBEAT_MIN_INTERVAL_MS = 40000;  // 同一身份两次心跳最短间隔（前端周期 60s，正常用户不会触发；防伪造/重放刷分钟与学习量）
 
@@ -243,17 +247,23 @@ async function handleActivity(request, env) {
   if (!(await syncRateLimit(env, 'ip:' + ip, 'heartbeatIp'))) return json({ error: 'too many requests, try again later' }, 429);
   const now = Date.now();
   const today = todayCn();
-  const recKey = 'act:' + key + ':' + today;
-  const cur = JSON.parse((await env.STUDY_KV.get(recKey)) || '{"minutes":0,"learned":0,"lastTs":0}');
-  const lastTs = Number(cur.lastTs) || 0;
-  if (lastTs && now - lastTs < HEARTBEAT_MIN_INTERVAL_MS) {
+  const row = await env.DB.prepare('SELECT minutes, learned, last_ts FROM activity WHERE act_key = ?1 AND date = ?2').bind(key, today).first();
+  const cur = {
+    minutes: (row && row.minutes) || 0,
+    learned: (row && row.learned) || 0,
+    lastTs: (row && row.last_ts) || 0,
+  };
+  if (cur.lastTs && now - cur.lastTs < HEARTBEAT_MIN_INTERVAL_MS) {
     // 心跳过密（伪造/重放/双标签页）：本次不计数，不污染时长与学习量；返回 ok 让前端正常续期
     return json({ ok: true, skipped: true });
   }
-  cur.minutes = (cur.minutes | 0) + 1;
-  cur.learned = (cur.learned | 0) + learned;
+  cur.minutes += 1;
+  cur.learned += learned;
   cur.lastTs = now;
-  await env.STUDY_KV.put(recKey, JSON.stringify(cur), { expirationTtl: 8 * 86400 });
+  await env.DB.prepare(
+    'INSERT INTO activity (act_key, date, minutes, learned, last_ts) VALUES (?1, ?2, ?3, ?4, ?5) ' +
+    'ON CONFLICT(act_key, date) DO UPDATE SET minutes = excluded.minutes, learned = excluded.learned, last_ts = excluded.last_ts'
+  ).bind(key, today, cur.minutes, cur.learned, cur.lastTs).run();
   return json({ ok: true, minutes: cur.minutes, learned: cur.learned });
 }
 
@@ -266,13 +276,13 @@ async function handleDeleteAccount(request, env) {
   return json({ ok: true, deleted: (info && info.meta && info.meta.changes) || 0 });
 }
 
-/** 管理操作：删除某身份某日的活动记录（清理线上测试数据用，requireAdmin） */
+/** 管理操作：删除某身份某日的活动记录（清理线上测试数据用，requireAdmin；2026-08-22 迁 D1） */
 async function handleDeleteActivity(request, env) {
   const url = new URL(request.url);
   const key = String(url.searchParams.get('key') || '').trim();
   const date = String(url.searchParams.get('date') || '').trim();
   if (!/^(user|anon):[0-9a-fA-F]{16,}$/.test(key) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: 'invalid key or date' }, 400);
-  await env.STUDY_KV.delete('act:' + key + ':' + date);
+  await env.DB.prepare('DELETE FROM activity WHERE act_key = ?1 AND date = ?2').bind(key, date).run();
   return json({ ok: true });
 }
 
@@ -284,32 +294,20 @@ async function handleRank(request, env) {
   for (let i = 0; i < 7; i++) dates.push(new Date(Date.now() + 8 * 3600 * 1000 - i * 86400 * 1000).toISOString().slice(0, 10));
   const range = period === 'day' ? dates[0] : dates[0] + ' ~ ' + dates[6];
   const nocache = new URL(request.url).searchParams.get('nocache') === '1';  // 验证脚本用：绕过缓存强制重扫
-  const cacheKey = 'rank:cache:' + period + ':' + range;
   if (!nocache) {
-    const cached = await env.STUDY_KV.get(cacheKey);
-    if (cached) {
-      return json({ ok: true, period, range, items: JSON.parse(cached), cached: true });
+    const cached = await env.DB.prepare('SELECT payload, updated_at FROM rank_cache WHERE period = ?1 AND range = ?2').bind(period, range).first();
+    if (cached && Date.now() - cached.updated_at < RANK_CACHE_TTL * 1000) {
+      return json({ ok: true, period, range, items: JSON.parse(cached.payload), cached: true });
     }
   }
-  const agg = new Map();
-  for (const d of (period === 'week' ? dates : [dates[0]])) {
-    let cursor;
-    do {
-      const list = await env.STUDY_KV.list({ prefix: 'act:', limit: 1000, cursor });
-      cursor = list.cursor || undefined;
-      for (const k of list.keys) {
-        const m = k.name.match(/^act:((?:user|anon):[0-9a-fA-F]{16,}):(\d{4}-\d{2}-\d{2})$/);
-        if (!m || m[2] !== d) continue;
-        const rec = JSON.parse((await env.STUDY_KV.get(k.name)) || '{"minutes":0,"learned":0}');
-        const a = agg.get(m[1]) || { minutes: 0, learned: 0 };
-        a.minutes += rec.minutes | 0;
-        a.learned += rec.learned | 0;
-        agg.set(m[1], a);
-      }
-    } while (cursor);
-  }
+  // 2026-08-22 迁 D1：GROUP BY 聚合替代 KV list 全量扫描（week = 最近 7 个自然日）
+  const since = period === 'week' ? dates[6] : dates[0];
+  const rows = await env.DB.prepare(
+    'SELECT act_key, SUM(minutes) AS minutes, SUM(learned) AS learned FROM activity WHERE date >= ?1 GROUP BY act_key ORDER BY minutes DESC, learned DESC LIMIT 50'
+  ).bind(since).all();
   const items = [];
-  for (const [key, v] of agg) {
+  for (const row of rows.results || []) {
+    const key = row.act_key;
     let name = '';
     if (key.startsWith('user:')) {
       const uid = key.slice(5);
@@ -321,35 +319,37 @@ async function handleRank(request, env) {
     } else {
       name = '匿名-' + key.slice(5).slice(0, 6);
     }
-    items.push({ id: key, name, minutes: v.minutes, learned: v.learned });
+    items.push({ id: key, name, minutes: row.minutes || 0, learned: row.learned || 0 });
   }
-  items.sort((a, b) => b.minutes - a.minutes || b.learned - a.learned);
-  const top = items.slice(0, 50);
-  if (!nocache) await env.STUDY_KV.put(cacheKey, JSON.stringify(top), { expirationTtl: RANK_CACHE_TTL });
-  return json({ ok: true, period, range, items: top, cached: false });
+  if (!nocache) {
+    await env.DB.prepare(
+      'INSERT INTO rank_cache (period, range, payload, updated_at) VALUES (?1, ?2, ?3, ?4) ' +
+      'ON CONFLICT(period, range) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at'
+    ).bind(period, range, JSON.stringify(items), Date.now()).run();
+  }
+  return json({ ok: true, period, range, items, cached: false });
 }
 
 async function handleStats(env) {
   const today = todayCn();
-  const num = async key => Number(await env.STUDY_KV.get(key)) || 0;
+  const num = async key => {
+    const row = await env.DB.prepare('SELECT value FROM stats WHERE key = ?1').bind(key).first();
+    return (row && row.value) || 0;
+  };
   const daily = [];
   for (let i = 13; i >= 0; i--) {
     const d = new Date(Date.now() + 8 * 3600 * 1000 - i * 86400 * 1000).toISOString().slice(0, 10);
     daily.push({ date: d, pv: await num('stats:pv:day:' + d), uv: await num('stats:uv:day:' + d) });
   }
   const pages = [];
-  let cursor;
-  do {
-    const list = await env.STUDY_KV.list({ prefix: 'stats:page:', limit: 1000, cursor });
-    cursor = list.cursor || undefined;
-    for (const key of list.keys) {
-      let decoded = decodeURIComponent(key.name.slice('stats:page:'.length));
-      try { decoded = decodeURIComponent(decoded); } catch (_) {}  // 兼容早期双编码存量键
-      const exist = pages.find(p => p.path === decoded);
-      if (exist) exist.pv += await num(key.name);  // 同路径聚合（%2F 存量键与 / 合并）
-      else pages.push({ path: decoded, pv: await num(key.name) });
-    }
-  } while (cursor);
+  const pageRows = await env.DB.prepare("SELECT key, value FROM stats WHERE key LIKE 'stats:page:%' ORDER BY value DESC LIMIT 100").all();
+  for (const row of pageRows.results || []) {
+    let decoded = decodeURIComponent(row.key.slice('stats:page:'.length));
+    try { decoded = decodeURIComponent(decoded); } catch (_) {}  // 兼容早期双编码存量键
+    const exist = pages.find(p => p.path === decoded);
+    if (exist) exist.pv += row.value;  // 同路径聚合（%2F 存量键与 / 合并）
+    else pages.push({ path: decoded, pv: row.value });
+  }
   pages.sort((a, b) => b.pv - a.pv);
   return json({
     ok: true,
@@ -506,14 +506,22 @@ const SYNC_TTL_SECONDS = 730 * 24 * 3600;  // 2 年未备份自动过期
 const DEVICE_ID_RE = /^[0-9a-f]{64}$/;
 const SYNC_RATE = { upload: 10, download: 30, delete: 6, heartbeat: 6, heartbeatIp: 20, visit: 60 };  // 每分钟每键（heartbeat 排行榜活跃 / heartbeatIp 按 IP 限 / visit GitHub 直连统计）
 
-/** KV 计数器限流（按分钟窗口，TTL 120s 自动清理） */
+/** D1 滚动窗口限流（2026-08-22 自 KV 迁出）：每身份×动作仅一行，窗口过期自动重置，键量恒定无需清理 */
 async function syncRateLimit(env, key, action) {
   try {
-    const minute = Math.floor(Date.now() / 60000);
-    const rk = 'rate:sync:' + action + ':' + key + ':' + minute;
-    const count = Number(await env.STUDY_KV.get(rk)) || 0;
-    if (count >= SYNC_RATE[action]) return false;
-    await env.STUDY_KV.put(rk, String(count + 1), { expirationTtl: 120 });
+    const now = Date.now();
+    const windowMs = 60000;  // 1 分钟窗口
+    const winStart = Math.floor(now / windowMs) * windowMs;
+    const winEnd = winStart + windowMs;
+    const rk = 'rate:sync:' + action + ':' + key;
+    const row = await env.DB.prepare(
+      'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ' +
+      'ON CONFLICT(key) DO UPDATE SET ' +
+      'count = CASE WHEN rate.until < ?3 THEN 1 ELSE rate.count + 1 END, ' +
+      'until = CASE WHEN rate.until < ?3 THEN ?4 ELSE rate.until END ' +
+      'RETURNING count'
+    ).bind(rk, winEnd, winStart, winEnd).first();
+    if (row && row.count > SYNC_RATE[action]) return false;
   } catch (_) { /* 限流器故障不阻断主流程 */ }
   return true;
 }

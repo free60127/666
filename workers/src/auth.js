@@ -74,22 +74,30 @@ function bearerToken(request) {
   return auth.replace(/^Bearer\s+/i, '');
 }
 
-/* ---------- 登录限流（2026-08-22 加固） ----------
- * IP：KV 计数器，10 分钟窗口 30 次（粗粒度，容忍 KV 最终一致性）
+/* ---------- 登录限流（2026-08-22 加固 → 08-22 IP 限流迁 D1） ----------
+ * IP：D1 rate 表滚动窗口（10 分钟 30 次；2026-08-22 自 KV 迁出，与 syncRateLimit 同表）
  * 邮箱：D1 login_fails 表，连续失败 8 次锁 15 分钟（SQLite 强一致，
  *       连续失败请求打到不同边缘节点也能正确累计——KV 方案线上实测失效）
  */
 const LOGIN_IP_MAX = 30, LOGIN_EMAIL_FAIL_MAX = 8, LOGIN_EMAIL_LOCK_MS = 15 * 60 * 1000;
 
 async function loginIpCheck(env, request) {
-  if (!env || !env.STUDY_KV) return { ok: true };
+  if (!env || !env.DB) return { ok: true };
   try {
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
     const now = Date.now();
-    const ipKey = 'rate:login:ip:' + ip + ':' + Math.floor(now / 600000);  // 10 分钟窗口
-    const ipCount = Number(await env.STUDY_KV.get(ipKey)) || 0;
-    if (ipCount >= LOGIN_IP_MAX) return { ok: false, error: '尝试过于频繁，请稍后再试' };
-    await env.STUDY_KV.put(ipKey, String(ipCount + 1), { expirationTtl: 660 });
+    const windowMs = 600000;  // 10 分钟窗口
+    const winStart = Math.floor(now / windowMs) * windowMs;
+    const winEnd = winStart + windowMs;
+    const ipKey = 'rate:login:ip:' + ip;
+    const row = await env.DB.prepare(
+      'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ' +
+      'ON CONFLICT(key) DO UPDATE SET ' +
+      'count = CASE WHEN rate.until < ?3 THEN 1 ELSE rate.count + 1 END, ' +
+      'until = CASE WHEN rate.until < ?3 THEN ?4 ELSE rate.until END ' +
+      'RETURNING count'
+    ).bind(ipKey, winEnd, winStart, winEnd).first();
+    if (row && row.count > LOGIN_IP_MAX) return { ok: false, error: '尝试过于频繁，请稍后再试' };
   } catch (_) { /* 限流器故障不阻断 */ }
   return { ok: true };
 }

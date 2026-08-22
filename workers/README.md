@@ -36,7 +36,7 @@
 - `/api/sync` 双模式：
   - **匿名（访客）**：恢复码 → `deviceId = SHA-256(code)`（64 位 hex），**知道恢复码才能读写数据**（服务端只存哈希）；
   - **账号（登录用户）**：`Authorization: Bearer <session>`，数据键 `user:{id}` 与匿名完全隔离；前端登录后自动把旧匿名数据迁移到账号（`cloud-sync.js migrateAnonymous`）。
-- 保护措施：deviceId 必须 64 位 hex；每键每分钟限流（上传 10 / 下载 30 / 删除 6，KV 计数器）；`Content-Length` 预检 + 字符串化二次校验（payload ≤ 2.5MB）；写入带 2 年 TTL（730 天未备份自动过期）；响应 `Cache-Control: no-store`；CORS 回显 `Vary: Origin`。
+- 保护措施：deviceId 必须 64 位 hex；每键每分钟限流（上传 10 / 下载 30 / 删除 6，D1 rate 表滚动窗口，2026-08-22 自 KV 迁出）；`Content-Length` 预检 + 字符串化二次校验（payload ≤ 2.5MB）；写入带 2 年 TTL（730 天未备份自动过期）；响应 `Cache-Control: no-store`；CORS 回显 `Vary: Origin`。
 - **版本号 + 冲突检测（2026-08-22）**：云端每条记录带 `rev`（写入时间戳毫秒）。客户端上传带 `baseRev`（下载得到的 rev），服务端校验 `baseRev === 当前 rev` 才写入；不一致返回 `409 {error:'conflict', rev, payload, updatedAt}`，前端（cloud-sync.js）自动拉最新数据合并后重试一次——多设备并发写不再互相覆盖。旧客户端不带 baseRev 仍可写（向后兼容）；旧记录无 rev 视为 0。
 - payload 全程端到端加密（PBKDF2 派生 AES-GCM-256），服务端/管理员读不到学习内容。
 - 反馈限频（进程内 `Map`）仅限单实例；`/api/feedback` 列表已支持 cursor 分页 + 类型/时间/已处理筛选。
@@ -46,9 +46,11 @@
 
 - 统计范围：**经本 Worker 反代的页面访问**（`free60127.top` 主域直连 + `/proxy/* 路径）；直接访问 `github.io` 源站不经 Worker，不计入。
 - 口径：PV = 每次 HTML 页面 GET 请求；UV = 当日去重访客（浏览器 Cookie `waiyuan_vid` 识别，无 Cookie 的请求按 `CF-Connecting-IP + 日期` 哈希兜底，同 IP 当日只算 1）。
-- 存储（STUDY_KV，`stats:` 前缀）：`stats:pv:total`、`stats:pv:day:{YYYY-MM-DD}`、`stats:page:{encoded}`、`stats:uv:day:{date}` 计数器与去重键（去重键 TTL 48h）。日期用 UTC+8 自然日。
+- 存储（**D1**，2026-08-22 自 KV 迁出——KV 免费每日写/删/列仅 1000 次，统计高频写触发 429；D1 免费 10 万写/日）：`stats` 表（键名与旧 KV 一致：`stats:pv:total`、`stats:pv:day:{YYYY-MM-DD}`、`stats:page:{encoded}`、`stats:uv:day:{date}`）+ `uv_seen` 表做当日访客去重（替代 KV TTL 键）。日期用 UTC+8 自然日。
 - 读取：`GET /api/stats`（需 ADMIN_TOKEN）返回累计 PV、今日 PV/UV、近 14 天逐日 PV/UV、热门页面 Top 20（按 PV 降序）。
-- 注意：KV 是最终一致存储，写入后立即 list 可能短暂看不到新键（约 1 分钟内传播）；计数失败静默，不影响页面响应。
+- 注意：计数失败静默，不影响页面响应；D1 为强一致存储，写入后立即可见（无需轮询）。
+- 排行榜/限流（2026-08-22 迁 D1）：`activity` 表（每身份每日一行，替代 KV act: 键）、`rank_cache` 表（结果缓存 5 分钟）、`rate` 表（滚动窗口限流，每身份×动作一行，键量恒定无需清理）。登录邮箱锁定在 `login_fails` 表（0002 迁移）。
+- 存量迁移：`scripts/migrate-kv-to-d1.mjs` 读 KV `stats:*`/`act:*` 键生成 SQL，`wrangler d1 execute --remote --file` 导入（INSERT OR IGNORE 幂等）。
 
 ## 常用命令
 

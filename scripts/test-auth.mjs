@@ -9,6 +9,7 @@ class MemoryD1 {
     this.users = new Map();
     this.sessions = new Map();
     this.loginFails = new Map();
+    this.rates = new Map();
   }
   prepare(sql) {
     const db = this;
@@ -49,6 +50,16 @@ class MemoryD1 {
       const [now] = args;
       for (const [k, v] of this.sessions) if (v.expires_at < now) this.sessions.delete(k);
       return { meta: { changes: 0 } };
+    }
+    if (s.includes('INTO rate') && s.includes('RETURNING count')) {
+      const [key, winEnd, winStart] = args;
+      const cur = this.rates.get(key);
+      if (!cur || cur.until < winStart) {
+        this.rates.set(key, { count: 1, until: winEnd });
+        return { count: 1 };
+      }
+      cur.count += 1;
+      return { count: cur.count };
     }
     return null;
   }
