@@ -271,7 +271,9 @@ async function handleStats(env) {
     for (const key of list.keys) {
       let decoded = decodeURIComponent(key.name.slice('stats:page:'.length));
       try { decoded = decodeURIComponent(decoded); } catch (_) {}  // 兼容早期双编码存量键
-      pages.push({ path: decoded, pv: await num(key.name) });
+      const exist = pages.find(p => p.path === decoded);
+      if (exist) exist.pv += await num(key.name);  // 同路径聚合（%2F 存量键与 / 合并）
+      else pages.push({ path: decoded, pv: await num(key.name) });
     }
   } while (cursor);
   pages.sort((a, b) => b.pv - a.pv);
