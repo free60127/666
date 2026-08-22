@@ -36,7 +36,7 @@ if (!tokA || !tokB) { console.log('注册失败，中止'); process.exit(1); }
 
 const task = await api('/errand/tasks', {
   method: 'POST', token: tokA,
-  body: { title: '线上验证任务', description: '闭环验证', reward: 2, pickup: 'A', dropoff: 'B', contact: '', deadline: null },
+  body: { title: '线上验证任务', description: '闭环验证', reward: 2, pickup: 'A', dropoff: 'B', contact: '线上验证联系', deadline: null },
 });
 check('发布任务', task.status === 201 && task.data.task && task.data.task.id, 's=' + task.status);
 const tid = task.data.task && task.data.task.id;
@@ -70,6 +70,28 @@ check('A的mine-posted含任务', minePosted.status === 200 && minePosted.data.i
 const mineTaken = await api('/errand/mine?role=taken', { token: tokB });
 check('B的mine-taken含任务', mineTaken.status === 200 && mineTaken.data.items && mineTaken.data.items.some(t => t.id === tid));
 
+// 评价闭环：确认后双方互评
+const revNoAuth = await api('/errand/reviews', { method: 'POST', body: { taskId: tid, rating: 5 } });
+check('未登录评价 401', revNoAuth.status === 401, 's=' + revNoAuth.status);
+const revA = await api('/errand/reviews', { method: 'POST', token: tokA, body: { taskId: tid, rating: 5, comment: '线上验证-靠谱' } });
+check('A评价B 201', revA.status === 201, 's=' + revA.status);
+const revDup = await api('/errand/reviews', { method: 'POST', token: tokA, body: { taskId: tid, rating: 4 } });
+check('重复评价 400', revDup.status === 400, 's=' + revDup.status);
+const revB = await api('/errand/reviews', { method: 'POST', token: tokB, body: { taskId: tid, rating: 4, comment: '线上验证-顺畅' } });
+check('B评价A 201', revB.status === 201, 's=' + revB.status);
+const revList = await api('/errand/reviews?taskId=' + tid);
+check('评价列表 2 条', revList.status === 200 && revList.data.reviews.length === 2, 'n=' + (revList.data.reviews || []).length);
+const revAnon = await api('/errand/reviews?taskId=' + tid);
+check('匿名可看评价', revAnon.status === 200 && revAnon.data.reviews.length === 2);
+
+// 联系方式脱敏：接单前详情对匿名/非双方不可见，接单成功后接单者可见
+const detAnon = await api('/errand/tasks/' + tid);
+check('匿名详情联系方式脱敏', detAnon.status === 200 && detAnon.data.task.contact === '', 'contact=' + JSON.stringify(detAnon.data.task.contact));
+const detB = await api('/errand/tasks/' + tid, { token: tokB });
+check('接单者详情可见联系方式', detB.status === 200 && detB.data.task.contact === '线上验证联系', 'contact=' + JSON.stringify(detB.data.task.contact));
+const detOther = await api('/errand/tasks/' + tid, { token: tokA });
+// A 是发布者 → 可见
+check('发布者详情可见联系方式', detOther.status === 200 && detOther.data.task.contact === '线上验证联系');
 const anon = await api('/errand/tasks');
 check('匿名可浏览列表', anon.status === 200);
 
