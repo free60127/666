@@ -93,6 +93,11 @@ async function route(request, env) {
         return methodNotAllowed();
       }
 
+      if (path === '/api/visit') {
+        if (request.method === 'POST') return handleVisit(request, env);
+        return methodNotAllowed();
+      }
+
       if (path === '/api/rank') {
         if (request.method === 'GET') return requireAdmin(request, env, () => handleRank(request, env));
         return methodNotAllowed();
@@ -152,14 +157,24 @@ async function kvIncr(env, key, ttl) {
   return cur + 1;
 }
 
+/** PV/UV 通用计数（主域后端统计与 GitHub 直连前端上报共用同一套键） */
+async function countPvUv(env, path, vid) {
+  const today = todayCn();
+  await kvIncr(env, 'stats:pv:total');
+  await kvIncr(env, 'stats:pv:day:' + today);
+  // 注意：path 是 URL.pathname（本身已是百分号编码），不可再 encodeURIComponent（会双编码导致乱码）
+  await kvIncr(env, 'stats:page:' + path);
+  const uvKey = 'stats:uv:day:' + today + ':' + vid;
+  if (!(await env.STUDY_KV.get(uvKey))) {
+    await env.STUDY_KV.put(uvKey, '1', { expirationTtl: 172800 });
+    await kvIncr(env, 'stats:uv:day:' + today);
+  }
+}
+
 /** 统计一次页面访问；返回需要下发的 Set-Cookie 值（首访生成访客 id），无则空串 */
 async function countVisit(env, request, path) {
   try {
     const today = todayCn();
-    await kvIncr(env, 'stats:pv:total');
-    await kvIncr(env, 'stats:pv:day:' + today);
-    // 注意：path 是 URL.pathname（本身已是百分号编码），不可再 encodeURIComponent（会双编码导致乱码）
-    await kvIncr(env, 'stats:page:' + path);
     const cookieHeader = request.headers.get('Cookie') || '';
     let vid = '';
     for (const part of cookieHeader.split(';')) {
@@ -173,13 +188,23 @@ async function countVisit(env, request, path) {
       vid = 'ip:' + (await sha256Hex(ip + '|' + today)).slice(0, 16);
       setCookie = STATS_COOKIE + '=' + randomHex16() + '; Path=/; Max-Age=31536000; SameSite=Lax';
     }
-    const uvKey = 'stats:uv:day:' + today + ':' + vid;
-    if (!(await env.STUDY_KV.get(uvKey))) {
-      await env.STUDY_KV.put(uvKey, '1', { expirationTtl: 172800 });
-      await kvIncr(env, 'stats:uv:day:' + today);
-    }
+    await countPvUv(env, path, vid);
     return setCookie;
   } catch (_) { return ''; }
+}
+
+/** GitHub Pages 直连通道统计上报（common.js 只在 github.io 域名下调用，避免与主域双计） */
+async function handleVisit(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400); }
+  const vid = String(body.vid || '').trim();
+  if (!/^[0-9a-f]{32}$/.test(vid)) return json({ error: 'vid must be 32 hex chars' }, 400);
+  let path = String(body.path || '/');
+  if (!path.startsWith('/')) path = '/' + path;
+  if (path.length > 200) path = path.slice(0, 200);
+  if (!(await syncRateLimit(env, vid, 'visit'))) return json({ error: 'too many requests, try again later' }, 429);
+  await countPvUv(env, path, vid);
+  return json({ ok: true });
 }
 
 /* ---------- 学习活跃上报 / 排行榜（2026-08-22）----------
@@ -430,7 +455,7 @@ async function handleDeleteFeedback(request, env) {
 const MAX_SYNC_BYTES = 2_500_000;
 const SYNC_TTL_SECONDS = 730 * 24 * 3600;  // 2 年未备份自动过期
 const DEVICE_ID_RE = /^[0-9a-f]{64}$/;
-const SYNC_RATE = { upload: 10, download: 30, delete: 6, heartbeat: 6 };  // 每分钟每键（heartbeat 用于排行榜活跃上报）
+const SYNC_RATE = { upload: 10, download: 30, delete: 6, heartbeat: 6, visit: 60 };  // 每分钟每键（heartbeat 排行榜活跃 / visit GitHub 直连统计）
 
 /** KV 计数器限流（按分钟窗口，TTL 120s 自动清理） */
 async function syncRateLimit(env, key, action) {

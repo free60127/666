@@ -44,6 +44,32 @@
       .catch(() => clearTimeout(timer));
   })();
 
+  /* ---------- GitHub Pages 直连通道统计（2026-08-22）----------
+     主域 free60127.top 的 PV/UV 由 Worker 反代后端统计；
+     此段仅当直接从 free60127.github.io 访问时补报，两通道互不重叠、不会双计。
+     路径去掉 /666 前缀与主域口径对齐；UV 用 localStorage 设备 id（跨域无法与主域 Cookie 共享，UV 口径两通道各计）。 */
+  (function reportGhVisit() {
+    try {
+      if (!window.WAIYUAN_API_BASE) return;
+      if (location.hostname !== 'free60127.github.io' && !window.WAIYUAN_GH_STATS) return;  // WAIYUAN_GH_STATS 仅供本地测试
+      const VID_KEY = 'waiyuan_vid_gh';
+      let vid = localStorage.getItem(VID_KEY);
+      if (!vid) {
+        vid = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+        localStorage.setItem(VID_KEY, vid);
+      }
+      let path = location.pathname;
+      if (path.startsWith('/666')) path = path.slice(4) || '/';
+      const payload = JSON.stringify({ vid, path });
+      const api = window.WAIYUAN_API_BASE.replace(/\/$/, '');
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(api + '/api/visit', new Blob([payload], { type: 'application/json' }));
+      } else {
+        fetch(api + '/api/visit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+      }
+    } catch (_) { /* 统计失败静默 */ }
+  })();
+
   /* ---------- Service Worker (PWA 离线缓存) ---------- */
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     const tag = document.querySelector('script[data-common-injected]');

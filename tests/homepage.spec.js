@@ -45,3 +45,27 @@ test('首页：意见反馈文本框 200 字上限，空输入拦截，提交直
   await expect(page.locator('#feedback-status')).toHaveText('✓ 反馈已提交，感谢你的支持！');
   await expect(page.locator('#feedback-text')).toHaveValue('');
 });
+
+test('GitHub 直连统计：强制开关下上报 /api/visit（vid 32hex + 路径去 /666 前缀）', async ({ browser }) => {
+  // 阻止 Service Worker 缓存旧 common.js，保证每次导航都执行最新上报逻辑
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  const page = await context.newPage();
+  const got = [];
+  await page.addInitScript(() => { window.WAIYUAN_GH_STATS = true; });
+  await page.route('**/api/visit', async route => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    got.push(body);
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+  });
+  await page.goto('/');
+  await expect.poll(() => got.length >= 1, { timeout: 4000 }).toBe(true);
+  const v = got[0];
+  expect(v.vid).toMatch(/^[0-9a-f]{32}$/);
+  expect(v.path).toBe('/');
+  // 再次访问（同一上下文 localStorage 保留）→ vid 不变
+  await page.goto('/思政系列/');
+  // location.pathname 是百分号编码形式（与主域后端统计口径一致，读取端统一解码）
+  await expect.poll(() => got.some(g => decodeURIComponent(g.path) === '/思政系列/'), { timeout: 4000 }).toBe(true);
+  expect(got.filter(g => decodeURIComponent(g.path) === '/思政系列/')[0].vid).toBe(v.vid);
+  await context.close();
+});
