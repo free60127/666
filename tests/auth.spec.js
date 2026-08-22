@@ -182,6 +182,25 @@ test('登录失败：密码错误显示错误信息', async ({ page }) => {
   await expect(page.locator('#auth-email')).toBeHidden(); // 未登录
 });
 
+test('修改密码或注销密码错误的 401 不会误清除登录态', async ({ page }) => {
+  const users = [{ id: 'keep1', email: 'keep@example.com', password: 'password123', nickname: '保留登录', recovery: null }];
+  mockAuthApi(page, users);
+  mockSyncApi(page, {});
+  await page.goto(BASE);
+  await page.locator('#auth-open-btn').click();
+  await page.fill('#auth-email-input', 'keep@example.com');
+  await page.fill('#auth-password-input', 'password123');
+  await page.locator('#auth-submit-btn').click();
+  await expect(page.locator('#auth-email')).toHaveText('👤 保留登录');
+  await page.locator('#auth-email').click();
+  await expect(page.locator('#auth-manage-view')).toBeVisible();
+  await page.fill('#auth-old-password', 'wrong-password');
+  await page.fill('#auth-new-password', 'new-pass-1');
+  await page.locator('#auth-change-submit-btn').click();
+  await expect(page.locator('#data-status')).toContainText('旧密码不正确');
+  await expect(page.locator('#auth-email')).toBeVisible();
+});
+
 test('登录后云端备份走账号模式（带 Bearer，无 deviceId）', async ({ page }) => {
   const users = [{ id: 'acc1', email: 'acc@example.com', password: 'password123', nickname: '账号用户', recovery: null }];
   const syncStore = { authUser: 'acc1' };

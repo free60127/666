@@ -270,6 +270,9 @@ function sanitizeRecovery(value) {
    账号自助管理：修改密码 / 注销账号 / 找回密码（重置码 + SMTP）
    ============================================================ */
 const RESET_TTL_MS = 15 * 60 * 1000; // 重置码 15 分钟有效
+const RESET_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const RESET_EMAIL_ATTEMPT_MAX = 8;
+const RESET_IP_ATTEMPT_MAX = 20;
 
 const sha256Hex = async (text) => {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(text)));
@@ -283,6 +286,38 @@ const passwordError = (password) => {
   if (password.length > 128) return '密码过长（最多 128 位）';
   return null;
 };
+
+async function bumpResetAttempts(db, key, now) {
+  const winStart = Math.floor(now / RESET_ATTEMPT_WINDOW_MS) * RESET_ATTEMPT_WINDOW_MS;
+  const winEnd = winStart + RESET_ATTEMPT_WINDOW_MS;
+  try {
+    const row = await db.prepare(
+      'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ' +
+      'ON CONFLICT(key) DO UPDATE SET ' +
+      'count = CASE WHEN rate.until <= ?3 THEN 1 ELSE rate.count + 1 END, ' +
+      'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
+      'RETURNING count'
+    ).bind(key, winEnd, winStart, winEnd).first();
+    return Number(row && row.count) || 0;
+  } catch (_) {
+    // 限流表故障时不阻断密码重置，但仍保留验证码本身的单次消费保护。
+    return 0;
+  }
+}
+
+async function resetAttemptCheck(db, request, email) {
+  const ip = (request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown')
+    .split(',')[0].trim().slice(0, 128) || 'unknown';
+  const now = Date.now();
+  // D1 写入串行化，避免同一请求同时更新两个 rate 行时产生不必要的锁竞争。
+  const emailCount = await bumpResetAttempts(db, 'auth:reset:email:' + email, now);
+  const ipCount = await bumpResetAttempts(db, 'auth:reset:ip:' + ip, now);
+  return {
+    emailCount,
+    ipCount,
+    blocked: emailCount > RESET_EMAIL_ATTEMPT_MAX || ipCount > RESET_IP_ATTEMPT_MAX,
+  };
+}
 
 async function sessionUser(db, request) {
   const token = bearerToken(request);
@@ -323,24 +358,51 @@ async function changePassword(db, request) {
   return json({ ok: true });
 }
 
-/* 注销账号：密码确认 → 删用户（sessions 级联）+ 云端备份 KV + 活跃记录 + 重置码 */
+/* 注销账号：密码确认 → D1 原子删除账号相关数据；KV 删除失败交给 Cron 重试 */
 async function deleteAccount(db, env, request) {
   const user = await sessionUser(db, request);
   if (!user) return json({ error: 'unauthorized' }, 401);
   const body = await readJson(request);
   if (!body) return json({ error: 'invalid json' }, 400);
   if (!(await verifyPassword(body.password, user.password_hash))) return json({ error: '密码不正确' }, 401);
+  const now = Date.now();
+  const kvKey = 'sync:user:' + user.id;
   try {
-    await db.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
+    const cleanupStatements = [
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id),
+      db.prepare('DELETE FROM reset_tokens WHERE email = ?').bind(user.email),
+      db.prepare('DELETE FROM login_fails WHERE email = ?').bind(user.email),
+      db.prepare('DELETE FROM rate WHERE key IN (?, ?)')
+        .bind('auth:forgot:' + user.email, 'auth:reset:email:' + user.email),
+      db.prepare('DELETE FROM activity WHERE act_key = ?').bind('user:' + user.id),
+      // 活跃数据删除后，聚合排行榜缓存必须失效，避免继续展示已注销账号。
+      db.prepare('DELETE FROM rank_cache'),
+    ];
+    if (env.STUDY_KV) {
+      cleanupStatements.push(
+        db.prepare(
+          'INSERT OR IGNORE INTO cleanup_jobs (user_id, kv_key, attempts, next_attempt_at, created_at, last_error) ' +
+          'VALUES (?, ?, 0, ?, ?, NULL)'
+        ).bind(user.id, kvKey, now, now),
+      );
+    }
+    cleanupStatements.push(db.prepare('DELETE FROM users WHERE id = ?').bind(user.id));
+    await db.batch(cleanupStatements);
   } catch (error) {
     console.error('delete-account db error:', error);
     return json({ error: 'internal error' }, 500);
   }
-  try { await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run(); } catch (_) {}
-  try { await db.prepare('DELETE FROM reset_tokens WHERE email = ?').bind(user.email).run(); } catch (_) {}
-  try { await db.prepare('DELETE FROM activity WHERE act_key = ?').bind('user:' + user.id).run(); } catch (_) {}
-  try { if (env.STUDY_KV) await env.STUDY_KV.delete('sync:user:' + user.id); } catch (_) {}
-  return json({ ok: true });
+  let cleanupPending = Boolean(env.STUDY_KV);
+  if (env.STUDY_KV) {
+    try {
+      await env.STUDY_KV.delete(kvKey);
+      await db.prepare('DELETE FROM cleanup_jobs WHERE kv_key = ?').bind(kvKey).run();
+      cleanupPending = false;
+    } catch (error) {
+      console.error('delete-account KV cleanup pending:', error);
+    }
+  }
+  return json({ ok: true, cleanupPending });
 }
 
 /* 找回密码第 1 步：向注册邮箱发 8 位数字重置码（SMTP）。用户不存在也返回 ok（防邮箱枚举） */
@@ -362,7 +424,10 @@ async function forgot(db, env, request) {
     subject: '外院知识分享站 - 密码重置验证码',
     text: '你的密码重置验证码是：' + code + '\n\n15 分钟内有效。\n\n注意：重置密码后，用旧密码加密的云端数据将无法自动解锁；请先在旧设备备份导出，或保存好原恢复码。',
   });
-  if (!sent.ok) return json({ error: '邮件发送失败，请稍后重试或联系管理员', detail: sent.error }, 503);
+  if (!sent.ok) {
+    console.error('forgot smtp error:', sent.error);
+    return json({ error: '邮件发送失败，请稍后重试或联系管理员' }, 503);
+  }
   await db.prepare('INSERT OR REPLACE INTO reset_tokens (email, code_hash, expires_at, used, created_at) VALUES (?, ?, ?, 0, ?)')
     .bind(email, await sha256Hex(code), now + RESET_TTL_MS, now).run();
   return json({ ok: true });
@@ -377,24 +442,54 @@ async function resetPassword(db, request) {
   const err = passwordError(body.newPassword);
   if (err) return json({ error: err }, 400);
   if (!EMAIL_RE.test(email)) return json({ error: '邮箱格式不正确' }, 400);
-  if (!/^[0-9]{8}$/.test(code)) return json({ error: '验证码格式不正确' }, 400);
+  const attempt = await resetAttemptCheck(db, request, email);
+  if (attempt.blocked) return json({ error: '验证码尝试次数过多，请重新申请验证码' }, 429);
+  if (!/^[0-9]{8}$/.test(code)) {
+    if (attempt.emailCount >= RESET_EMAIL_ATTEMPT_MAX || attempt.ipCount >= RESET_IP_ATTEMPT_MAX) {
+      await db.prepare('UPDATE reset_tokens SET used = 1 WHERE email = ? AND used = 0').bind(email).run().catch(() => {});
+      return json({ error: '验证码错误次数过多，请重新申请验证码' }, 429);
+    }
+    return json({ error: '验证码格式不正确' }, 400);
+  }
+  const now = Date.now();
+  const codeHash = await sha256Hex(code);
   const row = await db.prepare('SELECT * FROM reset_tokens WHERE email = ?').bind(email).first();
-  if (!row || row.used || row.expires_at <= Date.now() || row.code_hash !== await sha256Hex(code)) {
+  const validCode = row && !row.used && row.expires_at > now && row.code_hash === codeHash;
+  if (!validCode) {
+    if (attempt.emailCount >= RESET_EMAIL_ATTEMPT_MAX || attempt.ipCount >= RESET_IP_ATTEMPT_MAX) {
+      await db.prepare('UPDATE reset_tokens SET used = 1 WHERE email = ? AND used = 0').bind(email).run().catch(() => {});
+      return json({ error: '验证码错误次数过多，请重新申请验证码' }, 429);
+    }
     return json({ error: '验证码错误或已过期' }, 400);
   }
   const user = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
   if (!user) return json({ error: '用户不存在' }, 400);
+  if (body.recovery !== undefined && body.recovery !== null && !sanitizeRecovery(body.recovery)) {
+    return json({ error: 'recovery invalid' }, 400);
+  }
   const { salt, hash } = await hashPassword(body.newPassword);
   const passwordHash = 'pbkdf2:' + PBKDF2_ITERATIONS + ':' + b64(salt) + ':' + b64(hash);
-  const recovery = sanitizeRecovery(body.recovery);
-  const now = Date.now();
+  const recovery = body.recovery == null ? null : sanitizeRecovery(body.recovery);
   try {
-    await db.batch([
-      db.prepare('UPDATE users SET password_hash = ?, recovery_encrypted = ?, updated_at = ? WHERE id = ?')
-        .bind(passwordHash, recovery, now, user.id),
-      db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id),
-      db.prepare('DELETE FROM reset_tokens WHERE email = ?').bind(email),
+    const results = await db.batch([
+      // 先在同一事务中用「未消费且未过期」的验证码保护用户更新；
+      // 并发请求中只有第一个事务能看到 used=0，后续请求不会再次改密码。
+      db.prepare(
+        'UPDATE users SET password_hash = ?, recovery_encrypted = ?, updated_at = ? WHERE id = ? ' +
+        'AND EXISTS (SELECT 1 FROM reset_tokens WHERE email = ? AND code_hash = ? AND used = 0 AND expires_at > ?)'
+      ).bind(passwordHash, recovery, now, user.id, email, codeHash, now),
+      db.prepare(
+        'DELETE FROM sessions WHERE user_id = ? ' +
+        'AND EXISTS (SELECT 1 FROM reset_tokens WHERE email = ? AND code_hash = ? AND used = 0 AND expires_at > ?)'
+      ).bind(user.id, email, codeHash, now),
+      db.prepare(
+        'UPDATE reset_tokens SET used = 1 WHERE email = ? AND code_hash = ? AND used = 0 AND expires_at > ? ' +
+        'AND EXISTS (SELECT 1 FROM users WHERE id = ?)'
+      ).bind(email, codeHash, now, user.id),
     ]);
+    if (!results || !results[0] || Number(results[0].meta && results[0].meta.changes) !== 1) {
+      return json({ error: '验证码错误或已过期' }, 400);
+    }
   } catch (error) {
     console.error('reset-password db error:', error);
     return json({ error: 'internal error' }, 500);

@@ -688,13 +688,13 @@ function filterHeaders(headers) {
 /* ---------- D1 数据自动清理（2026-08-22 审查 P1）----------
  * Cron 每日执行：uv_seen 保留 2 天、activity 保留 8 天（周榜窗口 7 天）、
  * rate 删过期窗口、rank_cache 删 1 小时前的缓存、stats 日计数保留 30 天、
- * login_fails 保留 1 天（锁 15 分钟过期后计数即可清）。
- * 全部静默容错：清理失败不影响任何请求。 */
+ * login_fails 保留 1 天、reset_tokens 删除过期记录。
+ * KV 注销清理任务单独重试；全部静默容错，清理失败不影响任何请求。 */
 async function cleanupDb(env) {
   const db = env.DB;
   if (!db) return;
+  const now = Date.now();
   try {
-    const now = Date.now();
     const dayMs = 86400 * 1000;
     const todayCnTs = () => new Date(now + 8 * 3600 * 1000).toISOString().slice(0, 10);
     const daysAgo = n => new Date(now + 8 * 3600 * 1000 - n * dayMs).toISOString().slice(0, 10);
@@ -706,6 +706,34 @@ async function cleanupDb(env) {
       db.prepare("DELETE FROM stats WHERE key LIKE 'stats:pv:day:%' AND substr(key, 14) < ?1").bind(daysAgo(30)),
       db.prepare("DELETE FROM stats WHERE key LIKE 'stats:uv:day:%' AND substr(key, 14) < ?1").bind(daysAgo(30)),
       db.prepare('DELETE FROM login_fails WHERE updated_at < ?1').bind(now - dayMs),
+      db.prepare('DELETE FROM reset_tokens WHERE expires_at < ?1').bind(now),
     ]);
   } catch (_) { /* 清理失败静默 */ }
+  await processCleanupJobs(env, now);
+}
+
+async function processCleanupJobs(env, now) {
+  if (!env.DB || !env.STUDY_KV) return;
+  let rows;
+  try {
+    const result = await env.DB.prepare(
+      'SELECT id, kv_key, attempts FROM cleanup_jobs WHERE next_attempt_at <= ? ORDER BY id LIMIT 20'
+    ).bind(now).all();
+    rows = result && result.results ? result.results : [];
+  } catch (_) {
+    return;
+  }
+  for (const row of rows) {
+    try {
+      await env.STUDY_KV.delete(row.kv_key);
+      await env.DB.prepare('DELETE FROM cleanup_jobs WHERE id = ?').bind(row.id).run();
+    } catch (error) {
+      const attempts = (Number(row.attempts) || 0) + 1;
+      const delay = Math.min(24 * 3600 * 1000, 60000 * (2 ** Math.min(attempts, 10)));
+      const message = String(error && error.message || error).slice(0, 500);
+      await env.DB.prepare(
+        'UPDATE cleanup_jobs SET attempts = ?, next_attempt_at = ?, last_error = ? WHERE id = ?'
+      ).bind(attempts, now + delay, message, row.id).run().catch(() => {});
+    }
+  }
 }

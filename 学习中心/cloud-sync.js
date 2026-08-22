@@ -279,6 +279,9 @@
   function saveCode(code) {
     try { localStorage.setItem(CODE_KEY, JSON.stringify({ code: String(code), updatedAt: new Date().toISOString() })); } catch (_) {}
   }
+  function clearCode() {
+    try { localStorage.removeItem(CODE_KEY); } catch (_) {}
+  }
 
-  return { createCode, sha256Hex, encrypt, decrypt, mergeBackup, backup, download, remove, setAuth, clearAuth, isAuthed, backupAccount, downloadAccount, removeAccount, migrateAnonymous, loadCode, saveCode, DEFAULT_API };
+  return { createCode, sha256Hex, encrypt, decrypt, mergeBackup, backup, download, remove, setAuth, clearAuth, isAuthed, backupAccount, downloadAccount, removeAccount, migrateAnonymous, loadCode, saveCode, clearCode, DEFAULT_API };
 });

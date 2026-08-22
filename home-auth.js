@@ -219,11 +219,16 @@
     const btn = $('auth-delete-submit-btn');
     if (btn) btn.disabled = true;
     try {
-      await auth().deleteAccount(session.token, { password });
+      const result = await auth().deleteAccount(session.token, { password });
       if (auth()) auth().clearSession();
-      if (cloud() && cloud().clearAuth) cloud().clearAuth();
+      if (cloud()) {
+        if (cloud().clearAuth) cloud().clearAuth();
+        if (cloud().clearCode) cloud().clearCode();
+      }
       refreshAuthBar();
-      setHint('账号已注销。感谢使用！');
+      setHint(result && result.cleanupPending
+        ? '账号已注销，云端备份删除任务已排队重试。本机学习数据保留，但本机恢复码已清除。'
+        : '账号已注销。本机学习数据保留，但本机恢复码已清除。感谢使用！');
       showPanel(true);
     } catch (error) {
       setHint('注销失败：' + (error && error.message ? error.message : '网络错误') + '。', true);

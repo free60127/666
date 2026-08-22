@@ -11,6 +11,8 @@ class MemoryD1 {
     this.loginFails = new Map();
     this.rates = new Map();
     this.resetTokens = new Map();
+    this.cleanupJobs = new Map();
+    this.batchQueue = Promise.resolve();
   }
   prepare(sql) {
     const db = this;
@@ -21,9 +23,18 @@ class MemoryD1 {
       async run() { return db._run(bound._sql, bound._args); },
     };
   }
-  async batch(statements) {
-    for (const stmt of statements) await stmt.run();
-    return { meta: { changes: statements.length } };
+  batch(statements) {
+    const job = this.batchQueue.then(async () => {
+      const results = [];
+      for (const stmt of statements) results.push(await stmt.run());
+      return results;
+    });
+    this.batchQueue = job.catch(() => {});
+    return job;
+  }
+  resetMatches(email, codeHash, now) {
+    const row = this.resetTokens.get(email);
+    return !!(row && !row.used && row.code_hash === codeHash && row.expires_at > now);
   }
   async _first(s, args) {
     if (s.includes('FROM login_fails') && s.includes('WHERE email')) {
@@ -55,7 +66,7 @@ class MemoryD1 {
     if (s.includes('INTO rate') && s.includes('RETURNING count')) {
       const [key, winEnd, winStart] = args;
       const cur = this.rates.get(key);
-      if (!cur || cur.until < winStart) {
+      if (!cur || cur.until <= winStart) {
         this.rates.set(key, { count: 1, until: winEnd });
         return { count: 1 };
       }
@@ -69,57 +80,106 @@ class MemoryD1 {
     return null;
   }
   async _run(s, args) {
+    let changes = 0;
     if (s.startsWith('INSERT INTO users')) {
       const [id, email, password_hash, nickname, recovery_encrypted, created_at, updated_at] = args;
       if ([...this.users.values()].some(u => u.email === email)) throw new Error('UNIQUE constraint failed: users.email');
       this.users.set(id, { id, email, password_hash, nickname, recovery_encrypted, created_at, updated_at });
+      changes = 1;
     } else if (s.startsWith('INSERT INTO sessions')) {
       const [tokenHash, user_id, created_at, expires_at] = args;
       this.sessions.set(tokenHash, { token: tokenHash, user_id, created_at, expires_at });
+      changes = 1;
     } else if (s.startsWith('DELETE FROM sessions')) {
-      if (s.includes('AND token')) {
+      if (s.includes('EXISTS (SELECT 1 FROM reset_tokens')) {
+        const [userId, email, codeHash, now] = args;
+        if (this.resetMatches(email, codeHash, now)) {
+          for (const [k, v] of this.sessions) {
+            if (v.user_id === userId) { this.sessions.delete(k); changes++; }
+          }
+        }
+      } else if (s.includes('AND token')) {
         const [userId, keepTokenHash] = args;
-        for (const [k, v] of this.sessions) if (v.user_id === userId && k !== keepTokenHash) this.sessions.delete(k);
+        for (const [k, v] of this.sessions) {
+          if (v.user_id === userId && k !== keepTokenHash) { this.sessions.delete(k); changes++; }
+        }
       } else if (s.includes('WHERE user_id')) {
         const [userId] = args;
-        for (const [k, v] of this.sessions) if (v.user_id === userId) this.sessions.delete(k);
+        for (const [k, v] of this.sessions) {
+          if (v.user_id === userId) { this.sessions.delete(k); changes++; }
+        }
       } else {
         const [tokenHash] = args;
-        this.sessions.delete(tokenHash);
+        if (this.sessions.delete(tokenHash)) changes = 1;
       }
     } else if (s.startsWith('DELETE FROM login_fails')) {
       const [email] = args;
-      this.loginFails.delete(email);
+      changes = this.loginFails.delete(email) ? 1 : 0;
     } else if (s.startsWith('INSERT INTO login_fails')) {
       const [email, failCount, lockedUntil, updatedAt] = args;
       this.loginFails.set(email, { email, fail_count: failCount, locked_until: lockedUntil, updated_at: updatedAt });
+      changes = 1;
     } else if (s.startsWith('UPDATE users')) {
-      const u = this.users.get(args[args.length - 1]);
-      if (u) {
+      if (s.includes('EXISTS (SELECT 1 FROM reset_tokens')) {
+        const [password_hash, recovery, now, userId, email, codeHash, expiresAt] = args;
+        const u = this.users.get(userId);
+        if (u && this.resetMatches(email, codeHash, expiresAt)) {
+          u.password_hash = password_hash;
+          u.recovery_encrypted = recovery;
+          u.updated_at = now;
+          changes = 1;
+        }
+      } else {
+        const u = this.users.get(args[args.length - 1]);
+        if (!u) return { meta: { changes: 0 } };
         if (s.includes('password_hash') && s.includes('recovery_encrypted')) {
           const [password_hash, recovery, now] = args;
           u.password_hash = password_hash; u.recovery_encrypted = recovery; u.updated_at = now;
+          changes = 1;
         } else if (s.includes('password_hash')) {
           const [password_hash, now] = args;
           u.password_hash = password_hash; u.updated_at = now;
+          changes = 1;
         } else {
           const [recovery, now] = args;
           u.recovery_encrypted = recovery; u.updated_at = now;
+          changes = 1;
         }
       }
     } else if (s.startsWith('DELETE FROM users')) {
       const [id] = args;
-      this.users.delete(id);
+      changes = this.users.delete(id) ? 1 : 0;
       for (const [k, v] of this.sessions) if (v.user_id === id) this.sessions.delete(k);
     } else if (s.includes('INSERT OR REPLACE INTO reset_tokens')) {
       const [email, codeHash, expiresAt, createdAt] = args;
       const used = 0;
       this.resetTokens.set(email, { email, code_hash: codeHash, expires_at: expiresAt, used, created_at: createdAt });
+      changes = 1;
+    } else if (s.startsWith('UPDATE reset_tokens SET used = 1')) {
+      const [email, codeHash, expiresAt, userId] = args;
+      const row = this.resetTokens.get(email);
+      if (!s.includes('code_hash')) {
+        if (row && !row.used) { row.used = 1; changes = 1; }
+      } else if (this.users.has(userId) && row && !row.used && row.code_hash === codeHash && row.expires_at > expiresAt) {
+          row.used = 1;
+          changes = 1;
+      }
     } else if (s.startsWith('DELETE FROM reset_tokens')) {
       const [email] = args;
-      this.resetTokens.delete(email);
+      changes = this.resetTokens.delete(email) ? 1 : 0;
+    } else if (s.startsWith('DELETE FROM rate')) {
+      for (const key of args) if (this.rates.delete(key)) changes++;
+    } else if (s.startsWith('INSERT OR IGNORE INTO cleanup_jobs')) {
+      const [userId, kvKey, nextAttemptAt, createdAt] = args;
+      if (!this.cleanupJobs.has(kvKey)) {
+        this.cleanupJobs.set(kvKey, { user_id: userId, kv_key: kvKey, attempts: 0, next_attempt_at: nextAttemptAt, created_at: createdAt, last_error: null });
+        changes = 1;
+      }
+    } else if (s.startsWith('DELETE FROM cleanup_jobs')) {
+      const [kvKey] = args;
+      changes = this.cleanupJobs.delete(kvKey) ? 1 : 0;
     }
-    return { meta: { changes: 1 } };
+    return { meta: { changes } };
   }
 }
 
@@ -282,8 +342,14 @@ console.log('7) 找回密码（forgot / reset-password / admin-reset-code）');
   check('未注册不发信', env.SMTP_SENT.length === 0);
   const fg = await api('/api/auth/forgot', { method: 'POST', body: { email: 'fg@test.com' }, extraEnv: env });
   check('已注册邮箱 200 且发信 1 封', fg.status === 200 && env.SMTP_SENT.length === 1 && env.SMTP_SENT[0].to === 'fg@test.com');
+  const smtpRawBody = env.SMTP_SENT[0].raw.split('\r\n\r\n')[1].replace(/\r\n/g, '');
+  check('SMTP 中文主题与正文使用 MIME/Base64', env.SMTP_SENT[0].raw.includes('Subject: =?UTF-8?B?') &&
+    env.SMTP_SENT[0].raw.includes('Content-Transfer-Encoding: base64') &&
+    smtpRawBody === Buffer.from(env.SMTP_SENT[0].text, 'utf8').toString('base64'));
   const again = await api('/api/auth/forgot', { method: 'POST', body: { email: 'fg@test.com' }, extraEnv: env });
   check('1 分钟内重复请求 429', again.status === 429);
+  const smtpFail = await api('/api/auth/forgot', { method: 'POST', body: { email: 'fg2@test.com' } });
+  check('SMTP 失败不向前端泄露内部 detail', smtpFail.status === 503 && !Object.prototype.hasOwnProperty.call(smtpFail.data || {}, 'detail'));
   const adminNoToken = await api('/api/auth/admin-reset-code', { method: 'POST', body: { email: 'fg@test.com' }, extraEnv: env });
   check('admin 无 token 401', adminNoToken.status === 401);
   const admin = await api('/api/auth/admin-reset-code', { method: 'POST', token: 'test-admin-token', body: { email: 'fg@test.com' }, extraEnv: env });
@@ -305,6 +371,33 @@ console.log('7) 找回密码（forgot / reset-password / admin-reset-code）');
   check('带恢复码重置 recoveryReset=false', ok2.status === 200 && ok2.data.recoveryReset === false);
   const login2 = await api('/api/auth/login', { method: 'POST', body: { email: 'fg2@test.com', password: 'new-secret' } });
   check('重置后 recovery 为新保险箱', login2.status === 200 && JSON.stringify(login2.data.recovery) === JSON.stringify(box));
+
+  await api('/api/auth/register', { method: 'POST', body: { email: 'limit@test.com', password: 'secret123' } });
+  const limitCode = await api('/api/auth/admin-reset-code', { method: 'POST', token: 'test-admin-token', body: { email: 'limit@test.com' }, extraEnv: env });
+  const wrongStatuses = [];
+  for (let i = 0; i < 8; i++) {
+    const wrong = await api('/api/auth/reset-password', {
+      method: 'POST',
+      body: { email: 'limit@test.com', code: String(i).padStart(8, '0'), newPassword: 'another-secret' },
+      extraEnv: env,
+    });
+    wrongStatuses.push(wrong.status);
+  }
+  check('重置验证码连续错误达到上限后 429', wrongStatuses.slice(0, 7).every(s => s === 400) && wrongStatuses[7] === 429, wrongStatuses.join(','));
+  const blocked = await api('/api/auth/reset-password', {
+    method: 'POST',
+    body: { email: 'limit@test.com', code: limitCode.data.code, newPassword: 'another-secret' },
+    extraEnv: env,
+  });
+  check('错误次数超限后当前验证码已作废', blocked.status === 429 && sharedDb.resetTokens.get('limit@test.com')?.used === 1);
+
+  await api('/api/auth/register', { method: 'POST', body: { email: 'race@test.com', password: 'secret123' } });
+  const raceCode = await api('/api/auth/admin-reset-code', { method: 'POST', token: 'test-admin-token', body: { email: 'race@test.com' }, extraEnv: env });
+  const raceRequests = await Promise.all([
+    api('/api/auth/reset-password', { method: 'POST', body: { email: 'race@test.com', code: raceCode.data.code, newPassword: 'race-pass-a' }, extraEnv: env }),
+    api('/api/auth/reset-password', { method: 'POST', body: { email: 'race@test.com', code: raceCode.data.code, newPassword: 'race-pass-b' }, extraEnv: env }),
+  ]);
+  check('并发提交同一重置码只有一次成功', raceRequests.filter(r => r.status === 200).length === 1 && raceRequests.filter(r => r.status === 400).length === 1, JSON.stringify(raceRequests));
 }
 
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);

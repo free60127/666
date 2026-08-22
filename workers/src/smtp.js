@@ -42,23 +42,43 @@ const b64 = (s) => {
   return btoa(bin);
 };
 
+const wrapBase64 = value => value.match(/.{1,76}/g)?.join('\r\n') || '';
+const headerValue = value => String(value || '').replace(/[\r\n]+/g, ' ');
+const buildMessage = ({ from, to, subject, text, html }) => {
+  const content = typeof html === 'string' && html ? html : String(text || '');
+  const contentType = typeof html === 'string' && html ? 'text/html' : 'text/plain';
+  return [
+    'From: ' + headerValue(from),
+    'To: ' + headerValue(to),
+    'Subject: =?UTF-8?B?' + b64(headerValue(subject)) + '?=',
+    'MIME-Version: 1.0',
+    'Content-Type: ' + contentType + '; charset=utf-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    wrapBase64(b64(content)),
+  ].join('\r\n');
+};
+
 /** 发送一封邮件。返回 {ok:true} 或 {ok:false, error} */
 export async function sendEmail(env, { to, subject, text, html }) {
+  const from = env.SMTP_FROM || env.SMTP_USER || '';
   if (env.SMTP_TEST_MODE) {
     if (!env.SMTP_SENT) env.SMTP_SENT = [];
-    env.SMTP_SENT.push({ to, subject, text, html });
+    env.SMTP_SENT.push({ to, subject, text, html, raw: buildMessage({ from, to, subject, text, html }) });
     return { ok: true, test: true };
   }
   if (!connect) return { ok: false, error: 'sockets unavailable' };
   if (!env.SMTP_USER || !env.SMTP_PASS) return { ok: false, error: 'smtp not configured' };
   const host = env.SMTP_HOST || 'smtp.qq.com';
   const port = Number(env.SMTP_PORT || 465);
-  const from = env.SMTP_FROM || env.SMTP_USER;
+  let socket = null;
+  let writer = null;
+  let reader = null;
   try {
-    const socket = connect({ hostname: host, port }, { secureTransport: 'on' });
+    socket = connect({ hostname: host, port }, { secureTransport: 'on' });
     await socket.opened; // 连接 + TLS 握手完成
-    const writer = socket.writable.getWriter();
-    const reader = socket.readable.getReader();
+    writer = socket.writable.getWriter();
+    reader = socket.readable.getReader();
     const buffer = [];
     const write = async (line) => { await writer.write(ENCODER.encode(line + '\r\n')); };
     let step = 'connect';
@@ -95,17 +115,9 @@ export async function sendEmail(env, { to, subject, text, html }) {
     await write('DATA');
     line = await read();
     await expectCode(line, 354, 'DATA');
-    const body = [
-      'From: ' + from,
-      'To: ' + to,
-      'Subject: ' + subject,
-      'MIME-Version: 1.0',
-      'Content-Type: text/plain; charset=utf-8',
-      '',
-      text,
-    ].join('\r\n');
+    const body = buildMessage({ from, to, subject, text, html });
     step = 'data-body';
-    await write(body.replace(/^[.].*/gm, '.    await write(body.replace(/^[.].*/gm, '.$&'));'));
+    await write(body.replace(/^\./gm, '.$&'));
     step = 'data-dot';
     await write('.');
     line = await read();
@@ -113,12 +125,13 @@ export async function sendEmail(env, { to, subject, text, html }) {
     step = 'quit';
     await write('QUIT');
     await read().catch(() => {});
-    writer.releaseLock();
-    reader.releaseLock();
-    socket.close();
     return { ok: true };
   } catch (error) {
     return { ok: false, error: String((error && error.message) || error) };
+  } finally {
+    try { reader?.releaseLock(); } catch (_) {}
+    try { writer?.releaseLock(); } catch (_) {}
+    try { await socket?.close(); } catch (_) {}
   }
 }
 

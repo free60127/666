@@ -75,7 +75,8 @@
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       // 会话失效（Token 过期/服务端已哈希改造/账号删除）：自动清理本地登录态，避免界面显示已登录但同步失败
-      if (res.status === 401 && !path.endsWith('/login') && !path.endsWith('/register')) clearSession();
+      // 业务密码错误也可能是 401（修改密码/注销），不能因此误退出当前账号。
+      if (res.status === 401 && body && body.error === 'unauthorized') clearSession();
       throw new Error(body && body.error ? body.error : ('HTTP ' + res.status));
     }
     return body;

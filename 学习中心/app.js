@@ -388,11 +388,16 @@
     const btn = document.getElementById('auth-delete-submit-btn');
     if (btn) btn.disabled = true;
     try {
-      await auth().deleteAccount(session.token, { password });
+      const result = await auth().deleteAccount(session.token, { password });
       if (auth()) auth().clearSession();
-      if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.clearAuth) window.WaiyuanCloudSync.clearAuth();
+      if (window.WaiyuanCloudSync) {
+        if (window.WaiyuanCloudSync.clearAuth) window.WaiyuanCloudSync.clearAuth();
+        if (window.WaiyuanCloudSync.clearCode) window.WaiyuanCloudSync.clearCode();
+      }
       refreshAuthBar();
-      setStatus('账号已注销。感谢使用！', 'success');
+      setStatus(result && result.cleanupPending
+        ? '账号已注销，云端备份删除任务已排队重试。本机学习数据保留，但本机恢复码已清除。'
+        : '账号已注销。本机学习数据保留，但本机恢复码已清除。感谢使用！', 'success');
       showAuthPanel(false);
     } catch (error) {
       setStatus('注销失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
