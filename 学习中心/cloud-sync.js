@@ -72,12 +72,12 @@
     const t = r => { if (!r) return 0; for (const f of fields) { const n = Number(r[f]) || 0; if (n) return n; } return 0; };
     return t(b) >= t(a) ? b : a;
   };
-  const mergeObjects = (a, b) => {
-    if (!isObject(a)) return b === undefined ? a : b;
+  const mergeObjects = (a, b, preferLocal) => {
+    if (!isObject(a)) return b === undefined ? a : preferLocal ? a : b;
     if (!isObject(b)) return b === undefined ? a : b;
     const out = {};
     for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
-      out[k] = k in a && k in b ? mergeObjects(a[k], b[k]) : k in a ? a[k] : b[k];
+      out[k] = k in a && k in b ? mergeObjects(a[k], b[k], preferLocal) : k in a ? a[k] : b[k];
     }
     return out;
   };
@@ -87,8 +87,11 @@
     return out;
   };
 
-  /** 合并两份备份（createBackup 格式：{format,version,data:{webQuiz,vocabulary,extra}}） */
-  function mergeBackup(local, cloud) {
+  /** 合并两份备份（createBackup 格式：{format,version,data:{webQuiz,vocabulary,extra}}）
+   *  prefer='cloud'（默认，恢复语义）：FSRS 卡片/附加数据叶子云端优先
+   *  prefer='local'（备份语义）：本地优先（本设备刚改的数据不丢）
+   *  时间戳类字段（progress/favorites/history）天然按较新者取，方向无关 */
+  function mergeBackup(local, cloud, prefer) {
     const l = (local && local.data) || {};
     const c = (cloud && cloud.data) || {};
     const lw = l.webQuiz || {};
@@ -97,21 +100,23 @@
     const unwrap = v => (v && v.progress && typeof v.progress === 'object' && !('words' in v) ? v.progress : v);
     const lv = unwrap(l.vocabulary || {});
     const cv = unwrap(c.vocabulary || {});
+    const localWins = prefer === 'local';
 
     const progress = mergeByKey(lw.progress, cw.progress, (a, b) => newer(a, b, ['lastViewedAt', 'updatedAt']));
     const favorites = mergeByKey(lw.favorites, cw.favorites, (a, b) => newer(a, b, ['updatedAt']));
-    const settings = Object.assign({}, lw.settings || {}, cw.settings || {});
+    const settings = Object.assign({}, localWins ? cw.settings || {} : lw.settings || {}, localWins ? lw.settings || {} : cw.settings || {});
 
-    const words = mergeByKey(lv.words, cv.words, (a, b) => (b === undefined ? a : a === undefined ? b : b)); // FSRS 卡片冲突云端优先
+    const pickWord = (a, b) => (a === undefined ? b : b === undefined ? a : localWins ? a : b); // FSRS 冲突：恢复云端优先 / 备份本地优先
+    const words = mergeByKey(lv.words, cv.words, pickWord);
     const history = mergeByKey(lv.history, cv.history, (a, b) => {
       if (!a) return b; if (!b) return a;
       return { reviews: Math.max(a.reviews || 0, b.reviews || 0), correct: Math.max(a.correct || 0, b.correct || 0) };
     });
-    const sequence = cv.sequence !== undefined ? cv.sequence : lv.sequence;
-    const vocabSettings = Object.assign({}, lv.settings || {}, cv.settings || {});
+    const sequence = localWins ? (lv.sequence !== undefined ? lv.sequence : cv.sequence) : (cv.sequence !== undefined ? cv.sequence : lv.sequence);
+    const vocabSettings = Object.assign({}, localWins ? cv.settings || {} : lv.settings || {}, localWins ? lv.settings || {} : cv.settings || {});
     const vocabulary = { words, history, sequence, settings: vocabSettings };
 
-    const extra = mergeObjects(l.extra || {}, c.extra || {});
+    const extra = mergeObjects(l.extra || {}, c.extra || {}, localWins);
 
     return {
       format: (cloud && cloud.format) || 'waiyuan-study-backup',
@@ -126,22 +131,54 @@
     const res = await fetch((base || apiBase()) + path, options);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error((body && body.error) || ('HTTP ' + res.status));
+      const err = new Error((body && body.error) || ('HTTP ' + res.status));
+      err.status = res.status;
+      err.body = body;  // 409 冲突时携带云端最新 {rev,payload}，供调用方合并重试
+      throw err;
     }
     return res.json();
   }
 
-  /** 上传备份（覆盖云端）：payload 为 encrypt() 结果 */
-  async function backup(code, payload, base) {
-    const deviceId = await sha256Hex(code);
-    return request('/api/sync', {
+  /** 上传（自动合并，永不覆盖他人更新）：
+   *  先下载云端 → 本地与云端合并（prefer=local，本设备刚改的数据优先）→ 带 baseRev 上传；
+   *  服务端检测到云端已有更新（baseRev ≠ 当前 rev）→ 409，自动拉最新合并重试一次 */
+  async function uploadWithMerge(code, payload, base, deviceId) {
+    let cloud = null;
+    try { cloud = await download(code, base); } catch (_) {}  // 下载失败不阻断首次上传
+    let merged = payload, baseRev = 0;
+    if (cloud && cloud.payload) {
+      merged = mergeBackup(payload, cloud.payload, 'local');
+      baseRev = cloud.rev | 0;
+    }
+    const attempt = async () => request('/api/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceId, payload }),
+      body: JSON.stringify({ deviceId, payload: merged, baseRev }),
     }, base);
+    try {
+      return await attempt();
+    } catch (err) {
+      if (err && err.status === 409 && err.body && err.body.payload) {
+        // 并发写入：拉取最新云端数据合并后重试（仅一次，再冲突抛给上层提示）
+        merged = mergeBackup(merged, err.body.payload, 'local');
+        baseRev = err.body.rev | 0;
+        return request('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId, payload: merged, baseRev }),
+        }, base);
+      }
+      throw err;
+    }
   }
 
-  /** 下载：返回 {payload, updatedAt}；云端无数据返回 null */
+  /** 上传备份（自动合并，不丢云端数据）：payload 为 encrypt() 结果 */
+  async function backup(code, payload, base) {
+    const deviceId = await sha256Hex(code);
+    return uploadWithMerge(code, payload, base, deviceId);
+  }
+
+  /** 下载：返回 {rev, payload, updatedAt}；云端无数据返回 null（rev 供下次上传做冲突检测） */
   async function download(code, base) {
     const deviceId = await sha256Hex(code);
     const res = await fetch((base || apiBase()) + '/api/sync?deviceId=' + encodeURIComponent(deviceId));
@@ -167,14 +204,36 @@
   function isAuthed() { return !!(identity && identity.token && identity.userId); }
   const authHeaders = () => ({ Authorization: 'Bearer ' + identity.token });
 
-  /** 账号模式上传（无需 deviceId，worker 按会话解析 user 键；payload 仍为 encrypt() 密文） */
+  /** 账号模式上传（无需 deviceId，worker 按会话解析 user 键；payload 仍为 encrypt() 密文）
+   *  与 backup 相同：先下载云端 → 合并（local 优先）→ 带 baseRev 上传，409 自动重试一次 */
   async function backupAccount(payload, base) {
     if (!isAuthed()) throw new Error('未登录，请先登录账号');
-    return request('/api/sync', {
+    let cloud = null;
+    try { cloud = await downloadAccount(base); } catch (_) {}
+    let merged = payload, baseRev = 0;
+    if (cloud && cloud.payload) {
+      merged = mergeBackup(payload, cloud.payload, 'local');
+      baseRev = cloud.rev | 0;
+    }
+    const attempt = async () => request('/api/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ payload }),
+      body: JSON.stringify({ payload: merged, baseRev }),
     }, base);
+    try {
+      return await attempt();
+    } catch (err) {
+      if (err && err.status === 409 && err.body && err.body.payload) {
+        merged = mergeBackup(merged, err.body.payload, 'local');
+        baseRev = err.body.rev | 0;
+        return request('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ payload: merged, baseRev }),
+        }, base);
+      }
+      throw err;
+    }
   }
 
   /** 账号模式下载：返回 {payload, updatedAt}；无数据返回 null */

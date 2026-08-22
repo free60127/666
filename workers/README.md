@@ -22,8 +22,8 @@
 | GET | `/api/feedback` | 拉取反馈列表（cursor 分页：`?cursor=&limit=&type=&since=&until=&handled=`） | Bearer ADMIN_TOKEN |
 | PATCH | `/api/feedback?key=feedback:xxx&handled=1|0` | 标记反馈已处理/重新打开 | Bearer ADMIN_TOKEN |
 | DELETE | `/api/feedback?key=feedback:xxx` | 删除反馈 | Bearer ADMIN_TOKEN |
-| POST | `/api/sync` | 进度同步上传 `{deviceId?, payload}`（payload ≤ 2.5MB；匿名需 64 位 hex deviceId；登录态带 Bearer 走账号键） | 匿名 / 会话 |
-| GET | `/api/sync?deviceId=x` | 进度同步下载（不存在返回 404；登录态可不带 deviceId 直接取账号数据） | 匿名 / 会话 |
+| POST | `/api/sync` | 进度同步上传 `{deviceId?, payload, baseRev?}`（payload ≤ 2.5MB；匿名需 64 位 hex deviceId；登录态带 Bearer 走账号键。baseRev 为乐观锁版本号：与云端当前 rev 不一致返回 409 + 云端最新数据） | 匿名 / 会话 |
+| GET | `/api/sync?deviceId=x` | 进度同步下载（不存在返回 404；登录态可不带 deviceId 直接取账号数据；响应带 `rev` 供下次上传冲突检测） | 匿名 / 会话 |
 | DELETE | `/api/sync?deviceId=x` | 删除云端进度（登录态直接删账号数据） | 匿名 / 会话 |
 | GET | `/proxy/*` | 站点反代加速 → `https://free60127.github.io/666/*`（HTML 自动重写资源路径） | 公开 |
 | GET | `/` 及任意非 `/api/` 路径 | 主域直连反代（`free60127.top`），HTML 去 `/666/` 前缀 + OG 地址改主域 | 公开 |
@@ -36,6 +36,7 @@
   - **匿名（访客）**：恢复码 → `deviceId = SHA-256(code)`（64 位 hex），**知道恢复码才能读写数据**（服务端只存哈希）；
   - **账号（登录用户）**：`Authorization: Bearer <session>`，数据键 `user:{id}` 与匿名完全隔离；前端登录后自动把旧匿名数据迁移到账号（`cloud-sync.js migrateAnonymous`）。
 - 保护措施：deviceId 必须 64 位 hex；每键每分钟限流（上传 10 / 下载 30 / 删除 6，KV 计数器）；`Content-Length` 预检 + 字符串化二次校验（payload ≤ 2.5MB）；写入带 2 年 TTL（730 天未备份自动过期）；响应 `Cache-Control: no-store`；CORS 回显 `Vary: Origin`。
+- **版本号 + 冲突检测（2026-08-22）**：云端每条记录带 `rev`（写入时间戳毫秒）。客户端上传带 `baseRev`（下载得到的 rev），服务端校验 `baseRev === 当前 rev` 才写入；不一致返回 `409 {error:'conflict', rev, payload, updatedAt}`，前端（cloud-sync.js）自动拉最新数据合并后重试一次——多设备并发写不再互相覆盖。旧客户端不带 baseRev 仍可写（向后兼容）；旧记录无 rev 视为 0。
 - payload 全程端到端加密（PBKDF2 派生 AES-GCM-256），服务端/管理员读不到学习内容。
 - 反馈限频（进程内 `Map`）仅限单实例；`/api/feedback` 列表已支持 cursor 分页 + 类型/时间/已处理筛选。
 - 反代仅允许 `GET/HEAD`，并主动删除 `Authorization`、`Cookie` 等敏感请求头。

@@ -74,5 +74,29 @@ console.log('4) 账号模式（Bearer 会话）');
   check('账号模式删除 → 200', del.status === 200);
 }
 
+console.log('5) 版本号 + 冲突检测（baseRev 乐观锁）');
+{
+  const deviceId = hex64();
+  const up1 = await call('/api/sync', { method: 'POST', body: { deviceId, payload: { v: 'a' }, baseRev: 0 } });
+  check('首次上传 baseRev=0 → 200 带 rev', up1.status === 200 && typeof up1.data.rev === 'number', JSON.stringify(up1.data));
+  const rev1 = up1.data.rev;
+
+  const dl = await call('/api/sync?deviceId=' + deviceId);
+  check('下载返回 rev（=上传 rev）', dl.status === 200 && dl.data.rev === rev1, JSON.stringify(dl.data));
+
+  const stale = await call('/api/sync', { method: 'POST', body: { deviceId, payload: { v: 'b' }, baseRev: 0 } });
+  check('旧 baseRev 上传 → 409 且带最新 payload', stale.status === 409 && stale.data.rev === rev1 && stale.data.payload.v === 'a', JSON.stringify(stale.data));
+
+  const fresh = await call('/api/sync', { method: 'POST', body: { deviceId, payload: { v: 'c' }, baseRev: rev1 } });
+  check('最新 baseRev 上传 → 200 新 rev', fresh.status === 200 && fresh.data.rev > rev1);
+
+  // 不带 baseRev 的旧客户端 → 仍允许覆盖（兼容老版本）
+  const legacy = await call('/api/sync', { method: 'POST', body: { deviceId, payload: { v: 'd' } } });
+  check('无 baseRev 旧客户端 → 200（兼容）', legacy.status === 200);
+
+  const del = await call('/api/sync?deviceId=' + deviceId, { method: 'DELETE' });
+  check('清理删除 200', del.status === 200);
+}
+
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
 process.exit(failed ? 1 : 0);

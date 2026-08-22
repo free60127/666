@@ -301,9 +301,23 @@ async function handleSyncUpload(request, env) {
   if (!(await syncRateLimit(env, key, 'upload'))) return json({ error: 'too many requests, try again later' }, 429);
   const payload = JSON.stringify(body.payload ?? null);
   if (payload.length > MAX_SYNC_BYTES) return json({ error: 'payload too large (max 2.5MB)' }, 413);
-  const record = { data: JSON.parse(payload), updatedAt: new Date().toISOString() };
+  // 版本号 + 冲突检测（2026-08-22）：客户端带 baseRev 上传，服务端校验等于当前 rev 才写入，
+  // 否则 409 并返回云端最新数据，前端自动合并后重试——任何上传都不覆盖他人/他设备的更新
+  const current = await env.STUDY_KV.get('sync:' + key);
+  const curRev = current ? (Number(JSON.parse(current).rev) || 0) : 0;  // 注意不能用 |0（会截断 64 位毫秒时间戳）
+  const baseRev = body.baseRev;
+  if (baseRev !== undefined && Number(baseRev) !== curRev) {
+    let latestPayload = null, latestUpdatedAt = null;
+    if (current) {
+      const parsed = JSON.parse(current);
+      latestPayload = parsed.data;
+      latestUpdatedAt = parsed.updatedAt;
+    }
+    return json({ error: 'conflict', rev: curRev, payload: latestPayload, updatedAt: latestUpdatedAt }, 409);
+  }
+  const record = { data: JSON.parse(payload), updatedAt: new Date().toISOString(), rev: Date.now() };
   await env.STUDY_KV.put('sync:' + key, JSON.stringify(record), { expirationTtl: SYNC_TTL_SECONDS });
-  return json({ ok: true, size: payload.length, updatedAt: record.updatedAt });
+  return json({ ok: true, size: payload.length, updatedAt: record.updatedAt, rev: record.rev });
 }
 
 async function handleSyncDownload(request, env) {
@@ -317,7 +331,8 @@ async function handleSyncDownload(request, env) {
   const raw = await env.STUDY_KV.get('sync:' + key);
   if (!raw) return json({ error: 'not found' }, 404);
   const record = JSON.parse(raw);
-  return json({ ok: true, payload: record.data, updatedAt: record.updatedAt });
+  // 旧格式记录无 rev 字段 → 视为 0（前端据此做首次合并）
+  return json({ ok: true, payload: record.data, updatedAt: record.updatedAt, rev: Number(record.rev) || 0 });
 }
 
 async function handleSyncDelete(request, env) {
