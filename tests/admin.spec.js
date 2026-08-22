@@ -44,6 +44,39 @@ test('站点统计：KPI / 趋势 / 热门页面正常渲染', async ({ page }) 
   await expect(page.locator('#st-pages .page-row').first()).toContainText('5,000');
 });
 
+test('排行榜：日/周榜切换与渲染', async ({ page }) => {
+  await page.route('**/api/rank**', route => {
+    const period = new URL(route.request().url()).searchParams.get('period') || 'day';
+    const auth = route.request().headers()['authorization'] || '';
+    if (!auth.includes('Bearer tok')) {
+      return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'unauthorized' }) });
+    }
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true, period,
+        range: period === 'day' ? '2026-08-22' : '2026-08-16 ~ 2026-08-22',
+        items: [
+          { id: 'user:a', name: '张三', minutes: 150, learned: 320 },
+          { id: 'anon:abc', name: '匿名-abc', minutes: 40, learned: 12 },
+        ],
+      }),
+    });
+  });
+  await page.goto(BASE);
+  await page.fill('#token', 'tok');
+  await page.locator('.tabs button[data-tab="rank"]').click();
+  await page.locator('#load-rank').click();
+  await expect(page.locator('.rank-table tr')).toHaveCount(3);
+  await expect(page.locator('.rank-table')).toContainText('张三');
+  await expect(page.locator('.rank-table')).toContainText('2 小时 30 分');
+  await expect(page.locator('.rank-table')).toContainText('320');
+  await expect(page.locator('.rank-table')).toContainText('匿名-abc');
+  // 切周榜
+  await page.locator('#rank-week').click();
+  await expect(page.locator('#rank-range')).toContainText('2026-08-16 ~ 2026-08-22');
+});
+
 test('站点统计：无令牌 / 令牌错误 → 明确提示', async ({ page }) => {
   await page.route('**/api/stats', route =>
     route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'unauthorized' }) }));

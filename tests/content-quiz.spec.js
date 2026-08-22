@@ -180,3 +180,22 @@ test('泛读：填空填标准答案 → 判对', async ({ page }) => {
   await page.click(`${card} .fill-submit`);
   await expect(page.locator(`${card} .fill-feedback.correct`)).toBeVisible();
 });
+
+test('心跳上报：答题成功 → 排行榜活跃数据上报（匿名 deviceId 64hex）', async ({ page }) => {
+  // 缩短心跳周期，便于测试（默认 60s）
+  await page.addInitScript(() => { window.WAIYUAN_HEARTBEAT_MS = 300; });
+  const got = [];
+  await page.route('**/api/activity', async route => {
+    const body = route.request().postDataJSON();
+    if (body && typeof body === 'object') got.push(body);
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+  });
+  const loc = await locate(page, `(q) => q.type === 'choice' && (q.options || []).length >= 2 && /^[A-Z]$/.test(String(q.answer || '')) && !/\sor\s/i.test(String(q.answer))`);
+  expect(loc).not.toBeNull();
+  const card = await openCard(page, loc);
+  const rightIndex = loc.q.answer.toUpperCase().charCodeAt(0) - 65;
+  await page.click(`${card} .option[data-opt="${rightIndex}"]`);
+  await expect(page.locator(`${card} .option.correct`)).toHaveCount(1);
+  // 心跳应携带匿名 deviceId（64 hex）和 ≥1 的学习计数
+  await expect.poll(() => got.some(g => /^[0-9a-f]{64}$/.test(g.deviceId || '') && (g.learned || 0) >= 1), { timeout: 5000 }).toBe(true);
+});

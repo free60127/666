@@ -1549,7 +1549,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-0845'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-0910'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -2260,6 +2260,48 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     setTimeout(() => { record(card, undefined); prepareCard(card); }, 0);
   }, true);
 
+  /* ---------- 学习活跃遥测（2026-08-22，排行榜数据源） ----------
+   * 答题成功后本地累计计数，每 60s 心跳上报 /api/activity：
+   *   登录（WaiyuanAuth 会话）→ Bearer（user:{id}）；匿名 → deviceId（64 hex，本地生成一次）
+   * 服务端据此聚合「日/周最长使用用户」与「最多学习内容」排行。 */
+  const TELEMETRY_KEY = 'waiyuan-telemetry-v1';
+  function deviceId() {
+    try {
+      let id = localStorage.getItem('waiyuan-device-id');
+      if (!id) {
+        id = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+        localStorage.setItem('waiyuan-device-id', id);
+      }
+      return id;
+    } catch (_) { return '0'.repeat(64); }
+  }
+  function bumpLearned(n) {
+    try {
+      const raw = JSON.parse(localStorage.getItem(TELEMETRY_KEY) || '{}');
+      raw.learned = (raw.learned | 0) + (n || 1);
+      raw.updatedAt = Date.now();
+      localStorage.setItem(TELEMETRY_KEY, JSON.stringify(raw));
+    } catch (_) {}
+  }
+  async function heartbeat() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(TELEMETRY_KEY) || '{}');
+      const learned = raw.learned | 0;
+      if (learned > 0) { raw.learned = 0; localStorage.setItem(TELEMETRY_KEY, JSON.stringify(raw)); }
+      const headers = { 'Content-Type': 'application/json' };
+      let body;
+      try {
+        const session = self.WaiyuanAuth && self.WaiyuanAuth.getSession ? self.WaiyuanAuth.getSession() : null;
+        if (session && session.token) { headers.Authorization = 'Bearer ' + session.token; body = { learned }; }
+        else body = { deviceId: deviceId(), learned };
+      } catch (_) { body = { deviceId: deviceId(), learned }; }
+      const base = (self.WAIYUAN_API_BASE || 'https://api.free60127.top').replace(/\/$/, '');
+      await fetch(base + '/api/activity', { method: 'POST', headers, body: JSON.stringify(body), keepalive: true });
+    } catch (_) { /* 静默：上报失败不打扰学习 */ }
+    setTimeout(heartbeat, Number(self.WAIYUAN_HEARTBEAT_MS || 60000));
+  }
+  setTimeout(heartbeat, Number(self.WAIYUAN_HEARTBEAT_MS || 60000));
+
   function record(card, result) {
     if (!card?.dataset.unifiedReady) return;
     const key = card.dataset.unifiedReady;
@@ -2285,6 +2327,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
       updatedAt: now
     };
     save(state);
+    if (answeredNow) bumpLearned(1);  // 答题计数（排行榜「最多学习内容」数据源）
   }
 
   function resultFromCard(card) {

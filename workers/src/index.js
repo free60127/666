@@ -88,6 +88,16 @@ async function route(request, env) {
         return methodNotAllowed();
       }
 
+      if (path === '/api/activity') {
+        if (request.method === 'POST') return handleActivity(request, env);
+        return methodNotAllowed();
+      }
+
+      if (path === '/api/rank') {
+        if (request.method === 'GET') return requireAdmin(request, env, () => handleRank(request, env));
+        return methodNotAllowed();
+      }
+
       if (path === '/api/sync') {
         if (request.method === 'POST') return handleSyncUpload(request, env);
         if (request.method === 'GET') return handleSyncDownload(request, env);
@@ -148,7 +158,8 @@ async function countVisit(env, request, path) {
     const today = todayCn();
     await kvIncr(env, 'stats:pv:total');
     await kvIncr(env, 'stats:pv:day:' + today);
-    await kvIncr(env, 'stats:page:' + encodeURIComponent(path));
+    // 注意：path 是 URL.pathname（本身已是百分号编码），不可再 encodeURIComponent（会双编码导致乱码）
+    await kvIncr(env, 'stats:page:' + path);
     const cookieHeader = request.headers.get('Cookie') || '';
     let vid = '';
     for (const part of cookieHeader.split(';')) {
@@ -171,6 +182,79 @@ async function countVisit(env, request, path) {
   } catch (_) { return ''; }
 }
 
+/* ---------- 学习活跃上报 / 排行榜（2026-08-22）----------
+ * 前端（unified-quiz-engine.js）每 60s 心跳 POST /api/activity {learned}：
+ *   账号（Bearer 会话）→ 键 user:{id}；匿名 → 键 anon:{deviceId(64hex)}。
+ * 存储：act:{key}:{YYYY-MM-DD} = {minutes, learned}（TTL 8 天，覆盖周榜窗口）。
+ * 排行：GET /api/rank?period=day|week（ADMIN_TOKEN）→ Top50 按分钟降序。 */
+async function handleActivity(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400); }
+  const learned = Math.max(0, Math.min(Number(body.learned) || 0, 500));
+  let key;
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.replace(/^Bearer\s+/i, '');
+  if (token) {
+    if (!env.DB) return json({ error: 'database not configured' }, 500);
+    const session = await env.DB.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?')
+      .bind(await hashToken(token), Date.now()).first();
+    if (!session) return json({ error: 'unauthorized' }, 401);
+    key = 'user:' + session.user_id;
+  } else {
+    const deviceId = String(body.deviceId || '').trim();
+    if (!DEVICE_ID_RE.test(deviceId)) return json({ error: 'deviceId must be 64 hex chars' }, 400);
+    key = 'anon:' + deviceId;
+  }
+  if (!(await syncRateLimit(env, key, 'heartbeat'))) return json({ error: 'too many requests, try again later' }, 429);
+  const today = todayCn();
+  const recKey = 'act:' + key + ':' + today;
+  const cur = JSON.parse((await env.STUDY_KV.get(recKey)) || '{"minutes":0,"learned":0}');
+  cur.minutes = (cur.minutes | 0) + 1;
+  cur.learned = (cur.learned | 0) + learned;
+  await env.STUDY_KV.put(recKey, JSON.stringify(cur), { expirationTtl: 8 * 86400 });
+  return json({ ok: true, minutes: cur.minutes, learned: cur.learned });
+}
+
+async function handleRank(request, env) {
+  const period = new URL(request.url).searchParams.get('period') === 'week' ? 'week' : 'day';
+  const dates = [];
+  for (let i = 0; i < 7; i++) dates.push(new Date(Date.now() + 8 * 3600 * 1000 - i * 86400 * 1000).toISOString().slice(0, 10));
+  const agg = new Map();
+  for (const d of (period === 'week' ? dates : [dates[0]])) {
+    let cursor;
+    do {
+      const list = await env.STUDY_KV.list({ prefix: 'act:', limit: 1000, cursor });
+      cursor = list.cursor || undefined;
+      for (const k of list.keys) {
+        const m = k.name.match(/^act:((?:user|anon):[0-9a-fA-F]{16,}):(\d{4}-\d{2}-\d{2})$/);
+        if (!m || m[2] !== d) continue;
+        const rec = JSON.parse((await env.STUDY_KV.get(k.name)) || '{"minutes":0,"learned":0}');
+        const a = agg.get(m[1]) || { minutes: 0, learned: 0 };
+        a.minutes += rec.minutes | 0;
+        a.learned += rec.learned | 0;
+        agg.set(m[1], a);
+      }
+    } while (cursor);
+  }
+  const items = [];
+  for (const [key, v] of agg) {
+    let name = '';
+    if (key.startsWith('user:')) {
+      const uid = key.slice(5);
+      if (env.DB) {
+        const u = await env.DB.prepare('SELECT nickname, email FROM users WHERE id = ?').bind(uid).first();
+        if (u) name = u.nickname || u.email;
+      }
+      if (!name) name = '用户' + uid.slice(0, 6);
+    } else {
+      name = '匿名-' + key.slice(5).slice(0, 6);
+    }
+    items.push({ id: key, name, minutes: v.minutes, learned: v.learned });
+  }
+  items.sort((a, b) => b.minutes - a.minutes || b.learned - a.learned);
+  return json({ ok: true, period, range: period === 'day' ? dates[0] : dates[0] + ' ~ ' + dates[6], items: items.slice(0, 50) });
+}
+
 async function handleStats(env) {
   const today = todayCn();
   const num = async key => Number(await env.STUDY_KV.get(key)) || 0;
@@ -185,7 +269,9 @@ async function handleStats(env) {
     const list = await env.STUDY_KV.list({ prefix: 'stats:page:', limit: 1000, cursor });
     cursor = list.cursor || undefined;
     for (const key of list.keys) {
-      pages.push({ path: decodeURIComponent(key.name.slice('stats:page:'.length)), pv: await num(key.name) });
+      let decoded = decodeURIComponent(key.name.slice('stats:page:'.length));
+      try { decoded = decodeURIComponent(decoded); } catch (_) {}  // 兼容早期双编码存量键
+      pages.push({ path: decoded, pv: await num(key.name) });
     }
   } while (cursor);
   pages.sort((a, b) => b.pv - a.pv);
@@ -342,7 +428,7 @@ async function handleDeleteFeedback(request, env) {
 const MAX_SYNC_BYTES = 2_500_000;
 const SYNC_TTL_SECONDS = 730 * 24 * 3600;  // 2 年未备份自动过期
 const DEVICE_ID_RE = /^[0-9a-f]{64}$/;
-const SYNC_RATE = { upload: 10, download: 30, delete: 6 };  // 每分钟每键
+const SYNC_RATE = { upload: 10, download: 30, delete: 6, heartbeat: 6 };  // 每分钟每键（heartbeat 用于排行榜活跃上报）
 
 /** KV 计数器限流（按分钟窗口，TTL 120s 自动清理） */
 async function syncRateLimit(env, key, action) {

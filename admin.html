@@ -50,6 +50,12 @@
     .day-row .d{flex:0 0 92px;color:var(--muted)}
     .day-row .v{flex:0 0 44px;text-align:right;font-weight:700}
     .day-row .bwrap{flex:1}
+    .rank-table{width:100%;border-collapse:collapse;font-size:14px}
+    .rank-table th{color:var(--muted);font-weight:700;font-size:12px;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+    .rank-table td{padding:8px;border-bottom:1px solid var(--line)}
+    .rank-table .r{color:var(--muted);width:42px}
+    .rank-table .nm{font-weight:700}
+    .rank-table .top1 .nm{color:#c98a2e}.rank-table .top2 .nm{color:#7a8a9a}.rank-table .top3 .nm{color:#a06a3a}
     [data-theme=dark] .kpi{background:#151d18;border-color:#2a3830}
     [data-theme=dark] .bar{background:#223029}
     [data-theme=dark] .page-row .p{color:#9fb3a6}
@@ -88,6 +94,7 @@
     <button data-tab="feedback" class="active">用户反馈</button>
     <button data-tab="notice">公告</button>
     <button data-tab="stats">站点统计</button>
+    <button data-tab="rank">排行榜</button>
   </div>
 
   <div id="tab-feedback" class="card">
@@ -124,6 +131,20 @@
       <button id="clear-notice" class="danger">清除公告</button>
       <span class="now" id="notice-time"></span>
     </div>
+  </div>
+
+  <div id="tab-rank" class="card" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">学习排行榜</h2>
+      <div class="row">
+        <button class="ghost" id="rank-day" data-period="day">日榜</button>
+        <button class="ghost" id="rank-week" data-period="week">周榜</button>
+        <button class="ghost" id="load-rank">刷新</button>
+      </div>
+    </div>
+    <span class="now" id="rank-range" style="display:block;margin:6px 0"></span>
+    <div id="rank-list"><div class="empty">点击「刷新」加载排行榜。</div></div>
+    <div class="hint">数据来源：题库页面每 60 秒上报一次活跃心跳（答题页打开即计时），答题成功计入学习条数。登录用户显示昵称/邮箱，未登录按设备显示「匿名-xxxx」。仅统计经本站题库页产生的活跃。</div>
   </div>
 
   <div id="tab-stats" class="card" hidden>
@@ -187,6 +208,7 @@
       $('#tab-feedback').hidden = btn.dataset.tab !== 'feedback';
       $('#tab-notice').hidden = btn.dataset.tab !== 'notice';
       $('#tab-stats').hidden = btn.dataset.tab !== 'stats';
+      $('#tab-rank').hidden = btn.dataset.tab !== 'rank';
     });
   });
 
@@ -384,6 +406,41 @@
     btn.disabled = false; btn.textContent = '刷新';
   };
   $('#load-stats').addEventListener('click', loadStats);
+
+  // 学习排行榜（2026-08-22）：GET /api/rank?period=day|week
+  let rankPeriod = 'day';
+  const fmtMin = m => {
+    m = Number(m) || 0;
+    if (m < 60) return m + ' 分钟';
+    return Math.floor(m / 60) + ' 小时 ' + (m % 60) + ' 分';
+  };
+  const loadRank = async () => {
+    const btn = $('#load-rank');
+    btn.disabled = true; btn.textContent = '加载中…';
+    document.querySelectorAll('#rank-day,#rank-week').forEach(b => b.style.background = b.dataset.period === rankPeriod ? 'var(--green)' : '');
+    document.querySelectorAll('#rank-day,#rank-week').forEach(b => b.style.color = b.dataset.period === rankPeriod ? '#fff' : '');
+    try {
+      const r = await fetch(base() + '/api/rank?period=' + rankPeriod, { headers: { Authorization: auth() } });
+      const j = await r.json();
+      if (r.ok && j.ok) {
+        $('#rank-range').textContent = (rankPeriod === 'day' ? '今日（' : '本周（') + (j.range || '') + '）· Top ' + (j.items || []).length;
+        const items = j.items || [];
+        $('#rank-list').innerHTML = items.length
+          ? '<table class="rank-table"><tr><th>#</th><th>用户</th><th>学习时长</th><th>学习条数</th></tr>' +
+            items.map((it, i) =>
+              '<tr class="' + (i < 3 ? 'top' + (i + 1) : '') + '"><td class="r">' + (i + 1) + '</td><td class="nm">' + esc(it.name) + '</td><td>' + fmtMin(it.minutes) + '</td><td>' + (it.learned || 0).toLocaleString() + '</td></tr>'
+            ).join('') + '</table>'
+          : '<div class="empty">暂无数据——题库页面打开后会开始采集。</div>';
+        showMsg('排行榜已刷新。', true);
+      }
+      else if (r.status === 401) showMsg('令牌无效或未填写，请在上方输入正确令牌后重试。', false);
+      else showMsg('加载失败：' + (j.error || r.status), false);
+    } catch (e) { showMsg('请求失败：' + e.message, false); }
+    btn.disabled = false; btn.textContent = '刷新';
+  };
+  $('#load-rank').addEventListener('click', loadRank);
+  $('#rank-day').addEventListener('click', () => { rankPeriod = 'day'; loadRank(); });
+  $('#rank-week').addEventListener('click', () => { rankPeriod = 'week'; loadRank(); });
 
   loadNotice();
 })();
