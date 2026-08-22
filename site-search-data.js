@@ -14,7 +14,7 @@ window.WAIYUAN_SITE_SEARCH = [
   {title:'改写句子题库', category:'专业课 · 语法', path:'专业课/语法（通用）/改写句子/index.html', keywords:'改写句子 新编英语语法教程 题库', description:'新编英语语法教程改写句子练习。'},
   {title:'翻译句子题库', category:'专业课 · 语法', path:'专业课/语法（通用）/翻译句子/index.html', keywords:'翻译句子 新编英语语法教程 题库', description:'新编英语语法教程翻译句子练习。'},
   {title:'通用课程资料', category:'专业课', path:'专业课/通用/index.html', keywords:'通用 两专业 综英 商翻 课程', description:'两专业及以上共有课程。'},
-  {title:'综英系列（商翻）', category:'专业课 · 通用', path:'专业课/通用/综英系列（商翻）/index.html', keywords:'综英 商翻 通用', description:'综英系列（商翻）资料入口。'},
+  {title:'综英系列（商翻）', category:'专业课 · 通用', path:'专业课/通用/综英系列（商翻）/index.html', keywords:'综英 商翻 通用', description:'综合1、综合2题库（选词填空/汉译英）。'},
   {title:'思政刷题', category:'思政', path:'思政系列/index.html', keywords:'思政 毛概 马原 近代史 思修 形势政策 题库 错题', description:'思政课程题库与刷题入口。'},
   {title:'计算机刷题站', category:'计算机', path:'计算机系列/index.html', keywords:'计算机 计算机基础 数据库 C语言 题库', description:'计算机系列题库与练习入口。'},
   {title:'电子版教材', category:'资料', path:'电子版教材/index.html', keywords:'电子教材 扫码 教材', description:'扫码获取电子版教材资料。'},
