@@ -49,9 +49,9 @@ body.reading-tools-enabled>:not(.reading-tools):not(#a4-mobile-download-panel){z
 html[data-theme='dark'] .reading-tools button.reading-tools__toggle{background:#28634f!important;color:#fff!important}
 html[data-theme='dark'] .reading-tools--collapsed button.reading-tools__toggle{background:#2c3a33!important;color:#dfe6e2!important}
 @media(max-width:560px){.reading-tools{right:12px;bottom:14px;gap:8px}.reading-tools__button{width:54px;height:54px}.reading-tools__font-menu{width:146px}}
-/* 番茄钟入口去重（2026-08-22）：桌面端用右下角浮标、工具条隐藏 🍅；移动端折叠后浮标隐藏、展开工具条显示 🍅 */
-.reading-tools__button--tomato{display:none}
-@media(max-width:560px){.reading-tools__button--tomato{display:flex}}
+/* 番茄钟入口统一（2026-08-22 v2）：静止时只保留工具条 🍅（任何屏宽）；运行中 🍅 隐藏、右下角浮标显示倒计时 */
+.reading-tools__button--tomato{display:flex}
+html.tomato-running .reading-tools__button--tomato{display:none}
 html.word-lookup-open{overflow:hidden}
 .word-lookup{position:fixed;inset:0;z-index:100010;display:none;zoom:1!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
 .word-lookup.is-open{display:block}
@@ -132,11 +132,9 @@ html[data-theme="dark"] .tomato-timer__kind{background:#2b3135;border-color:#3a4
   .tomato-timer__toggle{right:max(12px,env(safe-area-inset-right));bottom:calc(max(14px,env(safe-area-inset-bottom)) + 206px);width:54px;height:54px}
   .tomato-timer__panel{right:max(12px,env(safe-area-inset-right));bottom:calc(max(14px,env(safe-area-inset-bottom)) + 268px);width:min(288px,calc(100vw - 24px));max-height:min(430px,calc(100vh - 330px))}
 }
-/* 手机端（2026-08-22）：番茄钟悬浮球收进阅读工具条；运行中保留小球显示剩余时间 */
-@media(max-width:560px){
-  .tomato-timer__toggle{display:none}
-  .tomato-timer__toggle.is-running{display:flex}
-}
+/* 番茄钟入口统一（2026-08-22 v2）：悬浮球默认隐藏，仅运行中显示（倒计时职责）；静止入口=工具条 🍅 */
+.tomato-timer__toggle{display:none}
+.tomato-timer__toggle.is-running{display:flex}
 @media print{.tomato-timer{display:none!important}}
 
 /* ============================================================
@@ -1571,7 +1569,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-1725'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-1740'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -1842,6 +1840,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     startBtn.textContent = running ? '暂停' : (remainMs > 0 && remainMs < currentMinutes * 60000 ? '继续' : '开始');
     startBtn.classList.toggle('is-running', running);
     toggle.classList.toggle('is-running', running);
+    document.documentElement.classList.toggle('tomato-running', running);
     toggle.setAttribute('aria-expanded', panel.classList.contains('is-open') ? 'true' : 'false');
     timeEl.classList.toggle('is-finished', !running && remainMs <= 0);
     chips.forEach(chip => chip.classList.toggle('is-active', !running && Number(chip.dataset.min) === currentMinutes));

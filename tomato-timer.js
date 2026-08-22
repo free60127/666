@@ -106,6 +106,7 @@
     startBtn.textContent = running ? '暂停' : (remainMs > 0 && remainMs < currentMinutes * 60000 ? '继续' : '开始');
     startBtn.classList.toggle('is-running', running);
     toggle.classList.toggle('is-running', running);
+    document.documentElement.classList.toggle('tomato-running', running);
     toggle.setAttribute('aria-expanded', panel.classList.contains('is-open') ? 'true' : 'false');
     timeEl.classList.toggle('is-finished', !running && remainMs <= 0);
     chips.forEach(chip => chip.classList.toggle('is-active', !running && Number(chip.dataset.min) === currentMinutes));

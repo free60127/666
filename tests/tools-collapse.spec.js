@@ -52,9 +52,16 @@ test.describe('阅读工具条（桌面端）', () => {
     await page.goto('/');
     const tools = page.locator('.reading-tools');
     await expect(tools).not.toHaveClass(/reading-tools--collapsed/);
-    // 番茄钟入口去重：桌面端工具条隐藏 🍅、右下角浮标可见（只保留一个入口）
-    await expect(page.locator('.reading-tools__button--tomato')).toBeHidden();
-    await expect(page.locator('.tomato-timer__toggle')).toBeVisible();
+    // 番茄钟入口统一：静止时只保留工具条 🍅（浮标隐藏）；运行中浮标显示倒计时、🍅 隐藏
+    await expect(page.locator('.reading-tools__button--tomato')).toBeVisible();
+    await expect(page.locator('.tomato-timer__toggle')).toBeHidden();
     await expect(page.locator('.reading-tools__button--top')).toBeVisible();
+    // 开始番茄钟 → 浮标接管
+    await page.locator('.reading-tools__button--tomato').click();
+    await page.locator('.tomato-timer__start').click();
+    await expect(page.locator('.tomato-timer__toggle')).toBeVisible();
+    await expect(page.locator('.tomato-timer__toggle')).toHaveClass(/is-running/);
+    await expect(page.locator('.reading-tools__button--tomato')).toBeHidden();
+    await expect(page.locator('html')).toHaveClass(/tomato-running/);
   });
 });
