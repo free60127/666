@@ -79,6 +79,10 @@ async function route(request, env) {
         return methodNotAllowed();
       }
 
+      if (path === '/api/auth/account' && request.method === 'DELETE') {
+        return requireAdmin(request, env, () => handleDeleteAccount(request, env));
+      }
+
       if (path.startsWith('/api/auth')) {
         return handleAuth(request, env, path);
       }
@@ -90,6 +94,7 @@ async function route(request, env) {
 
       if (path === '/api/activity') {
         if (request.method === 'POST') return handleActivity(request, env);
+        if (request.method === 'DELETE') return requireAdmin(request, env, () => handleDeleteActivity(request, env));
         return methodNotAllowed();
       }
 
@@ -212,6 +217,8 @@ async function handleVisit(request, env) {
  *   账号（Bearer 会话）→ 键 user:{id}；匿名 → 键 anon:{deviceId(64hex)}。
  * 存储：act:{key}:{YYYY-MM-DD} = {minutes, learned}（TTL 8 天，覆盖周榜窗口）。
  * 排行：GET /api/rank?period=day|week（ADMIN_TOKEN）→ Top50 按分钟降序。 */
+const HEARTBEAT_MIN_INTERVAL_MS = 40000;  // 同一身份两次心跳最短间隔（前端周期 60s，正常用户不会触发；防伪造/重放刷分钟与学习量）
+
 async function handleActivity(request, env) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400); }
@@ -230,20 +237,60 @@ async function handleActivity(request, env) {
     if (!DEVICE_ID_RE.test(deviceId)) return json({ error: 'deviceId must be 64 hex chars' }, 400);
     key = 'anon:' + deviceId;
   }
+  // 双维度限流：每身份 6 次/分 + 每 IP 20 次/分（防换 deviceId 批量刷）
   if (!(await syncRateLimit(env, key, 'heartbeat'))) return json({ error: 'too many requests, try again later' }, 429);
+  const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
+  if (!(await syncRateLimit(env, 'ip:' + ip, 'heartbeatIp'))) return json({ error: 'too many requests, try again later' }, 429);
+  const now = Date.now();
   const today = todayCn();
   const recKey = 'act:' + key + ':' + today;
-  const cur = JSON.parse((await env.STUDY_KV.get(recKey)) || '{"minutes":0,"learned":0}');
+  const cur = JSON.parse((await env.STUDY_KV.get(recKey)) || '{"minutes":0,"learned":0,"lastTs":0}');
+  const lastTs = Number(cur.lastTs) || 0;
+  if (lastTs && now - lastTs < HEARTBEAT_MIN_INTERVAL_MS) {
+    // 心跳过密（伪造/重放/双标签页）：本次不计数，不污染时长与学习量；返回 ok 让前端正常续期
+    return json({ ok: true, skipped: true });
+  }
   cur.minutes = (cur.minutes | 0) + 1;
   cur.learned = (cur.learned | 0) + learned;
+  cur.lastTs = now;
   await env.STUDY_KV.put(recKey, JSON.stringify(cur), { expirationTtl: 8 * 86400 });
   return json({ ok: true, minutes: cur.minutes, learned: cur.learned });
 }
+
+/** 管理操作：按邮箱删除账号（级联删会话；用于清理线上测试账号，requireAdmin） */
+async function handleDeleteAccount(request, env) {
+  if (!env.DB) return json({ error: 'database not configured' }, 500);
+  const email = String(new URL(request.url).searchParams.get('email') || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return json({ error: 'invalid email' }, 400);
+  const info = await env.DB.prepare('DELETE FROM users WHERE email = ?').bind(email).run();
+  return json({ ok: true, deleted: (info && info.meta && info.meta.changes) || 0 });
+}
+
+/** 管理操作：删除某身份某日的活动记录（清理线上测试数据用，requireAdmin） */
+async function handleDeleteActivity(request, env) {
+  const url = new URL(request.url);
+  const key = String(url.searchParams.get('key') || '').trim();
+  const date = String(url.searchParams.get('date') || '').trim();
+  if (!/^(user|anon):[0-9a-fA-F]{16,}$/.test(key) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: 'invalid key or date' }, 400);
+  await env.STUDY_KV.delete('act:' + key + ':' + date);
+  return json({ ok: true });
+}
+
+const RANK_CACHE_TTL = 300;  // 排行榜结果缓存 5 分钟（避免每次请求全量扫 KV + 逐账号查 D1）
 
 async function handleRank(request, env) {
   const period = new URL(request.url).searchParams.get('period') === 'week' ? 'week' : 'day';
   const dates = [];
   for (let i = 0; i < 7; i++) dates.push(new Date(Date.now() + 8 * 3600 * 1000 - i * 86400 * 1000).toISOString().slice(0, 10));
+  const range = period === 'day' ? dates[0] : dates[0] + ' ~ ' + dates[6];
+  const nocache = new URL(request.url).searchParams.get('nocache') === '1';  // 验证脚本用：绕过缓存强制重扫
+  const cacheKey = 'rank:cache:' + period + ':' + range;
+  if (!nocache) {
+    const cached = await env.STUDY_KV.get(cacheKey);
+    if (cached) {
+      return json({ ok: true, period, range, items: JSON.parse(cached), cached: true });
+    }
+  }
   const agg = new Map();
   for (const d of (period === 'week' ? dates : [dates[0]])) {
     let cursor;
@@ -277,7 +324,9 @@ async function handleRank(request, env) {
     items.push({ id: key, name, minutes: v.minutes, learned: v.learned });
   }
   items.sort((a, b) => b.minutes - a.minutes || b.learned - a.learned);
-  return json({ ok: true, period, range: period === 'day' ? dates[0] : dates[0] + ' ~ ' + dates[6], items: items.slice(0, 50) });
+  const top = items.slice(0, 50);
+  if (!nocache) await env.STUDY_KV.put(cacheKey, JSON.stringify(top), { expirationTtl: RANK_CACHE_TTL });
+  return json({ ok: true, period, range, items: top, cached: false });
 }
 
 async function handleStats(env) {
@@ -455,7 +504,7 @@ async function handleDeleteFeedback(request, env) {
 const MAX_SYNC_BYTES = 2_500_000;
 const SYNC_TTL_SECONDS = 730 * 24 * 3600;  // 2 年未备份自动过期
 const DEVICE_ID_RE = /^[0-9a-f]{64}$/;
-const SYNC_RATE = { upload: 10, download: 30, delete: 6, heartbeat: 6, visit: 60 };  // 每分钟每键（heartbeat 排行榜活跃 / visit GitHub 直连统计）
+const SYNC_RATE = { upload: 10, download: 30, delete: 6, heartbeat: 6, heartbeatIp: 20, visit: 60 };  // 每分钟每键（heartbeat 排行榜活跃 / heartbeatIp 按 IP 限 / visit GitHub 直连统计）
 
 /** KV 计数器限流（按分钟窗口，TTL 120s 自动清理） */
 async function syncRateLimit(env, key, action) {

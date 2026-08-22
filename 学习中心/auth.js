@@ -73,7 +73,11 @@
   async function api(path, options, base) {
     const res = await fetch((base || apiBase()) + path, options);
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body && body.error ? body.error : ('HTTP ' + res.status));
+    if (!res.ok) {
+      // 会话失效（Token 过期/服务端已哈希改造/账号删除）：自动清理本地登录态，避免界面显示已登录但同步失败
+      if (res.status === 401 && !path.endsWith('/login') && !path.endsWith('/register')) clearSession();
+      throw new Error(body && body.error ? body.error : ('HTTP ' + res.status));
+    }
     return body;
   }
 

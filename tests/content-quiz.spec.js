@@ -199,3 +199,26 @@ test('心跳上报：答题成功 → 排行榜活跃数据上报（匿名 devic
   // 心跳应携带匿名 deviceId（64 hex）和 ≥1 的学习计数
   await expect.poll(() => got.some(g => /^[0-9a-f]{64}$/.test(g.deviceId || '') && (g.learned || 0) >= 1), { timeout: 5000 }).toBe(true);
 });
+
+test('心跳失败重试：上报失败保留计数，下次成功补报（不丢学习条数）', async ({ page }) => {
+  await page.addInitScript(() => { window.WAIYUAN_HEARTBEAT_MS = 300; });
+  const got = [];
+  let failures = 0;
+  await page.route('**/api/activity', async route => {
+    const body = route.request().postDataJSON();
+    got.push(body);
+    if (failures < 2) { failures++; return route.fulfill({ status: 500, contentType: 'application/json', body: 'err' }); }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+  });
+  const loc = await locate(page, `(q) => q.type === 'choice' && (q.options || []).length >= 2 && /^[A-Z]$/.test(String(q.answer || '')) && !/\sor\s/i.test(String(q.answer))`);
+  expect(loc).not.toBeNull();
+  const card = await openCard(page, loc);
+  const rightIndex = loc.q.answer.toUpperCase().charCodeAt(0) - 65;
+  await page.click(`${card} .option[data-opt="${rightIndex}"]`);
+  await expect(page.locator(`${card} .option.correct`)).toHaveCount(1);
+  // 前两次心跳失败（learned 保留），成功后清零 → 至少一次成功上报携带 learned
+  await expect.poll(() => got.some(g => (g.learned || 0) >= 1), { timeout: 8000 }).toBe(true);
+  await expect.poll(() => failures >= 2, { timeout: 8000 }).toBe(true);
+  // 最后一次成功后本地计数应清零（后续心跳 learned=0）
+  await expect.poll(() => got.some(g => (g.learned || 0) === 0), { timeout: 8000 }).toBe(true);
+});

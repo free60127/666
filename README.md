@@ -143,6 +143,11 @@ node scripts/release.js
 
 首页底部「赞助支持」弹出微信收款码（`payment-qr.jpg`）。赞助完全自愿，不影响任何功能。多文件版部署必须包含 `payment-qr.jpg`（单文件版已内嵌）。
 
+## 运维与验证脚本
+- `scripts/release.js`：一键发布（重建产物 → 版本号刷新 → 校验 → commit/push）
+- `scripts/check-online.js`：线上资源与功能全量检查（主域 21+ 项 + API + www 301）
+- `scripts/verify-*-live.mjs`：线上 API 集成验证。**注意**：`verify-rank-live.mjs` 会创建线上测试账号并写入排行榜活动数据，脚本结束会自动清理（活动记录 + 测试账号）；请勿在 CI 中自动执行。`verify-auth-live.mjs`/`verify-v2-live.mjs`/`verify-v3-live.mjs`/`verify-harden-live.mjs`/`verify-stats-live.mjs` 同理会产生少量线上测试数据。
+- 管理接口：`DELETE /api/auth/account?email=`（管理员令牌，删账号级联会话）、`DELETE /api/activity?key=&date=`（管理员令牌，删单日活动记录）——清理遗留测试数据用。
 ## 数据治理记录
 
 - 2026-08：思修 318→214、近代史 331→215（去重 + 答案冲突修正）、毛概 244→243、计算机数据库基础清 1 组重复；马原、习概无重复。

@@ -98,5 +98,28 @@ console.log('5) 版本号 + 冲突检测（baseRev 乐观锁）');
   check('清理删除 200', del.status === 200);
 }
 
-console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
+console.log('6) /api/activity 加固（间隔校验 + IP 限流 + 管理删除');
+{
+  const hbId = hex64();
+  const hb = async (body, ip) => {
+    const headers = { 'Content-Type': 'application/json' };
+    if (ip) headers['CF-Connecting-IP'] = ip;
+    const res = await fetch(API + '/api/activity', { method: 'POST', headers, body: JSON.stringify(body) });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  };
+  const a1 = await hb({ deviceId: hbId, learned: 3 });
+  check('首次心跳 → 200 minutes=1 learned=3', a1.status === 200 && a1.data.minutes === 1 && a1.data.learned === 3, JSON.stringify(a1.data));
+  const a2 = await hb({ deviceId: hbId, learned: 3 });
+  check('紧接第二次 → skipped 不计数', a2.status === 200 && a2.data.skipped === true && !a2.data.minutes, JSON.stringify(a2.data));
+  let ip429 = 0;
+  for (let i = 0; i < 21; i++) {
+    const r = await hb({ deviceId: hex64(), learned: 0 }, '203.0.113.9');
+    if (r.status === 429) ip429++;
+  }
+  check('同 IP 21 连发 → 触发 429 且仅第 21 次', ip429 === 1, '429 count=' + ip429);
+  const del = await fetch(API + '/api/activity?key=anon:' + hbId + '&date=2026-08-22', { method: 'DELETE' });
+  check('管理删除无令牌 → 401', del.status === 401, String(del.status));
+}
+
+console.log('\n结果：' + passed + ' 通过 / ' + failed + ' 失败');
 process.exit(failed ? 1 : 0);

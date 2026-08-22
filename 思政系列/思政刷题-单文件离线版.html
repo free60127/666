@@ -1539,7 +1539,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-0944'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-0959'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -2273,11 +2273,13 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
       localStorage.setItem(TELEMETRY_KEY, JSON.stringify(raw));
     } catch (_) {}
   }
+  let hbFailStreak = 0;  // 连续失败次数（指数退避）
+  const hbBaseMs = () => Number(self.WAIYUAN_HEARTBEAT_MS || 60000);
+  const hbDelayMs = () => Math.min(hbBaseMs() * Math.pow(2, Math.min(hbFailStreak, 4)), 300000);  // 退避上限 5 分钟
   async function heartbeat() {
     try {
       const raw = JSON.parse(localStorage.getItem(TELEMETRY_KEY) || '{}');
       const learned = raw.learned | 0;
-      if (learned > 0) { raw.learned = 0; localStorage.setItem(TELEMETRY_KEY, JSON.stringify(raw)); }
       const headers = { 'Content-Type': 'application/json' };
       let body;
       try {
@@ -2286,11 +2288,19 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         else body = { deviceId: deviceId(), learned };
       } catch (_) { body = { deviceId: deviceId(), learned }; }
       const base = (self.WAIYUAN_API_BASE || 'https://api.free60127.top').replace(/\/$/, '');
-      await fetch(base + '/api/activity', { method: 'POST', headers, body: JSON.stringify(body), keepalive: true });
-    } catch (_) { /* 静默：上报失败不打扰学习 */ }
-    setTimeout(heartbeat, Number(self.WAIYUAN_HEARTBEAT_MS || 60000));
+      const res = await fetch(base + '/api/activity', { method: 'POST', headers, body: JSON.stringify(body), keepalive: true });
+      if (res.ok && learned > 0) {
+        // 发送成功后才清零；失败保留计数，下次心跳补报（防丢失学习条数）
+        raw.learned = 0;
+        localStorage.setItem(TELEMETRY_KEY, JSON.stringify(raw));
+      }
+      hbFailStreak = 0;
+    } catch (_) {
+      hbFailStreak++;  // 网络失败：保留 learned，按退避间隔重试
+    }
+    setTimeout(heartbeat, hbDelayMs());
   }
-  setTimeout(heartbeat, Number(self.WAIYUAN_HEARTBEAT_MS || 60000));
+  setTimeout(heartbeat, hbBaseMs());
 
   function record(card, result) {
     if (!card?.dataset.unifiedReady) return;
