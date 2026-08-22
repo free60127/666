@@ -162,6 +162,22 @@ function mockErrandApi(page, store) {
       d.status = b.status; d.adminNote = b.note || '';
       return ok({ ok: true, dispute: d });
     }
+    let em = path.match(/^\/api\/errand\/disputes\/(\d+)\/evidence$/);
+    if (em && method === 'GET') {
+      const d = store.disputes.find(x => x.id === Number(em[1]));
+      if (!d) return fail(404, '申诉不存在');
+      const t = tasks.find(x => x.id === d.taskId);
+      const u = me();
+      const isAdmin = auth() === 'admin-token';
+      const isParty = u && t && (u.id === t.publisherId || u.id === t.takerId);
+      if (!isAdmin && !isParty) return fail(403, '无权查看');
+      return ok({ evidence: store.evidence.filter(e => e.disputeId === d.id).map(e => ({ id: e.id, data: e.data, createdAt: e.createdAt })) });
+    }
+    if (path === '/api/errand/admin/logs' && method === 'GET') {
+      if (auth() !== 'admin-token') return fail(401, 'unauthorized');
+      const items = store.logs.slice().reverse();
+      return ok({ logs: items, total: items.length });
+    }
     let m = path.match(/^\/api\/errand\/tasks\/(\d+)$/);
     if (m && method === 'GET') {
       const t = tasks.find(x => x.id === Number(m[1]));
@@ -186,7 +202,7 @@ function mockErrandApi(page, store) {
         t.status = 'done'; t.completedAt = Date.now();
       } else if (act === 'confirm') {
         if (t.publisherId !== u.id || t.status !== 'done' || t.confirmedAt) return fail(400, '只有发布者能确认已完成的任务');
-        t.confirmedAt = Date.now();
+        t.confirmedAt = Date.now(); t.confirmedBy = 'publisher';
       } else if (act === 'cancel') {
         if (t.status === 'done') return fail(400, '任务已完成，不能取消');
         if (t.publisherId !== u.id && t.takerId !== u.id) return fail(403, '无权操作该任务');
@@ -200,7 +216,7 @@ function mockErrandApi(page, store) {
 }
 
 function newStore() {
-  return { users: [], sessions: {}, tasks: [], reviews: [], disputes: [] };
+  return { users: [], sessions: {}, tasks: [], reviews: [], disputes: [], evidence: [], logs: [] };
 }
 
 // 通过 UI 注册并登录；若 mock store 里已有该邮箱（密码匹配），自动改用登录，避免注册 409
@@ -436,7 +452,7 @@ test('管理面板：跑腿订单列表 + 删除订单 + 处理申诉', async ({
   });
   await page.addInitScript(() => {
     localStorage.setItem('waiyuan-admin-api-v1', 'http://127.0.0.1:8788');
-    localStorage.setItem('waiyuan-admin-token-v1', 'admin-token');
+    sessionStorage.setItem('waiyuan-admin-token-v1', 'admin-token');
   });
   await page.goto('http://127.0.0.1:8788/admin.html');
   await page.locator('.tabs button[data-tab=errand]').click();
@@ -458,3 +474,98 @@ test('管理面板：跑腿订单列表 + 删除订单 + 处理申诉', async ({
   await expect(page.locator('#er-list .fb')).toHaveCount(1);
   await expect(page.locator('#er-list')).not.toContainText('送文件');
 });
+
+test('自动确认语义：system 显示系统自动确认', async ({ page }) => {
+  const store = newStore();
+  store.users.push({ id: 'u0', email: 'pub@test.com', password: 'secret123', nickname: '发布者' });
+  store.users.push({ id: 'u1', email: 'taker@test.com', password: 'secret123', nickname: '跑腿小王' });
+  const now = Date.now();
+  store.tasks.push({
+    id: 1, publisherId: 'u0', title: '系统自动确认单', reward: 8, pickup: 'A', dropoff: 'B', contact: '', deadline: null,
+    status: 'done', takerId: 'u1', createdAt: now, updatedAt: now,
+    completedAt: now, confirmedAt: now, confirmedBy: 'system', autoConfirmedAt: now, cancelledAt: null, cancelReason: '', publisherName: '发布者', takerName: '跑腿小王',
+  });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE);
+  await uiRegisterAndLogin(page, store, 'pub@test.com', '发布者', 'secret123');
+  await page.locator('#tabs .tab[data-tab=done]').click();
+  await page.locator('.task-card').first().click();
+  await expect(page.locator('#detail-modal')).toContainText('系统超时自动确认');
+  await expect(page.locator('#detail-modal')).not.toContainText('双方确认完成');
+});
+
+test('证据查看：详情页申诉区查看证据 + 管理面板查看证据', async ({ page }) => {
+  const store = newStore();
+  store.users.push({ id: 'u0', email: 'pub@test.com', password: 'secret123', nickname: '发布者' });
+  store.users.push({ id: 'u1', email: 'taker@test.com', password: 'secret123', nickname: '跑腿小王' });
+  const now = Date.now();
+  store.tasks.push({
+    id: 1, publisherId: 'u0', title: '送文件', reward: 8, pickup: 'A', dropoff: 'B', contact: '13800000000', deadline: null,
+    status: 'done', takerId: 'u1', createdAt: now, updatedAt: now,
+    completedAt: now, confirmedAt: null, cancelledAt: null, cancelReason: '', publisherName: '发布者', takerName: '跑腿小王',
+  });
+  store.disputes.push({
+    id: 1, taskId: 1, userId: 'u1', role: 'taker', reason: '对方不确认', detail: '已送达但拖延', status: 'open', adminNote: '', createdAt: now, updatedAt: now,
+  });
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  store.evidence.push({ id: 1, disputeId: 1, data: PNG, createdAt: now });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE);
+  // 发布者登录 → 详情 → 申诉区查看证据
+  await uiRegisterAndLogin(page, store, 'pub@test.com', '发布者', 'secret123');
+  await page.locator('#tabs .tab[data-tab=done]').click();
+  await page.locator('.task-card').first().click();
+  await expect(page.locator('#dispute-box')).toContainText('对方不确认');
+  await page.locator('button[data-dp-evidence]').click();
+  await expect(page.locator('img.dp-ev-img')).toBeVisible();
+  await page.locator('#detail-modal [data-act=close]').click();
+  // 管理面板查看证据
+  await page.addInitScript(() => {
+    localStorage.setItem('waiyuan-admin-api-v1', 'http://127.0.0.1:8788');
+    sessionStorage.setItem('waiyuan-admin-token-v1', 'admin-token');
+  });
+  await page.goto('http://127.0.0.1:8788/admin.html');
+  await page.locator('.tabs button[data-tab=errand]').click();
+  await page.locator('#load-disputes').click();
+  await page.locator('#dp-list .fb button:has-text("查看证据")').click();
+  await expect(page.locator('#dp-list img.ev-img')).toBeVisible();
+});
+
+test('管理面板：审计日志 tab 渲染操作记录', async ({ page }) => {
+  const store = newStore();
+  store.logs.push({ id: 1, action: 'errand.task.delete', detail: '删除任务 #2（带饭）', admin: 'admin-to', createdAt: Date.now() - 60000 });
+  store.logs.push({ id: 2, action: 'errand.dispute.resolve', detail: 'status=resolved', admin: 'admin-to', createdAt: Date.now() });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.addInitScript(() => {
+    localStorage.setItem('waiyuan-admin-api-v1', 'http://127.0.0.1:8788');
+    sessionStorage.setItem('waiyuan-admin-token-v1', 'admin-token');
+  });
+  await page.goto('http://127.0.0.1:8788/admin.html');
+  await page.locator('.tabs button[data-tab=logs]').click();
+  await page.locator('#load-logs').click();
+  await expect(page.locator('#logs-list .fb')).toHaveCount(2);
+  await expect(page.locator('#logs-list')).toContainText('errand.task.delete');
+  await expect(page.locator('#logs-list')).toContainText('删除任务 #2');
+  await expect(page.locator('#logs-list')).toContainText('errand.dispute.resolve');
+  await expect(page.locator('#logs-count')).toContainText('共 2 条');
+});
+
+test('管理面板：清除令牌按钮清空会话令牌', async ({ page }) => {
+  const store = newStore();
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.addInitScript(() => {
+    localStorage.setItem('waiyuan-admin-api-v1', 'http://127.0.0.1:8788');
+    sessionStorage.setItem('waiyuan-admin-token-v1', 'admin-token');
+  });
+  await page.goto('http://127.0.0.1:8788/admin.html');
+  await expect(page.locator('#token')).toHaveValue('admin-token');
+  await page.locator('#clear-token').click();
+  await expect(page.locator('#token')).toHaveValue('');
+  const cleared = await page.evaluate(() => sessionStorage.getItem('waiyuan-admin-token-v1'));
+  expect(cleared).toBeNull();
+});
+

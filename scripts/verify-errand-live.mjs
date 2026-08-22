@@ -115,6 +115,23 @@ check('路人查看申诉 403', dListOther.status === 403, 's=' + dListOther.sta
 const dListAnon = await api('/errand/disputes?taskId=' + tid);
 check('匿名查看申诉 403', dListAnon.status === 403, 's=' + dListAnon.status);
 
+// 注销拦截（2026-08-22）：有进行中跑腿任务时禁止注销
+const emailD = 'errand-d-' + Date.now() + '@test.com';
+const regD = await api('/auth/register', { method: 'POST', body: { email: emailD, password: passwd, nickname: '注销测试' } });
+check('注册D', regD.status === 201 || regD.status === 200, 's=' + regD.status);
+const tokD = regD.data.token;
+if (tokD) {
+  const taskD = await api('/errand/tasks', { method: 'POST', token: tokD, body: { title: '注销拦截任务', reward: 1, pickup: 'A', dropoff: 'B', contact: '', deadline: null } });
+  const tidD = taskD.data.task && taskD.data.task.id;
+  check('D发布任务', taskD.status === 201 && tidD, 's=' + taskD.status);
+  const delBlocked = await api('/auth/delete-account', { method: 'POST', token: tokD, body: { password: passwd } });
+  check('有进行中任务注销被拒 400', delBlocked.status === 400 && /跑腿/.test((delBlocked.data && delBlocked.data.error) || ''), 's=' + delBlocked.status + ' ' + ((delBlocked.data && delBlocked.data.error) || ''));
+  const cancelD = await api('/errand/tasks/' + tidD + '/cancel', { method: 'POST', token: tokD });
+  check('D取消任务', cancelD.status === 200, 's=' + cancelD.status);
+  const delOk = await api('/auth/delete-account', { method: 'POST', token: tokD, body: { password: passwd } });
+  check('取消后注销成功 200', delOk.status === 200, 's=' + delOk.status);
+}
+
 if (ADMIN) {
   const aTasksNoAuth = await api('/errand/admin/tasks');
   check('adminTasks 无token 401', aTasksNoAuth.status === 401, 's=' + aTasksNoAuth.status);
@@ -127,6 +144,16 @@ if (ADMIN) {
   check('处理申诉无token 401', resNoAuth.status === 401, 's=' + resNoAuth.status);
   const res = await api('/errand/admin/disputes/' + did, { method: 'PATCH', token: ADMIN, body: { status: 'resolved', note: '已核实，双方协商一致' } });
   check('处理申诉 resolved+备注', res.status === 200 && res.data.dispute.status === 'resolved' && res.data.dispute.adminNote === '已核实，双方协商一致', 's=' + res.status);
+  // 证据读取（2026-08-22）
+  const evNoAuth = await api('/errand/disputes/' + did + '/evidence');
+  check('证据 无token 401', evNoAuth.status === 401, 's=' + evNoAuth.status);
+  const evParty = await api('/errand/disputes/' + did + '/evidence', { token: tokA });
+  check('证据 双方可见 1张', evParty.status === 200 && Array.isArray(evParty.data.evidence) && evParty.data.evidence.length === 1, 's=' + evParty.status);
+  const evAdmin = await api('/errand/disputes/' + did + '/evidence', { token: ADMIN });
+  check('证据 管理端可见', evAdmin.status === 200 && evAdmin.data.evidence && evAdmin.data.evidence.length === 1 && evAdmin.data.evidence[0].data.indexOf('data:image/png;base64,') === 0, 's=' + evAdmin.status);
+  // 隐藏内部 ID：双方申诉视图无 userId
+  const dListAfter = await api('/errand/disputes?taskId=' + tid, { token: tokA });
+  check('申诉双方视图无 userId', dListAfter.status === 200 && dListAfter.data.disputes.length === 1 && dListAfter.data.disputes[0].userId === undefined, 's=' + dListAfter.status);
   const res2 = await api('/errand/admin/disputes/' + did, { method: 'PATCH', token: ADMIN, body: { status: 'rejected' } });
   check('重复处理 400', res2.status === 400, 's=' + res2.status);
   const del = await api('/errand/admin/tasks/' + tid, { method: 'DELETE', token: ADMIN });
@@ -135,6 +162,13 @@ if (ADMIN) {
   check('删除后详情 404', gone.status === 404, 's=' + gone.status);
   const aDisp2 = await api('/errand/disputes', { token: ADMIN });
   check('级联删除申诉', aDisp2.status === 200 && !aDisp2.data.disputes.some(d => d.taskId === tid), 's=' + aDisp2.status);
+  // 审计日志（2026-08-22）
+  const logsNoAuth = await api('/errand/admin/logs');
+  check('审计日志 无token 401', logsNoAuth.status === 401, 's=' + logsNoAuth.status);
+  const logs = await api('/errand/admin/logs?pageSize=50', { token: ADMIN });
+  const larr = (logs.data && logs.data.logs) || [];
+  check('审计日志 含 resolve 与 delete', logs.status === 200 && larr.some(l => l.action === 'errand.dispute.resolve') && larr.some(l => l.action === 'errand.task.delete' && /线上验证任务/.test(l.detail || '')), 's=' + logs.status);
+  check('审计日志 admin 前缀脱敏', larr.filter(l => l.action === 'errand.task.delete').every(l => l.admin && l.admin.length <= 12), '');
 } else {
   console.log('  - 无 ADMIN_TOKEN，跳过管理端验证');
 }

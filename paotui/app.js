@@ -63,7 +63,7 @@
       const u = data && (data.user || data);
       me = u && u.id ? { token: session.token, id: u.id, nickname: u.nickname || u.email } : { token: session.token, id: null, nickname: null };
     } catch (_) {
-      me = session.user && session.user.id ? { token: session.token, id: session.user.id, nickname: session.user.nickname } : null;
+      me = null; // token 失效/网络失败：不信任旧缓存，视为未登录
     }
     renderAuthBar();
   }
@@ -121,7 +121,6 @@
       }
       const hasMore = listEl.children.length < total;
       $('load-more').classList.toggle('hidden', !hasMore);
-      if (!append) bindCardClicks(listEl);
     } catch (e) {
       if (page === 1) listEl.innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '</div>';
       else toast(e.message, true);
@@ -140,9 +139,11 @@
       '<div class="tc-foot"><span>' + who + '</span><span>' + fmtTime(t.createdAt) + '</span></div>' +
       '</div>';
   }
-  function bindCardClicks(listEl) {
-    listEl.querySelectorAll('.task-card').forEach(card => {
-      card.addEventListener('click', () => openDetail(Number(card.dataset.id)));
+  function bindCardClicks() {
+    const listEl = $('task-list');
+    listEl.addEventListener('click', e => {
+      const card = e.target.closest('.task-card');
+      if (card) openDetail(Number(card.dataset.id));
     });
   }
 
@@ -176,7 +177,7 @@
       else actions += '<span class="muted">进行中…</span>';
     } else if (t.status === 'done') {
       if (isPublisher && !t.confirmedAt) actions += '<button class="btn primary" data-act="confirm">确认完成（结算）</button>';
-      else actions += '<span class="muted">' + (t.confirmedAt ? '✅ 双方确认完成' : '已完成，等待发布者确认') + '</span>';
+      else actions += '<span class="muted">' + (t.confirmedAt ? (t.confirmedBy === 'system' ? '✅ 系统超时自动确认（48 小时未确认）' : '✅ 双方确认完成') : '已完成，等待发布者确认（48 小时后系统自动确认）') + '</span>';
       if (t.confirmedAt && (isPublisher || isTaker)) actions += '<button class="btn ghost" data-act="review">⭐ 评价对方</button>';
       if ((t.status === 'doing' || t.status === 'done') && (isPublisher || isTaker)) actions += '<button class="btn ghost" data-act="dispute">⚠️ 申诉</button>';
     } else {
@@ -360,8 +361,25 @@
             '<div class="di-reason">' + esc(d.reason) + '</div>' +
             (d.detail ? '<div class="di-detail">' + esc(d.detail) + '</div>' : '') +
             (d.adminNote ? '<div class="di-note">👮 管理员：' + esc(d.adminNote) + '</div>' : '') +
-            '<div class="di-time">' + fmtTime(d.createdAt) + '</div></div>';
+            '<div class="di-time">' + fmtTime(d.createdAt) + '</div>' +
+            '<button class="btn ghost small" data-dp-evidence="' + d.id + '">📎 查看证据</button>' +
+            '<div class="di-evidence" data-for="' + d.id + '" hidden></div></div>';
         }).join('') + '</div>';
+      box.querySelectorAll('button[data-dp-evidence]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const wrap = box.querySelector('.di-evidence[data-for="' + btn.dataset.dpEvidence + '"]');
+          if (!wrap) return;
+          if (!wrap.hidden) { wrap.hidden = true; return; }
+          wrap.innerHTML = '<span class="muted">加载中…</span>'; wrap.hidden = false;
+          try {
+            const data = await api('/api/errand/disputes/' + btn.dataset.dpEvidence + '/evidence');
+            const evs = data.evidence || [];
+            wrap.textContent = '';
+            if (!evs.length) { const sp = document.createElement('span'); sp.className = 'muted'; sp.textContent = '该申诉没有上传证据。'; wrap.append(sp); }
+            else evs.forEach(v => { const img = document.createElement('img'); img.className = 'dp-ev-img'; img.src = v.data; img.alt = '证据'; img.loading = 'lazy'; wrap.append(img); });
+          } catch (e) { wrap.innerHTML = '<span class="muted">证据加载失败。</span>'; }
+        });
+      });
     } catch (e) { /* 非双方或未登录：静默 */ }
   }
 
@@ -381,7 +399,7 @@
       const data = await api('/api/errand/tasks/' + t.id + '/' + act, { method: 'POST', body: JSON.stringify({}) });
       toast({ take: '接单成功！', complete: '已标记完成，等发布者确认', confirm: '已确认完成，感谢使用！', cancel: '任务已取消' }[act] || '操作成功');
       renderDetail(data.task);
-      loadList(true);
+      loadList(false);
     } catch (e) {
       toast(e.message, true);
       openDetail(t.id); // 刷新详情（可能是状态已变化）
@@ -517,5 +535,6 @@
 
   /* ---------- init ---------- */
   initTheme();
+  bindCardClicks();
   refreshMe().then(() => loadList(false));
 })();

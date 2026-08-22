@@ -18,6 +18,9 @@ class MemoryD1 {
     this.reviews = new Map(); this.nextReviewId = 1;
     this.disputes = new Map(); this.nextDisputeId = 1;
     this.evidence = new Map(); this.nextEvidenceId = 1;
+    this.adminLogs = new Map(); this.nextAdminLogId = 1;
+    this.failRates = false;   // 模拟限流存储故障
+    this.enforceUniqueDispute = false; // 模拟唯一部分索引
   }
   prepare(sql) {
     const db = this;
@@ -52,11 +55,24 @@ class MemoryD1 {
       return this.loginFails.get(args[0]) || null;
     }
     if (s.includes('INTO rate') && s.includes('RETURNING count')) {
+      if (this.failRates) throw new Error('rate db down');
       const [key, winEnd, winStart] = args;
       const cur = this.rates.get(key);
       if (!cur || cur.until <= winStart) { this.rates.set(key, { count: 1, until: winEnd }); return { count: 1 }; }
       cur.count++; this.rates.set(key, cur);
       return { count: cur.count };
+    }
+    if (s.includes('SELECT COUNT(*) AS c FROM errand_tasks') && s.includes('status IN') && s.includes('confirmed_at IS NULL')) {
+      // 注销拦截：按 publisher/taker 计数进行中任务
+      const col = s.includes('publisher_id = ?') ? 'publisher_id' : 'taker_id';
+      const userId = String(args[0]);
+      const innPart = s.slice(s.indexOf('IN (') + 4, s.indexOf(')', s.indexOf('IN (')));
+      const inn = innPart.split(',').map(x => x.replace(/['\s]/g, ''));
+      let n = 0;
+      for (const t of this.tasks.values()) {
+        if (String(t[col]) === userId && inn.includes(t.status) && !t.confirmed_at) n++;
+      }
+      return { c: n };
     }
     if (s.includes('SELECT COUNT(*) AS c FROM errand_tasks')) {
       let n = 0;
@@ -122,6 +138,13 @@ class MemoryD1 {
       const t = this.tasks.get(Number(args[0]));
       return t ? { status: t.status, publisher_id: t.publisher_id, taker_id: t.taker_id } : null;
     }
+    if (s.includes('SELECT COUNT(*) AS c FROM admin_logs')) {
+      return { c: this.adminLogs.size };
+    }
+    if (s.includes('SELECT task_id FROM errand_disputes WHERE id = ?')) {
+      const d = this.disputes.get(Number(args[0]));
+      return d ? { task_id: d.task_id } : null;
+    }
     return null;
   }
   _taskRow(id) {
@@ -161,10 +184,20 @@ class MemoryD1 {
       const pageSize = Number(args[args.length - 2]), offset = Number(args[args.length - 1]);
       return { results: all.slice(offset, offset + pageSize).map(t => this._taskRow(t.id)) };
     }
+    if (s.includes('FROM errand_evidence')) {
+      const did = Number(args[0]);
+      const arr = [...this.evidence.values()].filter(e => e.dispute_id === did).sort((a, b) => a.id - b.id);
+      return { results: arr.map(e => ({ id: e.id, data: e.data, created_at: e.created_at })) };
+    }
     if (s.includes('FROM errand_reviews')) {
       const taskId = Number(args[0]);
       const arr = [...this.reviews.values()].filter(r => r.task_id === taskId).sort((a, b) => b.created_at - a.created_at);
       return { results: arr.map(r => ({ ...r, reviewer_name: (this.users.get(r.reviewer_id) || {}).nickname || null })) };
+    }
+    if (s.includes('FROM admin_logs')) {
+      const arr = [...this.adminLogs.values()].sort((a, b) => b.id - a.id);
+      const pageSize = Number(args[args.length - 2]), offset = Number(args[args.length - 1]);
+      return { results: arr.slice(offset, offset + pageSize) };
     }
     return { results: [] };
   }
@@ -178,8 +211,24 @@ class MemoryD1 {
       t.status = 'doing'; t.taker_id = takerId; t.updated_at = nowMs;
       return { meta: { changes: 1 } };
     }
+    if (s.startsWith('UPDATE errand_tasks') && s.includes('status IN')) {
+      // cancelTask 特判：WHERE status IN ('open','doing') AND (publisher_id=? OR (status='doing' AND taker_id=?))
+      const [cancelledAt, reason, updatedAt, id, publisherId, takerId] = args;
+      const t = this.tasks.get(id);
+      if (!t) return { meta: { changes: 0 } };
+      const okPub = String(t.publisher_id) === String(publisherId) && (t.status === 'open' || t.status === 'doing');
+      const okTak = String(t.taker_id) === String(takerId) && t.status === 'doing';
+      if (!okPub && !okTak) return { meta: { changes: 0 } };
+      t.status = 'cancelled'; t.cancelled_at = cancelledAt; t.cancel_reason = reason; t.updated_at = updatedAt;
+      return { meta: { changes: 1 } };
+    }
     if (s.startsWith('INSERT INTO errand_disputes')) {
       const [task_id, user_id, role, reason, detail, created_at, updated_at] = args;
+      if (this.enforceUniqueDispute) {
+        for (const d of this.disputes.values()) if (d.task_id === task_id && d.user_id === user_id && d.status === 'open') {
+          throw new Error('UNIQUE constraint failed: errand_disputes.task_id, errand_disputes.user_id');
+        }
+      }
       const id = this.nextDisputeId++;
       this.disputes.set(id, { id, task_id, user_id, role, reason, detail, status: 'open', admin_note: '', created_at, updated_at });
       return { meta: { changes: 1, last_row_id: id } };
@@ -195,6 +244,12 @@ class MemoryD1 {
       const d = this.disputes.get(id);
       if (!d || d.status !== 'open') return { meta: { changes: 0 } };
       d.status = st; d.admin_note = note; d.updated_at = now;
+      return { meta: { changes: 1 } };
+    }
+    if (s.startsWith('INSERT INTO admin_logs')) {
+      const [action, detail, admin, created_at] = args;
+      const id = this.nextAdminLogId++;
+      this.adminLogs.set(id, { id, action, detail, admin, created_at });
       return { meta: { changes: 1 } };
     }
     if (s.startsWith('DELETE FROM errand_tasks')) {
@@ -226,7 +281,7 @@ class MemoryD1 {
     if (s.startsWith('INSERT INTO errand_tasks')) {
       const [publisher_id, title, description, reward, pickup, dropoff, contact, deadline, created_at, updated_at] = args;
       const id = this.nextTaskId++;
-      this.tasks.set(id, { id, publisher_id, title, description, reward, pickup, dropoff, contact, deadline, status: 'open', taker_id: null, created_at, updated_at, completed_at: null, confirmed_at: null, cancelled_at: null, cancel_reason: '' });
+      this.tasks.set(id, { id, publisher_id, title, description, reward, pickup, dropoff, contact, deadline, status: 'open', taker_id: null, created_at, updated_at, completed_at: null, confirmed_at: null, confirmed_by: null, auto_confirmed_at: null, cancelled_at: null, cancel_reason: '' });
       return { meta: { changes: 1, last_row_id: id } };
     }
     if (s.startsWith('UPDATE errand_tasks')) {
@@ -256,6 +311,13 @@ class MemoryD1 {
       }
       return { meta: { changes } };
     }
+    if (s.startsWith('DELETE FROM errand_disputes')) {
+      const id = Number(args[0]);
+      if (!this.disputes.has(id)) return { meta: { changes: 0 } };
+      this.disputes.delete(id);
+      for (const eid of [...this.evidence.keys()]) if (this.evidence.get(eid).dispute_id === id) this.evidence.delete(eid);
+      return { meta: { changes: 1 } };
+    }
     if (s.startsWith('DELETE FROM sessions')) {
       const [tokenHash] = args;
       return { meta: { changes: this.sessions.delete(tokenHash) ? 1 : 0 } };
@@ -266,7 +328,7 @@ class MemoryD1 {
 
 /* ---------- 请求封装 ---------- */
 const db = new MemoryD1();
-const env = { DB: db, STUDY_KV: {}, ADMIN_TOKEN: 'admin-token', SMTP_TEST_MODE: true, SMTP_SENT: [] };
+const env = { DB: db, STUDY_KV: { delete: async () => undefined }, ADMIN_TOKEN: 'admin-token', SMTP_TEST_MODE: true, SMTP_SENT: [] };
 async function api(path, { method = 'GET', token, body } = {}) {
   const headers = {};
   if (token) headers['Authorization'] = 'Bearer ' + token;
@@ -482,5 +544,109 @@ const dDel = await data(await api('/api/errand/disputes', { method: 'POST', toke
 const evBefore = db.evidence.size;
 await api('/api/errand/admin/tasks/' + tDel.task.id, { method: 'DELETE', token: 'admin-token' });
 check('删除任务级联清申诉与证据', !db.disputes.has(dDel.dispute.id) && db.evidence.size === evBefore - 1);
+
+/* ---------- 12) 注销拦截：进行中跑腿单禁止注销 ---------- */
+console.log('12) 注销拦截：进行中跑腿单禁止注销');
+const rd = await data(await api('/api/auth/register', { method: 'POST', body: { email: 'del@test.com', password: 'secret123', nickname: '注销员' } }));
+const ld = await api('/api/auth/login', { method: 'POST', body: { email: 'del@test.com', password: 'secret123' } });
+const tokenD = (await data(ld)).token;
+check('D 账号就绪', !!tokenD);
+const tDel1 = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenD, body: { title: '注销前任务', reward: 2, pickup: 'A', dropoff: 'B' } }));
+const delBlocked = await api('/api/auth/delete-account', { method: 'POST', token: tokenD, body: { password: 'secret123' } });
+check('有进行中任务注销被拒 400', delBlocked.status === 400 && (await data(delBlocked)).error.includes('跑腿'), JSON.stringify(await data(delBlocked)));
+await api('/api/errand/tasks/' + tDel1.task.id + '/cancel', { method: 'POST', token: tokenD, body: { reason: '清理' } });
+const delOk = await api('/api/auth/delete-account', { method: 'POST', token: tokenD, body: { password: 'secret123' } });
+check('任务取消后可注销 200', delOk.status === 200);
+const delBadPw = await api('/api/auth/delete-account', { method: 'POST', token: tokenD, body: { password: 'wrong' } });
+check('注销密码错误 401', delBadPw.status === 401);
+
+/* ---------- 13) 证据读取 API（管理端或任务双方） ---------- */
+console.log('13) 证据读取 API');
+const evNoAuth = await api('/api/errand/disputes/' + disputeId + '/evidence');
+check('证据无 token 401', evNoAuth.status === 401);
+const evOther = await api('/api/errand/disputes/' + disputeId + '/evidence', { token: tokenC });
+check('证据路人 403', evOther.status === 403);
+const evPub = await data(await api('/api/errand/disputes/' + disputeId + '/evidence', { token: tokenA }));
+check('证据发布者可见 2 张', evPub.evidence.length === 2 && evPub.evidence[0].data.startsWith('data:image/'));
+const evTaker = await data(await api('/api/errand/disputes/' + disputeId + '/evidence', { token: tokenB }));
+check('证据接单者可见 2 张', evTaker.evidence.length === 2);
+const evAdmin = await data(await api('/api/errand/disputes/' + disputeId + '/evidence', { token: 'admin-token' }));
+check('证据管理员可见', evAdmin.evidence.length === 2);
+const ev404 = await api('/api/errand/disputes/99999/evidence', { token: 'admin-token' });
+check('证据不存在申诉 404', ev404.status === 404);
+
+/* ---------- 14) 隐藏内部 ID（评价/申诉公开脱敏） ---------- */
+console.log('14) 隐藏内部 ID');
+const revPub2 = await data(await api('/api/errand/reviews?taskId=1'));
+check('评价公开列表无 reviewerId/revieweeId', revPub2.reviews.length === 1 && revPub2.reviews[0].reviewerId === undefined && revPub2.reviews[0].revieweeId === undefined);
+const dListPub2 = await data(await api('/api/errand/disputes?taskId=1', { token: tokenA }));
+check('申诉双方视图无 userId', dListPub2.disputes.length === 2 && dListPub2.disputes.every(d => d.userId === undefined));
+const dAdmin2 = await data(await api('/api/errand/disputes', { token: 'admin-token' }));
+check('管理端申诉仍含 userId', dAdmin2.disputes.length >= 2 && dAdmin2.disputes.every(d => d.userId !== undefined));
+
+/* ---------- 15) 限流存储故障：写操作保守失败 503 ---------- */
+console.log('15) 限流存储故障 503');
+db.failRates = true;
+const rateFail = await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '限流故障', reward: 1 } });
+check('限流故障时发布 503', rateFail.status === 503);
+db.failRates = false;
+const rateOk = await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '限流恢复', reward: 1 } });
+check('限流恢复后发布 201', rateOk.status === 201);
+
+/* ---------- 16) 申诉限流：用户 60s/5 次 ---------- */
+console.log('16) 申诉限流');
+const re = await data(await api('/api/auth/register', { method: 'POST', body: { email: 'rate@test.com', password: 'secret123', nickname: '申诉狂' } }));
+const le = await api('/api/auth/login', { method: 'POST', body: { email: 'rate@test.com', password: 'secret123' } });
+const tokenE = (await data(le)).token;
+const tRate = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenE, body: { title: '限流任务', reward: 1, pickup: 'A', dropoff: 'B' } }));
+await api('/api/errand/tasks/' + tRate.task.id + '/take', { method: 'POST', token: tokenB });
+let dp429 = null;
+for (let i = 0; i < 6; i++) {
+  const r = await api('/api/errand/disputes', { method: 'POST', token: tokenE, body: { taskId: tRate.task.id, reason: '限流测试' } });
+  if (r.status === 429) { dp429 = i + 1; break; }
+}
+check('第 6 次申诉触发 429', dp429 === 6, 'hit at ' + dp429);
+
+/* ---------- 17) 请求体过大 413 ---------- */
+console.log('17) 请求体过大 413');
+const bigEv = ['data:image/png;base64,' + 'A'.repeat(400000)];
+const tooBig = await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: 1, reason: 'x', evidence: [bigEv[0], bigEv[0], bigEv[0]] } });
+check('申诉请求体过大 413', tooBig.status === 413);
+
+/* ---------- 18) 唯一 open 申诉索引（并发兜底） ---------- */
+console.log('18) 唯一 open 申诉索引');
+db.enforceUniqueDispute = true;
+const tUniq = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '唯一申诉', reward: 1, pickup: 'A', dropoff: 'B' } }));
+await api('/api/errand/tasks/' + tUniq.task.id + '/take', { method: 'POST', token: tokenB });
+const uq1 = await api('/api/errand/disputes', { method: 'POST', token: tokenB, body: { taskId: tUniq.task.id, reason: '索引测试' } });
+check('唯一索引下首次申诉 201', uq1.status === 201, String(uq1.status));
+const uq2 = await api('/api/errand/disputes', { method: 'POST', token: tokenB, body: { taskId: tUniq.task.id, reason: '索引测试2' } });
+check('唯一索引冲突返回 400 友好提示', uq2.status === 400 && (await data(uq2)).error.includes('已有进行中的申诉'));
+db.enforceUniqueDispute = false;
+
+/* ---------- 19) cancelTask 并发语义 ---------- */
+console.log('19) cancelTask 并发语义');
+const tConc = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '并发取消', reward: 1, pickup: 'A', dropoff: 'B' } }));
+await api('/api/errand/tasks/' + tConc.task.id + '/take', { method: 'POST', token: tokenB });
+const cancOther = await api('/api/errand/tasks/' + tConc.task.id + '/cancel', { method: 'POST', token: tokenC });
+check('路人取消 doing 任务 403', cancOther.status === 403);
+const cancPub = await data(await api('/api/errand/tasks/' + tConc.task.id + '/cancel', { method: 'POST', token: tokenA }));
+check('发布者取消 doing 任务 200', cancPub.ok === true && cancPub.task.status === 'cancelled');
+const cancAgain = await api('/api/errand/tasks/' + tConc.task.id + '/cancel', { method: 'POST', token: tokenA });
+check('重复取消 400', cancAgain.status === 400);
+
+/* ---------- 20) 管理审计日志 ---------- */
+console.log('20) 管理审计日志');
+const logsNoAuth = await api('/api/errand/admin/logs');
+check('审计日志无 token 401', logsNoAuth.status === 401);
+const logs = await data(await api('/api/errand/admin/logs', { token: 'admin-token' }));
+check('审计日志含删除与申诉处理记录', logs.total >= 3 && logs.logs.some(l => l.action === 'errand.task.delete') && logs.logs.some(l => l.action === 'errand.dispute.resolve'));
+check('审计 admin 为令牌前缀', logs.logs.every(l => l.admin === 'admin-to'));
+
+/* ---------- 21) 确认来源字段 ---------- */
+console.log('21) 确认来源字段');
+const detConfirm = await data(await api('/api/errand/tasks/1'));
+check('手动确认 confirmedBy=publisher', detConfirm.task.confirmedBy === 'publisher' && detConfirm.task.autoConfirmedAt === null);
+
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
 process.exit(failed ? 1 : 0);

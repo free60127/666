@@ -33,6 +33,8 @@
     .fb .q{font-weight:700;margin:4px 0}
     .fb .detail{color:#4a5a52;font-size:14px;margin:2px 0;word-break:break-word}
     .fb .note{background:#fff7ed;border-radius:8px;padding:6px 10px;font-size:13px;margin-top:6px}
+    .fb .di-evidence{margin-top:8px;display:flex;flex-wrap:wrap;gap:8px}
+    .fb .ev-img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
     .fb .actions{margin-top:9px;display:flex;gap:8px}
     .fb .actions button{font-size:12px;padding:5px 12px}
     .empty{color:var(--muted);text-align:center;padding:26px 0}
@@ -84,8 +86,9 @@
     <div class="row" style="margin-top:12px">
       <button id="save">保存设置</button>
       <button class="ghost" id="test">测试连接</button>
+      <button class="ghost" id="clear-token">清除令牌</button>
     </div>
-    <div class="hint">令牌只存在本机浏览器 localStorage，页面本身不含任何令牌。</div>
+    <div class="hint">令牌只存在本机浏览器会话存储（sessionStorage，关闭标签页即失效），页面本身不含任何令牌。</div>
   </div>
 
   <div id="msg" class="msg"></div>
@@ -96,6 +99,7 @@
     <button data-tab="stats">站点统计</button>
     <button data-tab="rank">排行榜</button>
     <button data-tab="errand">跑腿订单</button>
+    <button data-tab="logs">审计日志</button>
   </div>
 
   <div id="tab-feedback" class="card">
@@ -191,6 +195,16 @@
     </div>
     <div id="dp-list"><div class="empty">暂无申诉。</div></div>
   </div>
+
+  <div id="tab-logs" class="card" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">管理操作审计</h2>
+      <button class="ghost" id="load-logs">刷新</button>
+    </div>
+    <span class="now" id="logs-count"></span>
+    <div id="logs-list"><div class="empty">点击「刷新」加载审计日志。</div></div>
+    <div class="hint">记录跑腿订单删除、申诉处理等管理操作（操作者仅记录令牌前缀，不落明文令牌）。</div>
+  </div>
 </div>
 <script>
 (() => {
@@ -199,7 +213,7 @@
   const LS = { base: 'waiyuan-admin-api-v1', token: 'waiyuan-admin-token-v1' };
   try {
     apiBase.value = localStorage.getItem(LS.base) || 'https://api.free60127.top';
-    token.value = localStorage.getItem(LS.token) || '';
+    token.value = sessionStorage.getItem(LS.token) || '';
   } catch (e) {}
   const base = () => (apiBase.value.trim() || 'https://api.free60127.top').replace(/\/$/, '');
   const auth = () => 'Bearer ' + token.value.trim();
@@ -215,9 +229,14 @@
   $('#save').addEventListener('click', () => {
     try {
       localStorage.setItem(LS.base, apiBase.value.trim());
-      localStorage.setItem(LS.token, token.value.trim());
-      showMsg('设置已保存到本机浏览器。', true);
-    } catch (e) { showMsg('保存失败：浏览器禁止 localStorage。', false); }
+      sessionStorage.setItem(LS.token, token.value.trim());
+      showMsg('设置已保存到本机浏览器（令牌仅存会话存储，关闭标签页后失效）。', true);
+    } catch (e) { showMsg('保存失败：浏览器禁止本地存储。', false); }
+  });
+  $('#clear-token').addEventListener('click', () => {
+    try { sessionStorage.removeItem(LS.token); } catch (e) {}
+    token.value = '';
+    showMsg('令牌已从本机清除。', true);
   });
   $('#test').addEventListener('click', async () => {
     try {
@@ -238,6 +257,7 @@
       $('#tab-stats').hidden = btn.dataset.tab !== 'stats';
       $('#tab-rank').hidden = btn.dataset.tab !== 'rank';
       $('#tab-errand').hidden = btn.dataset.tab !== 'errand';
+      $('#tab-logs').hidden = btn.dataset.tab !== 'logs';
     });
   });
 
@@ -574,15 +594,34 @@
       el.append(reason);
       if (d.detail) { const det = document.createElement('div'); det.className = 'detail'; det.textContent = d.detail; el.append(det); }
       if (d.adminNote) { const n = document.createElement('div'); n.className = 'note'; n.textContent = '管理员备注：' + d.adminNote; el.append(n); }
+      const actions = document.createElement('div'); actions.className = 'actions';
+      const evBtn = document.createElement('button'); evBtn.className = 'ghost'; evBtn.textContent = '查看证据';
+      evBtn.addEventListener('click', async () => {
+        const box = el.querySelector('.di-evidence');
+        if (box) { box.hidden = !box.hidden; return; }
+        const box2 = document.createElement('div'); box2.className = 'di-evidence'; box2.hidden = false;
+        box2.textContent = '加载中…';
+        el.append(box2);
+        try {
+          const r = await fetch(base() + '/api/errand/disputes/' + d.id + '/evidence', { headers: { Authorization: auth() } });
+          const j = await r.json();
+          if (r.ok) {
+            const evs = j.evidence || [];
+            box2.textContent = '';
+            if (!evs.length) { const sp = document.createElement('span'); sp.className = 'hint'; sp.textContent = '该申诉没有上传证据。'; box2.append(sp); }
+            else evs.forEach(v => { const img = document.createElement('img'); img.className = 'ev-img'; img.src = v.data; img.alt = '证据'; img.loading = 'lazy'; box2.append(img); });
+          } else { box2.textContent = '加载失败：' + (j.error || r.status); }
+        } catch (e) { box2.textContent = '请求失败：' + e.message; }
+      });
+      actions.append(evBtn);
       if (d.status === 'open') {
-        const actions = document.createElement('div'); actions.className = 'actions';
         const resolveBtn = document.createElement('button'); resolveBtn.textContent = '标记解决';
         resolveBtn.addEventListener('click', () => resolveDispute(d, 'resolved'));
         const rejectBtn = document.createElement('button'); rejectBtn.className = 'danger'; rejectBtn.textContent = '驳回';
         rejectBtn.addEventListener('click', () => resolveDispute(d, 'rejected'));
         actions.append(resolveBtn, rejectBtn);
-        el.append(actions);
       }
+      el.append(actions);
       list.append(el);
     }
   };
@@ -612,6 +651,31 @@
     } catch (e) { /* 静默 */ }
   };
   $('#load-disputes').addEventListener('click', loadDisputesAdmin);
+
+  // 管理操作审计（2026-08-22）：GET /api/errand/admin/logs
+  const loadLogs = async () => {
+    const btn = $('#load-logs');
+    btn.disabled = true; btn.textContent = '加载中…';
+    try {
+      const r = await fetch(base() + '/api/errand/admin/logs?pageSize=50', { headers: { Authorization: auth() } });
+      const j = await r.json();
+      if (r.ok) {
+        const logs = j.logs || [];
+        $('#logs-count').textContent = '共 ' + (j.total || 0) + ' 条（显示最近 ' + logs.length + ' 条）';
+        $('#logs-list').innerHTML = logs.length
+          ? logs.map(l =>
+              '<div class="fb"><div class="meta"><span class="page">' + esc(l.action) + '</span>' +
+              '<span class="time">' + fmt(l.createdAt) + ' · 操作者 ' + esc(l.admin) + '</span></div>' +
+              (l.detail ? '<div class="detail">' + esc(l.detail) + '</div>' : '') + '</div>'
+            ).join('')
+          : '<div class="empty">暂无审计记录。</div>';
+      }
+      else if (r.status === 401) showMsg('令牌无效或未填写，请在上方输入正确令牌后重试。', false);
+      else showMsg('加载失败：' + (j.error || r.status), false);
+    } catch (e) { showMsg('请求失败：' + e.message, false); }
+    btn.disabled = false; btn.textContent = '刷新';
+  };
+  $('#load-logs').addEventListener('click', loadLogs);
 
   loadNotice();
 })();

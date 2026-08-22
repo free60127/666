@@ -16,7 +16,9 @@ const json = (data, status = 200) =>
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 
-/* 限流计数（rate 表滚动窗口，与 auth.js resetAttemptCheck 同模式） */
+/* 限流计数（rate 表滚动窗口，与 auth.js resetAttemptCheck 同模式）。
+   返回 { count, failed }：failed=true 表示限流存储故障——写操作必须保守失败（503），
+   不能静默放行（放行会让攻击者绕过所有写限流）。 */
 async function rateHit(db, key, windowMs, max) {
   const now = Date.now();
   const winStart = Math.floor(now / windowMs) * windowMs;
@@ -29,14 +31,17 @@ async function rateHit(db, key, windowMs, max) {
       'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
       'RETURNING count'
     ).bind(key, winEnd, winStart, winEnd).first();
-    return Number(row && row.count) || 0;
-  } catch (_) { return 0; }
+    return { count: Number(row && row.count) || 0, failed: false };
+  } catch (e) {
+    console.error('rateHit error:', e);
+    return { count: 0, failed: true };
+  }
 }
 
 /* ---------- 任务查询（JOIN 昵称） ---------- */
 const TASK_SELECT =
   'SELECT t.id, t.publisher_id, t.title, t.description, t.reward, t.pickup, t.dropoff, t.contact, ' +
-  't.deadline, t.status, t.taker_id, t.created_at, t.updated_at, t.completed_at, t.confirmed_at, t.cancelled_at, t.cancel_reason, ' +
+  't.deadline, t.status, t.taker_id, t.created_at, t.updated_at, t.completed_at, t.confirmed_at, t.confirmed_by, t.auto_confirmed_at, t.cancelled_at, t.cancel_reason, ' +
   'u.nickname AS publisher_name, u2.nickname AS taker_name ' +
   'FROM errand_tasks t ' +
   'LEFT JOIN users u ON u.id = t.publisher_id ' +
@@ -47,7 +52,8 @@ const mapTask = (r) => r ? ({
   reward: r.reward, pickup: r.pickup, dropoff: r.dropoff, contact: r.contact,
   deadline: r.deadline, status: r.status, takerId: r.taker_id,
   createdAt: r.created_at, updatedAt: r.updated_at, completedAt: r.completed_at,
-  confirmedAt: r.confirmed_at, cancelledAt: r.cancelled_at, cancelReason: r.cancel_reason,
+  confirmedAt: r.confirmed_at, confirmedBy: r.confirmed_by, autoConfirmedAt: r.auto_confirmed_at,
+  cancelledAt: r.cancelled_at, cancelReason: r.cancel_reason,
   publisherName: r.publisher_name, takerName: r.taker_name,
 }) : null;
 
@@ -85,8 +91,9 @@ async function createTask(db, request) {
     deadline = d;
   }
   const now = Date.now();
-  const hits = await rateHit(db, 'errand:pub:' + user.id, 10 * 60 * 1000, 30);
-  if (hits > 30) return json({ error: '发布太频繁，请稍后再试' }, 429);
+  const rate = await rateHit(db, 'errand:pub:' + user.id, 10 * 60 * 1000, 30);
+  if (rate.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (rate.count > 30) return json({ error: '发布太频繁，请稍后再试' }, 429);
   try {
     const result = await db.prepare(
       'INSERT INTO errand_tasks (publisher_id, title, description, reward, pickup, dropoff, contact, deadline, created_at, updated_at) ' +
@@ -161,8 +168,9 @@ async function takeTask(db, request, id) {
   const user = await sessionUser(db, request);
   if (!user) return json({ error: 'unauthorized' }, 401);
   const now = Date.now();
-  const hits = await rateHit(db, 'errand:take:' + user.id, 60 * 1000, 10);
-  if (hits > 10) return json({ error: '操作太频繁，请稍后再试' }, 429);
+  const rate = await rateHit(db, 'errand:take:' + user.id, 60 * 1000, 10);
+  if (rate.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (rate.count > 10) return json({ error: '操作太频繁，请稍后再试' }, 429);
   try {
     const result = await db.prepare(
       'UPDATE errand_tasks SET status = \'doing\', taker_id = ?, updated_at = ? ' +
@@ -209,7 +217,7 @@ async function confirmTask(db, request, id) {
   if (!user) return json({ error: 'unauthorized' }, 401);
   const now = Date.now();
   const result = await db.prepare(
-    'UPDATE errand_tasks SET confirmed_at = ?, updated_at = ? ' +
+    'UPDATE errand_tasks SET confirmed_at = ?, confirmed_by = \'publisher\', updated_at = ? ' +
     'WHERE id = ? AND status = \'done\' AND publisher_id = ? AND confirmed_at IS NULL'
   ).bind(now, now, id, user.id).run().catch((e) => { console.error('errand confirm error:', e); return null; });
   if (!result || !result.meta || Number(result.meta.changes) !== 1) return json({ error: '只有发布者能确认已完成的任务' }, 400);
@@ -234,10 +242,17 @@ async function cancelTask(db, request, id) {
     if (!isPublisher && !isTaker) return json({ error: '无权操作该任务' }, 403);
     if (row.status === 'open' && !isPublisher) return json({ error: '只有发布者能取消待接单任务' }, 403);
     const defaultReason = isPublisher ? '发布者取消' : '接单者取消';
+    // 条件 UPDATE：并发下另一请求可能已改状态/已被接走，按 changes 判定而非无条件覆盖
     const result = await db.prepare(
-      'UPDATE errand_tasks SET status = \'cancelled\', cancelled_at = ?, cancel_reason = ?, updated_at = ? WHERE id = ?'
-    ).bind(now, reason || defaultReason, now, id).run();
-    if (!result || !result.meta || Number(result.meta.changes) !== 1) return json({ error: '取消失败，请重试' }, 409);
+      'UPDATE errand_tasks SET status = \'cancelled\', cancelled_at = ?, cancel_reason = ?, updated_at = ? ' +
+      'WHERE id = ? AND status IN (\'open\', \'doing\') AND (publisher_id = ? OR (status = \'doing\' AND taker_id = ?))'
+    ).bind(now, reason || defaultReason, now, id, user.id, user.id).run();
+    if (!result || !result.meta || Number(result.meta.changes) !== 1) {
+      const cur = await db.prepare('SELECT status FROM errand_tasks WHERE id = ?').bind(id).first().catch(() => null);
+      if (!cur) return json({ error: '任务不存在' }, 404);
+      if (cur.status === 'cancelled') return json({ error: '任务已取消' }, 400);
+      return json({ error: '取消失败，任务状态已变化', status: cur.status }, 409);
+    }
     const fresh = await db.prepare(TASK_SELECT + 'WHERE t.id = ?').bind(id).first();
     return json({ ok: true, task: mapTask(fresh) });
   } catch (error) {
@@ -251,6 +266,9 @@ const REVIEW_SELECT =
   'SELECT r.id, r.task_id, r.reviewer_id, r.reviewee_id, r.rating, r.comment, r.created_at, u.nickname AS reviewer_name ' +
   'FROM errand_reviews r LEFT JOIN users u ON u.id = r.reviewer_id ';
 const mapReview = (r) => r ? ({ id: r.id, taskId: r.task_id, reviewerId: r.reviewer_id, revieweeId: r.reviewee_id,
+  rating: r.rating, comment: r.comment, createdAt: r.created_at, reviewerName: r.reviewer_name }) : null;
+// 公开版：不暴露内部用户 ID（审查项：隐藏内部 ID）
+const mapReviewPublic = (r) => r ? ({ id: r.id, taskId: r.task_id,
   rating: r.rating, comment: r.comment, createdAt: r.created_at, reviewerName: r.reviewer_name }) : null;
 
 async function createReview(db, request) {
@@ -278,8 +296,12 @@ async function createReview(db, request) {
       'INSERT INTO errand_reviews (task_id, reviewer_id, reviewee_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(taskId, user.id, revieweeId, rating, comment, Date.now()).run();
     const row = await db.prepare(REVIEW_SELECT + 'WHERE r.id = ?').bind(result.meta.last_row_id).first();
-    return json({ ok: true, review: mapReview(row) }, 201);
+    return json({ ok: true, review: mapReviewPublic(row) }, 201);
   } catch (error) {
+    // 并发双发：UNIQUE(task_id, reviewer_id) 约束兜底
+    if (String(error && error.message || '').includes('UNIQUE constraint failed')) {
+      return json({ error: '已评价过该任务' }, 400);
+    }
     console.error('errand review error:', error);
     return json({ error: 'internal error' }, 500);
   }
@@ -291,7 +313,7 @@ async function listReviews(db, request) {
   if (!Number.isInteger(taskId) || taskId <= 0) return json({ error: 'invalid taskId' }, 400);
   try {
     const rows = await db.prepare(REVIEW_SELECT + 'WHERE r.task_id = ? ORDER BY r.created_at DESC').bind(taskId).all();
-    return json({ reviews: (rows && rows.results ? rows.results : []).map(mapReview) });
+    return json({ reviews: (rows && rows.results ? rows.results : []).map(mapReviewPublic) });
   } catch (error) {
     console.error('errand reviews list error:', error);
     return json({ error: 'internal error' }, 500);
@@ -309,17 +331,35 @@ const DISPUTE_SELECT =
   'FROM errand_disputes d LEFT JOIN users u ON u.id = d.user_id ';
 const mapDispute = (r) => r ? ({ id: r.id, taskId: r.task_id, userId: r.user_id, role: r.role, reason: r.reason,
   detail: r.detail, status: r.status, adminNote: r.admin_note, createdAt: r.created_at, updatedAt: r.updated_at, userName: r.user_name }) : null;
+// 非管理端版：不暴露 userId（审查项：隐藏内部 ID）
+const mapDisputePublic = (r) => r ? ({ id: r.id, taskId: r.task_id, role: r.role, reason: r.reason,
+  detail: r.detail, status: r.status, adminNote: r.admin_note, createdAt: r.created_at, updatedAt: r.updated_at, userName: r.user_name }) : null;
 
 async function createDispute(db, request, env) {
   const user = await sessionUser(db, request);
   if (!user) return json({ error: 'unauthorized' }, 401);
-  const body = await request.json().catch(() => null);
-  if (!body) return json({ error: 'invalid json' }, 400);
+  // 请求体大小限制：证据 3×300000 + 正文，约 1MB 上限
+  const raw = await request.text();
+  if (!raw || raw.length > 1100000) return json({ error: '请求体过大（最大约 1MB）' }, 413);
+  let body = null;
+  try { body = JSON.parse(raw); } catch (_) { return json({ error: 'invalid json' }, 400); }
   const taskId = Math.floor(num(body.taskId));
   if (!Number.isInteger(taskId) || taskId <= 0) return json({ error: 'invalid taskId' }, 400);
   const reason = String(body.reason || '').trim();
   if (!reason || reason.length > 60) return json({ error: '申诉理由必填，最长 60 字' }, 400);
   const detail = String(body.detail || '').trim().slice(0, 500);
+  // 申诉限流：用户 60s/5 次 + IP 60s/20 次（审查项）
+  const ip = String(request.headers.get('CF-Connecting-IP') || '').slice(0, 64);
+  const rate = await rateHit(db, 'errand:dp:' + user.id, 60 * 1000, 5);
+  if (rate.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (rate.count > 5) return json({ error: '申诉太频繁，请稍后再试' }, 429);
+  if (ip) {
+    const rateIp = await rateHit(db, 'errand:dpip:' + ip, 60 * 1000, 20);
+    if (rateIp.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+    if (rateIp.count > 20) return json({ error: '操作太频繁，请稍后再试' }, 429);
+  }
+  const evidence = Array.isArray(body.evidence) ? body.evidence.slice(0, 3) : [];
+  let disputeId = null;
   try {
     const task = await db.prepare('SELECT id, publisher_id, taker_id, status FROM errand_tasks WHERE id = ?').bind(taskId).first();
     if (!task) return json({ error: '任务不存在' }, 404);
@@ -334,8 +374,8 @@ async function createDispute(db, request, env) {
     const result = await db.prepare(
       "INSERT INTO errand_disputes (task_id, user_id, role, reason, detail, status, admin_note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'open', '', ?, ?)"
     ).bind(taskId, user.id, role, reason, detail, now, now).run();
-    const disputeId = result.meta.last_row_id;
-    const evidence = Array.isArray(body.evidence) ? body.evidence.slice(0, 3) : [];
+    disputeId = result.meta.last_row_id;
+    // 证据入库：失败即回滚（删申诉，级联删证据），避免半成品申诉
     for (const ev of evidence) {
       const s = String(ev || '');
       if (!/^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(s) || s.length > 300000) continue;
@@ -344,6 +384,13 @@ async function createDispute(db, request, env) {
     const row = await db.prepare(DISPUTE_SELECT + 'WHERE d.id = ?').bind(disputeId).first();
     return json({ ok: true, dispute: mapDispute(row) }, 201);
   } catch (error) {
+    // 并发重复 open 申诉：唯一部分索引兜底
+    if (String(error && error.message || '').includes('UNIQUE constraint failed')) {
+      return json({ error: '已有进行中的申诉，请等待处理' }, 400);
+    }
+    if (disputeId !== null) {
+      await db.prepare('DELETE FROM errand_disputes WHERE id = ?').bind(disputeId).run().catch(() => {});
+    }
     console.error('errand dispute error:', error);
     return json({ error: 'internal error' }, 500);
   }
@@ -360,7 +407,7 @@ async function listDisputes(db, request, env) {
     const ok2 = isAdmin || (user && (user.id === task.publisher_id || user.id === task.taker_id));
     if (!ok2) return json({ error: '无权查看' }, 403);
     const rows = await db.prepare(DISPUTE_SELECT + 'WHERE d.task_id = ? ORDER BY d.created_at DESC').bind(taskId).all();
-    return json({ disputes: (rows && rows.results ? rows.results : []).map(mapDispute) });
+    return json({ disputes: (rows && rows.results ? rows.results : []).map(isAdmin ? mapDispute : mapDisputePublic) });
   }
   if (!isAdmin) return json({ error: 'unauthorized' }, 401);
   const rows = await db.prepare(DISPUTE_SELECT + 'ORDER BY d.created_at DESC LIMIT 100').all();
@@ -382,10 +429,20 @@ async function adminTasks(db, request, env) {
   return json({ items: (rows && rows.results ? rows.results : []).map(mapTask), total: Number(countRow && countRow.c) || 0, page, pageSize });
 }
 
+/* 管理操作审计：写 admin_logs（admin 标识用令牌前缀，避免落明文令牌） */
+async function auditLog(db, env, action, detail) {
+  try {
+    await db.prepare(
+      'INSERT INTO admin_logs (action, detail, admin, created_at) VALUES (?, ?, ?, ?)'
+    ).bind(action, String(detail || '').slice(0, 500), String(env.ADMIN_TOKEN || '').slice(0, 8), Date.now()).run();
+  } catch (e) { console.error('auditLog error:', e); }
+}
+
 async function adminDeleteTask(db, request, env, id) {
   if (!requireAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
   const result = await db.prepare('DELETE FROM errand_tasks WHERE id = ?').bind(id).run().catch(e => { console.error('errand admin delete:', e); return null; });
   if (!result || !result.meta || Number(result.meta.changes) < 1) return json({ error: '任务不存在' }, 404);
+  await auditLog(db, env, 'errand.task.delete', 'task ' + id);
   return json({ ok: true });
 }
 
@@ -397,13 +454,46 @@ async function resolveDispute(db, request, env, id) {
   const now = Date.now();
   const result = await db.prepare("UPDATE errand_disputes SET status = ?, admin_note = ?, updated_at = ? WHERE id = ? AND status = 'open'").bind(body.status, note, now, id).run().catch(e => { console.error('errand resolve:', e); return null; });
   if (!result || !result.meta || Number(result.meta.changes) !== 1) return json({ error: '申诉不存在或已处理' }, 400);
+  await auditLog(db, env, 'errand.dispute.resolve', 'dispute ' + id + ' -> ' + body.status + (note ? ' (' + note + ')' : ''));
   const row = await db.prepare(DISPUTE_SELECT + 'WHERE d.id = ?').bind(id).first();
   return json({ ok: true, dispute: mapDispute(row) });
+}
+
+/* ---------- 证据读取（管理端或任务双方可见） ---------- */
+async function listEvidence(db, request, env, disputeId) {
+  const isAdmin = requireAdmin(request, env);
+  const user = await sessionUser(db, request).catch(() => null);
+  if (!isAdmin && !user) return json({ error: 'unauthorized' }, 401);
+  const d = await db.prepare('SELECT task_id FROM errand_disputes WHERE id = ?').bind(disputeId).first().catch(() => null);
+  if (!d) return json({ error: '申诉不存在' }, 404);
+  if (!isAdmin) {
+    const task = await db.prepare('SELECT publisher_id, taker_id FROM errand_tasks WHERE id = ?').bind(d.task_id).first().catch(() => null);
+    if (!task || (user.id !== task.publisher_id && user.id !== task.taker_id)) return json({ error: '无权查看' }, 403);
+  }
+  const rows = await db.prepare('SELECT id, data, created_at FROM errand_evidence WHERE dispute_id = ? ORDER BY id ASC').bind(disputeId).all();
+  return json({ evidence: (rows && rows.results ? rows.results : []).map(r => ({ id: r.id, data: r.data, createdAt: r.created_at })) });
+}
+
+/* ---------- 管理端：审计日志 ---------- */
+async function listAdminLogs(db, request, env) {
+  if (!requireAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+  const url = new URL(request.url);
+  const page = clamp(Math.floor(num(url.searchParams.get('page')) || 1), 1, 1000);
+  const pageSize = clamp(Math.floor(num(url.searchParams.get('pageSize')) || 30), 1, 100);
+  const rows = await db.prepare('SELECT id, action, detail, admin, created_at FROM admin_logs ORDER BY id DESC LIMIT ? OFFSET ?').bind(pageSize, (page - 1) * pageSize).all();
+  const countRow = await db.prepare('SELECT COUNT(*) AS c FROM admin_logs').first();
+  return json({ logs: (rows && rows.results ? rows.results : []).map(r => ({ id: r.id, action: r.action, detail: r.detail, admin: r.admin, createdAt: r.created_at })),
+    total: Number(countRow && countRow.c) || 0, page, pageSize });
 }
 /* ---------- 入口 ---------- */
 export async function handleErrand(request, env, path) {
   const db = env.DB;
   if (!db) return json({ error: 'db unavailable' }, 500);
+  // 写请求全局体积预检（申诉详情按 createDispute 内 text() 精确校验）
+  if (['POST', 'PATCH', 'PUT'].includes(request.method)) {
+    const cl = Number(request.headers.get('content-length') || 0);
+    if (cl > 1100000) return json({ error: '请求体过大（最大约 1MB）' }, 413);
+  }
   if (path === '/api/errand/tasks' && request.method === 'POST') return createTask(db, request);
   if (path === '/api/errand/tasks' && request.method === 'GET') return listTasks(db, request);
   if (path === '/api/errand/mine' && request.method === 'GET') return myTasks(db, request);
@@ -412,6 +502,9 @@ export async function handleErrand(request, env, path) {
   if (path === '/api/errand/disputes' && request.method === 'POST') return createDispute(db, request, env);
   if (path === '/api/errand/disputes' && request.method === 'GET') return listDisputes(db, request, env);
   if (path === '/api/errand/admin/tasks' && request.method === 'GET') return adminTasks(db, request, env);
+  if (path === '/api/errand/admin/logs' && request.method === 'GET') return listAdminLogs(db, request, env);
+  const ev = path.match(/^\/api\/errand\/disputes\/(\d+)\/evidence$/);
+  if (ev && request.method === 'GET') return listEvidence(db, request, env, Number(ev[1]));
   const m = path.match(/^\/api\/errand\/tasks\/(\d+)(?:\/(take|complete|confirm|cancel))?$/);
   if (m) {
     const id = Number(m[1]);

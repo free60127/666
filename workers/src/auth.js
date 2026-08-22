@@ -365,6 +365,16 @@ async function deleteAccount(db, env, request) {
   const body = await readJson(request);
   if (!body) return json({ error: 'invalid json' }, 400);
   if (!(await verifyPassword(body.password, user.password_hash))) return json({ error: '密码不正确' }, 401);
+  // 注销拦截：仍有进行中跑腿单（open/doing/done 未确认）时禁止注销，
+  // 避免发布者删除任务级联删单、接单者退出后形成无人可完成的订单。
+  const openPub = await db.prepare(
+    "SELECT COUNT(*) AS c FROM errand_tasks WHERE publisher_id = ? AND status IN ('open', 'doing', 'done') AND confirmed_at IS NULL"
+  ).bind(user.id).first().catch(() => ({ c: 0 }));
+  const openTak = await db.prepare(
+    "SELECT COUNT(*) AS c FROM errand_tasks WHERE taker_id = ? AND status IN ('doing', 'done') AND confirmed_at IS NULL"
+  ).bind(user.id).first().catch(() => ({ c: 0 }));
+  const openCount = Number(openPub && openPub.c || 0) + Number(openTak && openTak.c || 0);
+  if (openCount > 0) return json({ error: '仍有 ' + openCount + ' 个进行中的跑腿任务，请先完成或取消后再注销' }, 400);
   const now = Date.now();
   const kvKey = 'sync:user:' + user.id;
   try {
