@@ -14,7 +14,6 @@
 const UPSTREAM = 'https://free60127.github.io/666';
 import { handleAuth, hashToken } from './auth.js';
 import { handleErrand } from './errand.js';
-import { handlePay } from './pay.js';
 // CORS：只对站点白名单来源回显 Origin（其余不带 CORS 头，浏览器直接拦截；
 // 未携带 Origin 的同源/非浏览器请求不受影响）
 const ALLOWED_ORIGINS = new Set(['https://free60127.github.io', 'https://free60127.top']);
@@ -124,11 +123,6 @@ async function route(request, env, ctx) {
       // 跑腿平台（2026-08-22）：/api/errand/* 全部交给 errand.js 分发
       if (path.startsWith('/api/errand')) {
         return handleErrand(request, env, path);
-      }
-
-      // 会员付费（2026-08-22 路线 C payjs）：/api/pay/*
-      if (path.startsWith('/api/pay')) {
-        return handlePay(request, env, path);
       }
 
       // 反代（主域直连或 /proxy/ 兼容路径）；api.free60127.top 只提供 API，不反代
