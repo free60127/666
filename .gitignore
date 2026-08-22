@@ -24,3 +24,4 @@ test-results/
 # dsh vision router artifacts
 .dsh-vision-router/
 .wrangler-state/
+workers/dev-out.log
