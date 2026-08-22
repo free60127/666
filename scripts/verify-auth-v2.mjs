@@ -45,12 +45,15 @@ console.log('2) 注销账号');
   const loginAfter = await req('/api/auth/login', { method: 'POST', body: { email, password: 'new-pass-2' } });
   check('注销后登录 401', loginAfter.status === 401);
 }
-console.log('3) 找回密码（SMTP 未配置 → 503）');
+console.log('3) 找回密码（SMTP 链路）');
 {
   const reg = await req('/api/auth/register', { method: 'POST', body: { email: 'fg-' + email, password } });
   check('再注册 201', reg.status === 201);
   const fg = await req('/api/auth/forgot', { method: 'POST', body: { email: 'fg-' + email } });
-  check('forgot 未配置 SMTP → 503', fg.status === 503, JSON.stringify(fg.data));
+  // SMTP 已配置时真实发信（QQ 不实时校验收件人，假地址也 200 ok:true）；未配置时 503 且不泄露 detail
+  check('forgot SMTP 链路（200 已配置发信成功 / 503 未配置且无 detail）',
+    fg.status === 200 && fg.data && fg.data.ok === true || fg.status === 503 && !(fg.data && fg.data.detail),
+    fg.status + ' ' + JSON.stringify(fg.data));
 }
 console.log('4) admin-reset-code 兜底 + reset-password');
 {
