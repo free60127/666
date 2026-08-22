@@ -297,6 +297,109 @@ async function listReviews(db, request) {
     return json({ error: 'internal error' }, 500);
   }
 }
+/* ---------- 管理端鉴权 ---------- */
+function requireAdmin(request, env) {
+  const a = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  return !!env.ADMIN_TOKEN && a === env.ADMIN_TOKEN;
+}
+
+/* ---------- 申诉（任务双方；doing/done/confirmed 可申诉） ---------- */
+const DISPUTE_SELECT =
+  'SELECT d.id, d.task_id, d.user_id, d.role, d.reason, d.detail, d.status, d.admin_note, d.created_at, d.updated_at, u.nickname AS user_name ' +
+  'FROM errand_disputes d LEFT JOIN users u ON u.id = d.user_id ';
+const mapDispute = (r) => r ? ({ id: r.id, taskId: r.task_id, userId: r.user_id, role: r.role, reason: r.reason,
+  detail: r.detail, status: r.status, adminNote: r.admin_note, createdAt: r.created_at, updatedAt: r.updated_at, userName: r.user_name }) : null;
+
+async function createDispute(db, request, env) {
+  const user = await sessionUser(db, request);
+  if (!user) return json({ error: 'unauthorized' }, 401);
+  const body = await request.json().catch(() => null);
+  if (!body) return json({ error: 'invalid json' }, 400);
+  const taskId = Math.floor(num(body.taskId));
+  if (!Number.isInteger(taskId) || taskId <= 0) return json({ error: 'invalid taskId' }, 400);
+  const reason = String(body.reason || '').trim();
+  if (!reason || reason.length > 60) return json({ error: '申诉理由必填，最长 60 字' }, 400);
+  const detail = String(body.detail || '').trim().slice(0, 500);
+  try {
+    const task = await db.prepare('SELECT id, publisher_id, taker_id, status FROM errand_tasks WHERE id = ?').bind(taskId).first();
+    if (!task) return json({ error: '任务不存在' }, 404);
+    if (task.status === 'open' || task.status === 'cancelled') return json({ error: '该状态任务无法申诉' }, 400);
+    const isPublisher = task.publisher_id === user.id;
+    const isTaker = task.taker_id === user.id;
+    if (!isPublisher && !isTaker) return json({ error: '只有任务双方可以申诉' }, 403);
+    const dup = await db.prepare("SELECT id FROM errand_disputes WHERE task_id = ? AND user_id = ? AND status = 'open'").bind(taskId, user.id).first();
+    if (dup) return json({ error: '已有进行中的申诉，请等待处理' }, 400);
+    const now = Date.now();
+    const role = isPublisher ? 'publisher' : 'taker';
+    const result = await db.prepare(
+      "INSERT INTO errand_disputes (task_id, user_id, role, reason, detail, status, admin_note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'open', '', ?, ?)"
+    ).bind(taskId, user.id, role, reason, detail, now, now).run();
+    const disputeId = result.meta.last_row_id;
+    const evidence = Array.isArray(body.evidence) ? body.evidence.slice(0, 3) : [];
+    for (const ev of evidence) {
+      const s = String(ev || '');
+      if (!/^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(s) || s.length > 300000) continue;
+      await db.prepare('INSERT INTO errand_evidence (dispute_id, data, created_at) VALUES (?, ?, ?)').bind(disputeId, s, now).run();
+    }
+    const row = await db.prepare(DISPUTE_SELECT + 'WHERE d.id = ?').bind(disputeId).first();
+    return json({ ok: true, dispute: mapDispute(row) }, 201);
+  } catch (error) {
+    console.error('errand dispute error:', error);
+    return json({ error: 'internal error' }, 500);
+  }
+}
+
+async function listDisputes(db, request, env) {
+  const url = new URL(request.url);
+  const taskId = Math.floor(num(url.searchParams.get('taskId')));
+  const isAdmin = requireAdmin(request, env);
+  const user = await sessionUser(db, request).catch(() => null);
+  if (Number.isInteger(taskId) && taskId > 0) {
+    const task = await db.prepare('SELECT publisher_id, taker_id FROM errand_tasks WHERE id = ?').bind(taskId).first();
+    if (!task) return json({ error: '任务不存在' }, 404);
+    const ok2 = isAdmin || (user && (user.id === task.publisher_id || user.id === task.taker_id));
+    if (!ok2) return json({ error: '无权查看' }, 403);
+    const rows = await db.prepare(DISPUTE_SELECT + 'WHERE d.task_id = ? ORDER BY d.created_at DESC').bind(taskId).all();
+    return json({ disputes: (rows && rows.results ? rows.results : []).map(mapDispute) });
+  }
+  if (!isAdmin) return json({ error: 'unauthorized' }, 401);
+  const rows = await db.prepare(DISPUTE_SELECT + 'ORDER BY d.created_at DESC LIMIT 100').all();
+  return json({ disputes: (rows && rows.results ? rows.results : []).map(mapDispute) });
+}
+
+/* ---------- 管理端：任务列表 / 物理删除 / 申诉处理 ---------- */
+async function adminTasks(db, request, env) {
+  if (!requireAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+  const url = new URL(request.url);
+  const status = String(url.searchParams.get('status') || 'all');
+  if (!['all', 'open', 'doing', 'done', 'cancelled'].includes(status)) return json({ error: 'invalid status' }, 400);
+  const page = clamp(Math.floor(num(url.searchParams.get('page')) || 1), 1, 1000);
+  const pageSize = clamp(Math.floor(num(url.searchParams.get('pageSize')) || 20), 1, 50);
+  const where = status === 'all' ? '' : 'WHERE t.status = ?';
+  const params = status === 'all' ? [] : [status];
+  const countRow = await db.prepare('SELECT COUNT(*) AS c FROM errand_tasks t ' + where).bind(...params).first();
+  const rows = await db.prepare(TASK_SELECT + where + ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?').bind(...params, pageSize, (page - 1) * pageSize).all();
+  return json({ items: (rows && rows.results ? rows.results : []).map(mapTask), total: Number(countRow && countRow.c) || 0, page, pageSize });
+}
+
+async function adminDeleteTask(db, request, env, id) {
+  if (!requireAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+  const result = await db.prepare('DELETE FROM errand_tasks WHERE id = ?').bind(id).run().catch(e => { console.error('errand admin delete:', e); return null; });
+  if (!result || !result.meta || Number(result.meta.changes) < 1) return json({ error: '任务不存在' }, 404);
+  return json({ ok: true });
+}
+
+async function resolveDispute(db, request, env, id) {
+  if (!requireAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+  const body = await request.json().catch(() => ({}));
+  if (!['resolved', 'rejected'].includes(body.status)) return json({ error: 'invalid status' }, 400);
+  const note = String(body.note || '').trim().slice(0, 300);
+  const now = Date.now();
+  const result = await db.prepare("UPDATE errand_disputes SET status = ?, admin_note = ?, updated_at = ? WHERE id = ? AND status = 'open'").bind(body.status, note, now, id).run().catch(e => { console.error('errand resolve:', e); return null; });
+  if (!result || !result.meta || Number(result.meta.changes) !== 1) return json({ error: '申诉不存在或已处理' }, 400);
+  const row = await db.prepare(DISPUTE_SELECT + 'WHERE d.id = ?').bind(id).first();
+  return json({ ok: true, dispute: mapDispute(row) });
+}
 /* ---------- 入口 ---------- */
 export async function handleErrand(request, env, path) {
   const db = env.DB;
@@ -306,6 +409,9 @@ export async function handleErrand(request, env, path) {
   if (path === '/api/errand/mine' && request.method === 'GET') return myTasks(db, request);
   if (path === '/api/errand/reviews' && request.method === 'POST') return createReview(db, request);
   if (path === '/api/errand/reviews' && request.method === 'GET') return listReviews(db, request);
+  if (path === '/api/errand/disputes' && request.method === 'POST') return createDispute(db, request, env);
+  if (path === '/api/errand/disputes' && request.method === 'GET') return listDisputes(db, request, env);
+  if (path === '/api/errand/admin/tasks' && request.method === 'GET') return adminTasks(db, request, env);
   const m = path.match(/^\/api\/errand\/tasks\/(\d+)(?:\/(take|complete|confirm|cancel))?$/);
   if (m) {
     const id = Number(m[1]);
@@ -316,5 +422,9 @@ export async function handleErrand(request, env, path) {
     if (action === 'confirm' && request.method === 'POST') return confirmTask(db, request, id);
     if (action === 'cancel' && request.method === 'POST') return cancelTask(db, request, id);
   }
+  const adm = path.match(/^\/api\/errand\/admin\/tasks\/(\d+)$/);
+  if (adm && request.method === 'DELETE') return adminDeleteTask(db, request, env, Number(adm[1]));
+  const adm2 = path.match(/^\/api\/errand\/admin\/disputes\/(\d+)$/);
+  if (adm2 && request.method === 'PATCH') return resolveDispute(db, request, env, Number(adm2[1]));
   return json({ error: 'not found' }, 404);
 }

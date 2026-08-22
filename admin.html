@@ -95,6 +95,7 @@
     <button data-tab="notice">公告</button>
     <button data-tab="stats">站点统计</button>
     <button data-tab="rank">排行榜</button>
+    <button data-tab="errand">跑腿订单</button>
   </div>
 
   <div id="tab-feedback" class="card">
@@ -163,6 +164,33 @@
     <div id="st-pages"><div class="empty">点击「刷新」加载统计。</div></div>
     <div class="hint">统计范围：经 Cloudflare Worker 反代的访问（free60127.top 主域与 /proxy/ 路径）；直接访问 github.io 源站不计入。UV 按浏览器 Cookie 去重，无 Cookie 的请求按 IP 当日去重。</div>
   </div>
+
+  <div id="tab-errand" class="card" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">跑腿订单</h2>
+      <button class="ghost" id="load-errand">刷新</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <select id="er-status" style="padding:9px 10px;border:1px solid #c9d6cd;border-radius:10px;font:inherit;background:#fff">
+        <option value="all">全部状态</option>
+        <option value="open">待接单</option>
+        <option value="doing">进行中</option>
+        <option value="done">已完成</option>
+        <option value="cancelled">已取消</option>
+      </select>
+      <button class="ghost" id="er-filter">筛选</button>
+      <span class="now" id="er-count"></span>
+    </div>
+    <div id="er-list"><div class="empty">点击「刷新」加载订单。</div></div>
+    <div class="row" style="justify-content:center;margin-top:10px"><button class="ghost" id="er-more" hidden>加载更多</button></div>
+
+    <h2 style="margin:20px 0 12px">申诉列表</h2>
+    <div class="row" style="justify-content:space-between">
+      <span class="hint" style="margin:0">任务双方在纠纷时提交，处理结果双方可见。</span>
+      <button class="ghost" id="load-disputes">刷新申诉</button>
+    </div>
+    <div id="dp-list"><div class="empty">暂无申诉。</div></div>
+  </div>
 </div>
 <script>
 (() => {
@@ -209,6 +237,7 @@
       $('#tab-notice').hidden = btn.dataset.tab !== 'notice';
       $('#tab-stats').hidden = btn.dataset.tab !== 'stats';
       $('#tab-rank').hidden = btn.dataset.tab !== 'rank';
+      $('#tab-errand').hidden = btn.dataset.tab !== 'errand';
     });
   });
 
@@ -441,6 +470,148 @@
   $('#load-rank').addEventListener('click', loadRank);
   $('#rank-day').addEventListener('click', () => { rankPeriod = 'day'; loadRank(); });
   $('#rank-week').addEventListener('click', () => { rankPeriod = 'week'; loadRank(); });
+
+  // 跑腿订单管理（2026-08-22）：任务列表 / 物理删除 / 申诉处理
+  const ER_STATUS = {
+    open: ['待接单', '#eef5f0', 'var(--green)'],
+    doing: ['进行中', '#fff7ed', '#c98a2e'],
+    done: ['已完成', '#e4f3e9', '#276545'],
+    cancelled: ['已取消', '#fbeae7', '#b04a3e'],
+  };
+  const erState = { page: 1, hasMore: false };
+  const erStatusHtml = st => {
+    const s = ER_STATUS[st] || ['未知', '#eef5f0', 'var(--muted)'];
+    return '<span class="page" style="background:' + s[1] + ';color:' + s[2] + '">' + s[0] + '</span>';
+  };
+  const renderErrandTasks = (items, append) => {
+    const list = $('#er-list');
+    if (!append) list.innerHTML = '';
+    if (!items.length && !list.children.length) { list.innerHTML = '<div class="empty">暂无订单。</div>'; return; }
+    for (const t of items) {
+      const el = document.createElement('div');
+      el.className = 'fb';
+      const meta = document.createElement('div'); meta.className = 'meta';
+      meta.append(erStatusHtml(t.status));
+      const id = document.createElement('span'); id.className = 'page'; id.textContent = '#' + t.id;
+      const time = document.createElement('span'); time.className = 'time'; time.textContent = fmt(t.createdAt);
+      meta.append(id, time);
+      el.append(meta);
+      const title = document.createElement('div'); title.className = 'q'; title.textContent = t.title;
+      el.append(title);
+      const info = document.createElement('div'); info.className = 'detail';
+      info.textContent = '赏金 ¥' + t.reward + ' · 发布 ' + (t.publisherName || '?') + (t.takerName ? ' · 接单 ' + t.takerName : '') + (t.contact ? ' · 联系 ' + t.contact : '');
+      el.append(info);
+      if (t.cancelReason) { const n = document.createElement('div'); n.className = 'note'; n.textContent = '取消原因：' + t.cancelReason; el.append(n); }
+      const actions = document.createElement('div'); actions.className = 'actions';
+      const del = document.createElement('button'); del.className = 'danger'; del.textContent = '删除订单';
+      del.addEventListener('click', async () => {
+        if (!window.confirm('确定删除订单 #' + t.id + '「' + t.title + '」？将同时删除其评价与申诉记录，且不可恢复。')) return;
+        try {
+          const r = await fetch(base() + '/api/errand/admin/tasks/' + t.id, { method: 'DELETE', headers: { Authorization: auth() } });
+          const j = await r.json();
+          if (r.ok && j.ok) { showMsg('订单 #' + t.id + ' 已删除。', true); loadErrand(true); loadDisputesAdmin(); }
+          else if (r.status === 401) showMsg('令牌无效，请重新填写。', false);
+          else showMsg('删除失败：' + (j.error || r.status), false);
+        } catch (e) { showMsg('删除失败：' + e.message, false); }
+      });
+      actions.append(del);
+      el.append(actions);
+      list.append(el);
+    }
+  };
+  const loadErrand = async (reset = true) => {
+    const btn = $('#load-errand');
+    btn.disabled = true; btn.textContent = '加载中…';
+    if (reset) { erState.page = 1; erState.hasMore = false; }
+    try {
+      const status = $('#er-status').value;
+      const params = new URLSearchParams({ page: String(erState.page), pageSize: '50' });
+      if (status !== 'all') params.set('status', status);
+      const r = await fetch(base() + '/api/errand/admin/tasks?' + params, { headers: { Authorization: auth() } });
+      const j = await r.json();
+      if (r.ok) {
+        const items = j.items || [];
+        renderErrandTasks(items, !reset);
+        erState.hasMore = (j.total || 0) > erState.page * 50;
+        $('#er-more').hidden = !erState.hasMore;
+        $('#er-count').textContent = '共 ' + (j.total || 0) + ' 单';
+        if (reset) showMsg('订单已刷新。', true);
+      }
+      else if (r.status === 401) showMsg('令牌无效或未填写，请在上方输入正确令牌后重试。', false);
+      else showMsg('加载失败：' + (j.error || r.status), false);
+    } catch (e) { showMsg('请求失败：' + e.message, false); }
+    btn.disabled = false; btn.textContent = '刷新';
+  };
+  $('#load-errand').addEventListener('click', () => loadErrand(true));
+  $('#er-filter').addEventListener('click', () => loadErrand(true));
+  $('#er-more').addEventListener('click', () => { erState.page++; loadErrand(false); });
+
+  const DP_STATUS = {
+    open: ['待处理', '#fff7ed', '#c98a2e'],
+    resolved: ['已解决', '#e4f3e9', '#276545'],
+    rejected: ['已驳回', '#fbeae7', '#b04a3e'],
+  };
+  const renderDisputes = items => {
+    const list = $('#dp-list');
+    list.innerHTML = '';
+    if (!items.length) { list.innerHTML = '<div class="empty">暂无申诉。</div>'; return; }
+    for (const d of items) {
+      const el = document.createElement('div');
+      el.className = 'fb';
+      const meta = document.createElement('div'); meta.className = 'meta';
+      const s = DP_STATUS[d.status] || ['未知', '#eef5f0', 'var(--muted)'];
+      const stSpan = document.createElement('span');
+      stSpan.className = 'page';
+      stSpan.style.background = s[1];
+      stSpan.style.color = s[2];
+      stSpan.textContent = s[0];
+      meta.append(stSpan);
+      const who = document.createElement('span'); who.className = 'page'; who.textContent = '#' + d.taskId + ' · ' + (d.userName || '匿名') + '（' + (d.role === 'publisher' ? '发布者' : '接单者') + '）';
+      const time = document.createElement('span'); time.className = 'time'; time.textContent = fmt(d.createdAt);
+      meta.append(who, time);
+      el.append(meta);
+      const reason = document.createElement('div'); reason.className = 'q'; reason.textContent = d.reason;
+      el.append(reason);
+      if (d.detail) { const det = document.createElement('div'); det.className = 'detail'; det.textContent = d.detail; el.append(det); }
+      if (d.adminNote) { const n = document.createElement('div'); n.className = 'note'; n.textContent = '管理员备注：' + d.adminNote; el.append(n); }
+      if (d.status === 'open') {
+        const actions = document.createElement('div'); actions.className = 'actions';
+        const resolveBtn = document.createElement('button'); resolveBtn.textContent = '标记解决';
+        resolveBtn.addEventListener('click', () => resolveDispute(d, 'resolved'));
+        const rejectBtn = document.createElement('button'); rejectBtn.className = 'danger'; rejectBtn.textContent = '驳回';
+        rejectBtn.addEventListener('click', () => resolveDispute(d, 'rejected'));
+        actions.append(resolveBtn, rejectBtn);
+        el.append(actions);
+      }
+      list.append(el);
+    }
+  };
+  const resolveDispute = async (d, status) => {
+    const note = status === 'rejected'
+      ? (window.prompt('驳回原因（将展示给申诉双方，必填）', '') || '').trim()
+      : (window.prompt('处理备注（选填，将展示给双方）', '') || '').trim();
+    if (status === 'rejected' && !note) { showMsg('驳回必须填写原因。', false); return; }
+    try {
+      const r = await fetch(base() + '/api/errand/admin/disputes/' + d.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: auth() },
+        body: JSON.stringify({ status, note }),
+      });
+      const j = await r.json();
+      if (r.ok && j.ok) { showMsg('申诉 #' + d.id + ' 已处理。', true); loadDisputesAdmin(); }
+      else if (r.status === 401) showMsg('令牌无效，请重新填写。', false);
+      else showMsg('处理失败：' + (j.error || r.status), false);
+    } catch (e) { showMsg('处理失败：' + e.message, false); }
+  };
+  const loadDisputesAdmin = async () => {
+    try {
+      const r = await fetch(base() + '/api/errand/disputes', { headers: { Authorization: auth() } });
+      const j = await r.json();
+      if (r.ok) renderDisputes(j.disputes || []);
+      else if (r.status === 401) { /* 令牌无效，稍后重试 */ }
+    } catch (e) { /* 静默 */ }
+  };
+  $('#load-disputes').addEventListener('click', loadDisputesAdmin);
 
   loadNotice();
 })();

@@ -16,6 +16,8 @@ class MemoryD1 {
     this.rates = new Map(); this.loginFails = new Map();
     this.tasks = new Map(); this.nextTaskId = 1;
     this.reviews = new Map(); this.nextReviewId = 1;
+    this.disputes = new Map(); this.nextDisputeId = 1;
+    this.evidence = new Map(); this.nextEvidenceId = 1;
   }
   prepare(sql) {
     const db = this;
@@ -61,6 +63,8 @@ class MemoryD1 {
       if (s.includes('t.status')) {
         if (s.includes('!=')) { for (const t of this.tasks.values()) if (t.status !== 'cancelled') n++; }
         else for (const t of this.tasks.values()) if (t.status === args[0]) n++;
+      } else if (s.indexOf('WHERE') === -1) {
+        n = this.tasks.size;
       } else {
         const w = s.slice(s.indexOf('WHERE'));
         const col = w.includes('t.publisher_id') ? 'publisher_id' : (w.includes('t.taker_id') ? 'taker_id' : null);
@@ -89,6 +93,25 @@ class MemoryD1 {
     if (s.includes('FROM errand_tasks') && s.includes('confirmed_at')) {
       const t = this.tasks.get(Number(args[0]));
       return t ? { id: t.id, publisher_id: t.publisher_id, taker_id: t.taker_id, confirmed_at: t.confirmed_at } : null;
+    }
+    if (s.includes('SELECT id, publisher_id, taker_id, status FROM errand_tasks')) {
+      const t = this.tasks.get(Number(args[0]));
+      return t ? { id: t.id, publisher_id: t.publisher_id, taker_id: t.taker_id, status: t.status } : null;
+    }
+    if (s.includes('SELECT publisher_id, taker_id FROM errand_tasks')) {
+      const t = this.tasks.get(Number(args[0]));
+      return t ? { publisher_id: t.publisher_id, taker_id: t.taker_id } : null;
+    }
+    if (s.includes('FROM errand_disputes') && s.includes('WHERE d.id = ?')) {
+      const d = this.disputes.get(Number(args[0]));
+      if (!d) return null;
+      const u = this.users.get(d.user_id);
+      return { ...d, user_name: u ? u.nickname : null };
+    }
+    if (s.includes('FROM errand_disputes') && s.includes("AND status = 'open'")) {
+      const [taskId, userId] = args;
+      for (const d of this.disputes.values()) if (d.task_id === taskId && d.user_id === userId && d.status === 'open') return d;
+      return null;
     }
     if (s.includes('FROM errand_reviews') && s.includes('reviewer_id')) {
       const [taskId, reviewerId] = args;
@@ -127,6 +150,17 @@ class MemoryD1 {
       const pageSize = Number(args[args.length - 2]), offset = Number(args[args.length - 1]);
       return { results: results.slice(offset, offset + pageSize) };
     }
+    if (s.includes('FROM errand_disputes d')) {
+      const tm = s.match(/WHERE d\.task_id = \?/);
+      let arr = [...this.disputes.values()];
+      if (tm) arr = arr.filter(d => d.task_id === Number(args[0]));
+      return { results: arr.sort((a, b) => b.created_at - a.created_at).map(d => ({ ...d, user_name: (this.users.get(d.user_id) || {}).nickname || null })) };
+    }
+    if (s.includes('FROM errand_tasks') && s.indexOf('WHERE') === -1) {
+      const all = [...this.tasks.values()].sort((a, b) => b.created_at - a.created_at);
+      const pageSize = Number(args[args.length - 2]), offset = Number(args[args.length - 1]);
+      return { results: all.slice(offset, offset + pageSize).map(t => this._taskRow(t.id)) };
+    }
     if (s.includes('FROM errand_reviews')) {
       const taskId = Number(args[0]);
       const arr = [...this.reviews.values()].filter(r => r.task_id === taskId).sort((a, b) => b.created_at - a.created_at);
@@ -142,6 +176,35 @@ class MemoryD1 {
       if (!t || t.status !== 'open' || t.publisher_id === userId) return { meta: { changes: 0 } };
       if (t.deadline !== null && t.deadline !== undefined && Number(t.deadline) <= nowMs) return { meta: { changes: 0 } };
       t.status = 'doing'; t.taker_id = takerId; t.updated_at = nowMs;
+      return { meta: { changes: 1 } };
+    }
+    if (s.startsWith('INSERT INTO errand_disputes')) {
+      const [task_id, user_id, role, reason, detail, created_at, updated_at] = args;
+      const id = this.nextDisputeId++;
+      this.disputes.set(id, { id, task_id, user_id, role, reason, detail, status: 'open', admin_note: '', created_at, updated_at });
+      return { meta: { changes: 1, last_row_id: id } };
+    }
+    if (s.startsWith('INSERT INTO errand_evidence')) {
+      const [dispute_id, data, created_at] = args;
+      const id = this.nextEvidenceId++;
+      this.evidence.set(id, { id, dispute_id, data, created_at });
+      return { meta: { changes: 1 } };
+    }
+    if (s.startsWith('UPDATE errand_disputes')) {
+      const [st, note, now, id] = args;
+      const d = this.disputes.get(id);
+      if (!d || d.status !== 'open') return { meta: { changes: 0 } };
+      d.status = st; d.admin_note = note; d.updated_at = now;
+      return { meta: { changes: 1 } };
+    }
+    if (s.startsWith('DELETE FROM errand_tasks')) {
+      const id = Number(args[0]);
+      if (!this.tasks.has(id)) return { meta: { changes: 0 } };
+      this.tasks.delete(id);
+      const revIds = [...this.reviews.values()].filter(r => r.task_id === id).map(r => r.id);
+      revIds.forEach(rid => this.reviews.delete(rid));
+      const disIds = [...this.disputes.values()].filter(d => d.task_id === id).map(d => d.id);
+      disIds.forEach(did => { this.disputes.delete(did); for (const eid of [...this.evidence.keys()]) if (this.evidence.get(eid).dispute_id === did) this.evidence.delete(eid); });
       return { meta: { changes: 1 } };
     }
     if (s.startsWith('INSERT INTO errand_reviews')) {
@@ -356,5 +419,68 @@ await api('/api/errand/tasks/' + tUn.task.id + '/take', { method: 'POST', token:
 const revUn = await api('/api/errand/reviews', { method: 'POST', token: tokenA, body: { taskId: tUn.task.id, rating: 5 } });
 check('未确认任务不能评价 400', revUn.status === 400);
 
+/* ---------- 10) 申诉（doing/done/confirmed 可申诉 + 证据上传） ---------- */
+console.log('10) 申诉（doing/done/confirmed 可申诉 + 证据上传）');
+const dNoAuth = await api('/api/errand/disputes', { method: 'POST', body: { taskId: 1, reason: 'x' } });
+check('未登录申诉 401', dNoAuth.status === 401);
+const tOpen = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '申诉测试open', reward: 1, pickup: 'A', dropoff: 'B' } }));
+const dOpen = await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: tOpen.task.id, reason: 'x' } });
+check('open 状态任务不能申诉 400', dOpen.status === 400);
+const dOther = await api('/api/errand/disputes', { method: 'POST', token: tokenC, body: { taskId: 1, reason: 'x' } });
+check('路人申诉 403', dOther.status === 403, String(dOther.status) + ' ' + JSON.stringify(await data(dOther)));
+const dOk = await data(await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: 1, reason: '对方没送到', detail: '放在错误的楼栋', evidence: ['data:image/png;base64,AAAA', 'data:image/jpeg;base64,BBBB', 'data:text/plain;base64,CCCC'] } }));
+check('A 申诉 201（role=publisher）', dOk.ok === true && dOk.dispute.role === 'publisher' && dOk.dispute.status === 'open', JSON.stringify(dOk));
+check('证据 2 张入库（非法 1 张跳过）', db.evidence.size === 2, 'evidence=' + db.evidence.size + ' disputes=' + db.disputes.size);
+const dDup = await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: 1, reason: 'again' } });
+check('重复 open 申诉 400', dDup.status === 400);
+const dTaker = await data(await api('/api/errand/disputes', { method: 'POST', token: tokenB, body: { taskId: 1, reason: '对方不确认', detail: '已送达但对方拖延' } }));
+check('B 申诉 201（role=taker）', dTaker.ok === true && dTaker.dispute.role === 'taker', JSON.stringify(dTaker));
+const dListPub = await data(await api('/api/errand/disputes?taskId=1', { token: tokenA }));
+check('发布者可见申诉列表 2 条', dListPub.disputes.length === 2);
+const dListTaker = await data(await api('/api/errand/disputes?taskId=1', { token: tokenB }));
+check('接单者可见申诉列表 2 条', dListTaker.disputes.length === 2);
+const dListOther = await api('/api/errand/disputes?taskId=1', { token: tokenC });
+check('路人查看申诉 403', dListOther.status === 403);
+const dListAnon = await api('/api/errand/disputes?taskId=1');
+check('匿名查看申诉 403', dListAnon.status === 403);
+const dAdminNoAuth = await api('/api/errand/disputes');
+check('admin 全量申诉无 token 401', dAdminNoAuth.status === 401);
+const dAdmin = await data(await api('/api/errand/disputes', { token: 'admin-token' }));
+check('admin 全量申诉含昵称', dAdmin.disputes.length >= 2 && dAdmin.disputes.some(d => d.userName === '发布者'), JSON.stringify(dAdmin));
+
+/* ---------- 11) 管理端（任务列表 / 删除 / 申诉处理） ---------- */
+console.log('11) 管理端（任务列表 / 删除 / 申诉处理）');
+const aTasksNoAuth = await api('/api/errand/admin/tasks');
+check('adminTasks 无 token 401', aTasksNoAuth.status === 401);
+const aTasks = await data(await api('/api/errand/admin/tasks?pageSize=50', { token: 'admin-token' }));
+check('adminTasks 全量含联系方式', aTasks.total >= 4 && aTasks.items.some(t => t.contact === '13800000000'), 'total=' + aTasks.total + ' ' + JSON.stringify(aTasks.items && aTasks.items[0]));
+const aTasksOpen = await data(await api('/api/errand/admin/tasks?status=open', { token: 'admin-token' }));
+check('adminTasks 按状态筛选', aTasksOpen.items.length > 0 && aTasksOpen.items.every(t => t.status === 'open'));
+const aTasksBad = await api('/api/errand/admin/tasks?status=xx', { token: 'admin-token' });
+check('非法状态 400', aTasksBad.status === 400);
+const disputeId = dOk.dispute.id;
+const resNoAuth = await api('/api/errand/admin/disputes/' + disputeId, { method: 'PATCH', body: { status: 'resolved', note: 'x' } });
+check('处理申诉无 token 401', resNoAuth.status === 401);
+const resBad = await api('/api/errand/admin/disputes/' + disputeId, { method: 'PATCH', token: 'admin-token', body: { status: 'banana' } });
+check('非法处理状态 400', resBad.status === 400);
+const resOk = await data(await api('/api/errand/admin/disputes/' + disputeId, { method: 'PATCH', token: 'admin-token', body: { status: 'resolved', note: '已核实，双方和解' } }));
+check('处理申诉 resolved + 备注', resOk.ok === true && resOk.dispute.status === 'resolved' && resOk.dispute.adminNote === '已核实，双方和解');
+const resAgain = await api('/api/errand/admin/disputes/' + disputeId, { method: 'PATCH', token: 'admin-token', body: { status: 'rejected' } });
+check('重复处理 400', resAgain.status === 400);
+const delNoAuth = await api('/api/errand/admin/tasks/' + tOpen.task.id, { method: 'DELETE' });
+check('删除任务无 token 401', delNoAuth.status === 401);
+const del = await api('/api/errand/admin/tasks/' + tOpen.task.id, { method: 'DELETE', token: 'admin-token' });
+check('删除任务 ok', del.status === 200);
+const delAfter = await api('/api/errand/tasks/' + tOpen.task.id);
+check('删除后详情 404', delAfter.status === 404);
+const del404 = await api('/api/errand/admin/tasks/99999', { method: 'DELETE', token: 'admin-token' });
+check('删除不存在 404', del404.status === 404);
+const tDel = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '待删除', reward: 2, pickup: 'A', dropoff: 'B' } }));
+await api('/api/errand/tasks/' + tDel.task.id + '/take', { method: 'POST', token: tokenB });
+await api('/api/errand/tasks/' + tDel.task.id + '/complete', { method: 'POST', token: tokenB });
+const dDel = await data(await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: tDel.task.id, reason: '删除测试', evidence: ['data:image/png;base64,DDDD'] } }));
+const evBefore = db.evidence.size;
+await api('/api/errand/admin/tasks/' + tDel.task.id, { method: 'DELETE', token: 'admin-token' });
+check('删除任务级联清申诉与证据', !db.disputes.has(dDel.dispute.id) && db.evidence.size === evBefore - 1);
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
 process.exit(failed ? 1 : 0);

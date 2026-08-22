@@ -6,7 +6,7 @@
   <title>外院跑腿 - 发布任务 · 校内接单</title>
   <meta name="robots" content="noindex,nofollow">
   <link rel="icon" href="../favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20260822-1823">
+  <link rel="stylesheet" href="style.css?v=20260822-1924">
   <script>(function(){try{var t=localStorage.getItem('waiyuan-web-theme-v1')||(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
   <meta property="og:title" content="外院跑腿">
   <meta property="og:description" content="校内跑腿：发布任务、在线接单，线下当面结算">
@@ -83,6 +83,24 @@
     </div>
   </div>
 
+  <!-- 申诉弹窗 -->
+  <div id="dispute-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3>⚠️ 申诉</h3>
+      <div class="field"><label>理由 *（≤60 字）</label><input id="dp-reason" maxlength="60" placeholder="对方没有履约 / 联系不上…"></div>
+      <div class="field"><label>详细说明（选填，500 字内）</label><textarea id="dp-detail" maxlength="500" rows="3" placeholder="发生了什么？"></textarea></div>
+      <div class="field"><label>证据图片（选填，最多 3 张，自动压缩 ≤200KB）<span class="dp-count" id="dp-count">0 / 3</span></label>
+        <input id="dp-files" type="file" accept="image/*" multiple>
+        <div id="dp-preview" class="dp-preview"></div>
+      </div>
+      <div class="hint" id="dp-hint"></div>
+      <div class="modal-actions">
+        <button id="dp-cancel" class="btn ghost">取消</button>
+        <button id="dp-submit" class="btn primary">提交申诉</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 登录弹窗 -->
   <div id="auth-modal" class="modal hidden">
     <div class="modal-box">
@@ -103,7 +121,7 @@
   </div>
   <div id="toast" class="toast hidden"></div>
 
-  <script src="../学习中心/auth.js?v=20260822-1823"></script>
-  <script src="app.js?v=20260822-1823"></script>
+  <script src="../学习中心/auth.js?v=20260822-1924"></script>
+  <script src="app.js?v=20260822-1924"></script>
 </body>
 </html>

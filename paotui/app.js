@@ -178,6 +178,7 @@
       if (isPublisher && !t.confirmedAt) actions += '<button class="btn primary" data-act="confirm">确认完成（结算）</button>';
       else actions += '<span class="muted">' + (t.confirmedAt ? '✅ 双方确认完成' : '已完成，等待发布者确认') + '</span>';
       if (t.confirmedAt && (isPublisher || isTaker)) actions += '<button class="btn ghost" data-act="review">⭐ 评价对方</button>';
+      if ((t.status === 'doing' || t.status === 'done') && (isPublisher || isTaker)) actions += '<button class="btn ghost" data-act="dispute">⚠️ 申诉</button>';
     } else {
       actions += '<span class="muted">' + esc(t.cancelReason || '已取消') + '</span>';
     }
@@ -197,11 +198,13 @@
       '</div>' +
       '<div class="detail-actions">' + actions + '</div>' +
       '<div id="review-box"></div>' +
+      '<div id="dispute-box"></div>' +
       '<button class="btn ghost full" data-act="close">关闭</button>';
     bodyEl.querySelectorAll('button[data-act]').forEach(btn => {
       btn.addEventListener('click', () => handleDetailAction(btn.dataset.act, t));
     });
     loadReviews(t.id);
+    loadDisputes(t.id);
   }
   async function loadReviews(taskId) {
     const box = $('review-box');
@@ -253,10 +256,120 @@
     }
   }
 
+  /* ---------- 申诉 ---------- */
+  let currentDisputeTask = null;
+  let disputeImages = [];
+  function openDisputeModal(t) {
+    currentDisputeTask = t;
+    disputeImages = [];
+    $('dp-reason').value = '';
+    $('dp-detail').value = '';
+    $('dp-files').value = '';
+    renderDisputeThumbs();
+    $('dp-hint').textContent = '';
+    openModal('dispute-modal');
+  }
+  function handleDisputeFiles(e) {
+    const files = Array.from(e.target.files || []);
+    for (const f of files) {
+      if (disputeImages.length >= 3) { toast('最多 3 张图片', true); break; }
+      if (!/^image\//.test(f.type)) continue;
+      const reader = new FileReader();
+      reader.onload = () => {
+        compressImage(String(reader.result), function (dataUrl) {
+          if (disputeImages.length >= 3) return;
+          disputeImages.push(dataUrl);
+          renderDisputeThumbs();
+        });
+      };
+      reader.readAsDataURL(f);
+    }
+  }
+  function compressImage(dataUrl, done) {
+    const img = new Image();
+    img.onload = function () {
+      try {
+        const MAX = 1200;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          const r = Math.min(MAX / w, MAX / h);
+          w = Math.round(w * r); h = Math.round(h * r);
+        }
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        let q = 0.85, out = cv.toDataURL('image/jpeg', q);
+        while (out.length > 274400 && q > 0.4) { // 200KB 上限（base64 膨胀约 1.34x）
+          q -= 0.15;
+          out = cv.toDataURL('image/jpeg', q);
+        }
+        done(out);
+      } catch (_) { toast('图片处理失败', true); }
+    };
+    img.onerror = function () { toast('图片读取失败', true); };
+    img.src = dataUrl;
+  }
+  function renderDisputeThumbs() {
+    const box = $('dp-preview');
+    box.innerHTML = disputeImages.map(function (d, i) {
+      return '<div class="dp-thumb"><img src="' + d + '" alt="证据"><button type="button" class="dp-x" data-i="' + i + '">×</button></div>';
+    }).join('');
+    box.querySelectorAll('.dp-x').forEach(function (b) {
+      b.addEventListener('click', function () {
+        disputeImages.splice(Number(b.dataset.i), 1);
+        renderDisputeThumbs();
+      });
+    });
+    $('dp-count').textContent = disputeImages.length + ' / 3';
+  }
+  async function submitDispute() {
+    if (!currentDisputeTask) return;
+    const reason = $('dp-reason').value.trim();
+    const hint = $('dp-hint');
+    if (!reason) { hint.textContent = '请填写申诉理由'; return; }
+    if (reason.length > 60) { hint.textContent = '理由最长 60 字'; return; }
+    const btn = $('dp-submit');
+    btn.disabled = true;
+    try {
+      await api('/api/errand/disputes', {
+        method: 'POST',
+        body: JSON.stringify({ taskId: currentDisputeTask.id, reason, detail: $('dp-detail').value.trim(), evidence: disputeImages }),
+      });
+      closeModal('dispute-modal');
+      toast('申诉已提交，等待管理员处理');
+      openDetail(currentDisputeTask.id);
+    } catch (e) {
+      hint.textContent = e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  async function loadDisputes(taskId) {
+    const box = $('dispute-box');
+    if (!box) return;
+    try {
+      const data = await api('/api/errand/disputes?taskId=' + taskId);
+      const list = data.disputes || [];
+      if (!list.length) return;
+      const stMap = { open: ['待处理', 'st-open'], resolved: ['已解决', 'st-done'], rejected: ['已驳回', 'st-cancelled'] };
+      box.innerHTML = '<div class="review-head">⚠️ 申诉（' + list.length + '）</div>' +
+        list.map(d => {
+          const st = stMap[d.status] || ['', ''];
+          return '<div class="dispute-item"><div class="di-top"><span class="badge ' + st[1] + '">' + st[0] + '</span>' +
+            '<span class="di-who">' + esc(d.userName || '匿名') + ' · ' + (d.role === 'publisher' ? '发布者' : '接单者') + '</span></div>' +
+            '<div class="di-reason">' + esc(d.reason) + '</div>' +
+            (d.detail ? '<div class="di-detail">' + esc(d.detail) + '</div>' : '') +
+            (d.adminNote ? '<div class="di-note">👮 管理员：' + esc(d.adminNote) + '</div>' : '') +
+            '<div class="di-time">' + fmtTime(d.createdAt) + '</div></div>';
+        }).join('') + '</div>';
+    } catch (e) { /* 非双方或未登录：静默 */ }
+  }
+
   async function handleDetailAction(act, t) {
     if (act === 'close') { closeModal('detail-modal'); return; }
     if (act === 'need-login') { closeModal('detail-modal'); openAuthModal('login'); return; }
     if (act === 'review') { openReviewModal(t); return; }
+    if (act === 'dispute') { openDisputeModal(t); return; }
     const confirmText = {
       take: '确认接单？接单后请尽快联系发布者。',
       complete: '确认已送达并完成？',
@@ -397,6 +510,10 @@
   $('rv-submit').addEventListener('click', submitReview);
   document.querySelectorAll('#rv-stars .star').forEach(s => s.addEventListener('click', () => { reviewRating = Number(s.dataset.s); renderStars(); }));
   document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); }));
+  // 申诉弹窗
+  $('dp-cancel').addEventListener('click', () => closeModal('dispute-modal'));
+  $('dp-submit').addEventListener('click', submitDispute);
+  $('dp-files').addEventListener('change', handleDisputeFiles);
 
   /* ---------- init ---------- */
   initTheme();

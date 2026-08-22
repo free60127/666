@@ -714,6 +714,7 @@ async function cleanupDb(env) {
       db.prepare('DELETE FROM login_fails WHERE updated_at < ?1').bind(now - dayMs),
       db.prepare('DELETE FROM reset_tokens WHERE expires_at < ?1').bind(now),
       db.prepare("UPDATE errand_tasks SET status = 'cancelled', cancelled_at = ?1, cancel_reason = '任务已过期，自动取消', updated_at = ?1 WHERE status = 'open' AND deadline IS NOT NULL AND deadline < ?1").bind(now),
+      db.prepare("UPDATE errand_tasks SET confirmed_at = ?1, updated_at = ?1 WHERE status = 'done' AND confirmed_at IS NULL AND completed_at IS NOT NULL AND completed_at < ?2").bind(now, now - 48 * 3600 * 1000),
     ]);
   } catch (_) { /* 清理失败静默 */ }
   await processCleanupJobs(env, now);

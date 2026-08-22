@@ -105,6 +105,63 @@ function mockErrandApi(page, store) {
       });
       return ok({ reviews: items });
     }
+    // 申诉 + 管理端
+    const withName = d => { const u = store.users.find(x => x.id === d.userId); return { ...d, userName: u ? u.nickname : '匿名' }; };
+    if (path === '/api/errand/disputes' && method === 'POST') {
+      if (!me()) return fail(401, 'unauthorized');
+      const b = route.request().postDataJSON();
+      const t = tasks.find(x => x.id === Number(b.taskId));
+      if (!t) return fail(404, '任务不存在');
+      if (t.status === 'open' || t.status === 'cancelled') return fail(400, '该状态任务无法申诉');
+      const u = me();
+      if (u.id !== t.publisherId && u.id !== t.takerId) return fail(403, '只有任务双方可以申诉');
+      if (store.disputes.some(d => d.taskId === t.id && d.userId === u.id && d.status === 'open')) return fail(400, '已有进行中的申诉，请等待处理');
+      const d = {
+        id: store.disputes.length + 1, taskId: t.id, userId: u.id, role: u.id === t.publisherId ? 'publisher' : 'taker',
+        reason: b.reason, detail: b.detail || '', status: 'open', adminNote: '', createdAt: Date.now(), updatedAt: Date.now(),
+      };
+      store.disputes.push(d);
+      return route.fulfill({ status: 201, headers, body: JSON.stringify({ ok: true, dispute: d }) });
+    }
+    if (path === '/api/errand/disputes' && method === 'GET') {
+      const taskId = Number(url.searchParams.get('taskId'));
+      if (taskId) {
+        const t = tasks.find(x => x.id === taskId);
+        if (!t) return fail(404, '任务不存在');
+        const u = me();
+        if (!u || (u.id !== t.publisherId && u.id !== t.takerId)) return fail(403, '无权查看');
+        return ok({ disputes: store.disputes.filter(d => d.taskId === taskId).map(withName) });
+      }
+      if (auth() !== 'admin-token') return fail(401, 'unauthorized');
+      return ok({ disputes: store.disputes.map(withName) });
+    }
+    if (path === '/api/errand/admin/tasks' && method === 'GET') {
+      if (auth() !== 'admin-token') return fail(401, 'unauthorized');
+      const status = url.searchParams.get('status') || 'all';
+      let items = tasks;
+      if (status !== 'all') items = items.filter(t => t.status === status);
+      return ok({ items, total: items.length, page: 1, pageSize: 50 });
+    }
+    let am = path.match(/^\/api\/errand\/admin\/tasks\/(\d+)$/);
+    if (am && method === 'DELETE') {
+      if (auth() !== 'admin-token') return fail(401, 'unauthorized');
+      const t = tasks.find(x => x.id === Number(am[1]));
+      if (!t) return fail(404, '任务不存在');
+      tasks.splice(tasks.indexOf(t), 1);
+      store.disputes = store.disputes.filter(d => d.taskId !== t.id);
+      store.reviews = store.reviews.filter(r => r.taskId !== t.id);
+      return ok({ ok: true });
+    }
+    am = path.match(/^\/api\/errand\/admin\/disputes\/(\d+)$/);
+    if (am && method === 'PATCH') {
+      if (auth() !== 'admin-token') return fail(401, 'unauthorized');
+      const d = store.disputes.find(x => x.id === Number(am[1]));
+      if (!d || d.status !== 'open') return fail(400, '申诉不存在或已处理');
+      const b = route.request().postDataJSON();
+      if (!['resolved', 'rejected'].includes(b.status)) return fail(400, 'invalid status');
+      d.status = b.status; d.adminNote = b.note || '';
+      return ok({ ok: true, dispute: d });
+    }
     let m = path.match(/^\/api\/errand\/tasks\/(\d+)$/);
     if (m && method === 'GET') {
       const t = tasks.find(x => x.id === Number(m[1]));
@@ -143,7 +200,7 @@ function mockErrandApi(page, store) {
 }
 
 function newStore() {
-  return { users: [], sessions: {}, tasks: [], reviews: [] };
+  return { users: [], sessions: {}, tasks: [], reviews: [], disputes: [] };
 }
 
 // 通过 UI 注册并登录；若 mock store 里已有该邮箱（密码匹配），自动改用登录，避免注册 409
@@ -322,4 +379,82 @@ test('确认完成后双方互评：评价提交 + 列表展示 + 重复评价�
   await page.locator('[data-act=review]').click();
   await page.locator('#rv-submit').click();
   await expect(page.locator('#toast')).toContainText('已评价过');
+});
+
+test('申诉：双方可发起申诉 + 提交后详情显示待处理', async ({ page }) => {
+  const store = newStore();
+  store.users.push({ id: 'u0', email: 'pub@test.com', password: 'secret123', nickname: '发布者' });
+  store.users.push({ id: 'u1', email: 'taker@test.com', password: 'secret123', nickname: '跑腿小王' });
+  store.tasks.push({
+    id: 1, publisherId: 'u0', title: '送文件', reward: 8, pickup: 'A', dropoff: 'B', contact: '13800000000', deadline: null,
+    status: 'done', takerId: 'u1', createdAt: Date.now(), updatedAt: Date.now(),
+    completedAt: Date.now(), confirmedAt: null, cancelledAt: null, cancelReason: '', publisherName: '发布者', takerName: '跑腿小王',
+  });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE);
+  // 发布者登录 → 已完成 tab → 详情：申诉按钮可见
+  await uiRegisterAndLogin(page, store, 'pub@test.com', '发布者', 'secret123');
+  await page.locator('#tabs .tab[data-tab=done]').click();
+  await page.locator('.task-card').first().click();
+  await expect(page.locator('[data-act=dispute]')).toBeVisible();
+  await page.locator('[data-act=dispute]').click();
+  await expect(page.locator('#dispute-modal')).toBeVisible();
+  await page.fill('#dp-reason', '对方没送到指定地点');
+  await page.fill('#dp-detail', '放错楼栋了');
+  await page.locator('#dp-submit').click();
+  await expect(page.locator('#toast')).toContainText('申诉已提交');
+  // 详情重新加载 → 申诉记录显示待处理
+  await expect(page.locator('#dispute-box')).toContainText('待处理');
+  await expect(page.locator('#dispute-box')).toContainText('对方没送到指定地点');
+  await expect(page.locator('#dispute-box')).toContainText('发布者 · 发布者');
+});
+
+test('管理面板：跑腿订单列表 + 删除订单 + 处理申诉', async ({ page }) => {
+  const store = newStore();
+  store.users.push({ id: 'u0', email: 'pub@test.com', password: 'secret123', nickname: '发布者' });
+  store.users.push({ id: 'u1', email: 'taker@test.com', password: 'secret123', nickname: '跑腿小王' });
+  store.tasks.push({
+    id: 1, publisherId: 'u0', title: '送文件', reward: 8, pickup: 'A', dropoff: 'B', contact: '13800000000', deadline: null,
+    status: 'done', takerId: 'u1', createdAt: Date.now(), updatedAt: Date.now(),
+    completedAt: Date.now(), confirmedAt: Date.now(), cancelledAt: null, cancelReason: '', publisherName: '发布者', takerName: '跑腿小王',
+  });
+  store.tasks.push({
+    id: 2, publisherId: 'u0', title: '带饭', reward: 3, pickup: '二食堂', dropoff: '图书馆', contact: '', deadline: null,
+    status: 'open', takerId: null, createdAt: Date.now(), updatedAt: Date.now(),
+    completedAt: null, confirmedAt: null, cancelledAt: null, cancelReason: '', publisherName: '发布者', takerName: null,
+  });
+  store.disputes.push({
+    id: 1, taskId: 1, userId: 'u1', role: 'taker', reason: '对方不确认', detail: '已送达但拖延', status: 'open', adminNote: '',
+    createdAt: Date.now(), updatedAt: Date.now(),
+  });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  page.on('dialog', d => {
+    if (d.type() === 'prompt') d.accept('已核实，双方协商一致');
+    else d.accept();
+  });
+  await page.addInitScript(() => {
+    localStorage.setItem('waiyuan-admin-api-v1', 'http://127.0.0.1:8788');
+    localStorage.setItem('waiyuan-admin-token-v1', 'admin-token');
+  });
+  await page.goto('http://127.0.0.1:8788/admin.html');
+  await page.locator('.tabs button[data-tab=errand]').click();
+  await page.locator('#load-errand').click();
+  // 任务列表：2 单 + 含联系方式
+  await expect(page.locator('#er-list .fb')).toHaveCount(2);
+  await expect(page.locator('#er-list')).toContainText('13800000000');
+  await expect(page.locator('#er-count')).toContainText('共 2 单');
+  // 申诉列表：1 条 open
+  await page.locator('#load-disputes').click();
+  await expect(page.locator('#dp-list .fb')).toHaveCount(1);
+  await expect(page.locator('#dp-list')).toContainText('对方不确认');
+  // 处理申诉（prompt 填备注）→ 已解决
+  await page.locator('#dp-list .fb button:has-text("标记解决")').click();
+  await expect(page.locator('#dp-list')).toContainText('已解决');
+  await expect(page.locator('#dp-list')).toContainText('已核实，双方协商一致');
+  // 删除订单 #1 → 列表剩 1 单
+  await page.locator('#er-list .fb').first().locator('button:has-text("删除订单")').click();
+  await expect(page.locator('#er-list .fb')).toHaveCount(1);
+  await expect(page.locator('#er-list')).not.toContainText('送文件');
 });

@@ -95,6 +95,50 @@ check('发布者详情可见联系方式', detOther.status === 200 && detOther.d
 const anon = await api('/errand/tasks');
 check('匿名可浏览列表', anon.status === 200);
 
+// 申诉 + 证据 + 管理端（2026-08-22）
+const emailC = 'errand-c-' + Date.now() + '@test.com';
+const regC = await api('/auth/register', { method: 'POST', body: { email: emailC, password: passwd, nickname: '验证路人' } });
+const tokC = regC.data.token;
+const dOther = await api('/errand/disputes', { method: 'POST', token: tokC, body: { taskId: tid, reason: '路人申诉' } });
+check('路人申诉 403', dOther.status === 403, 's=' + dOther.status);
+const dOk = await api('/errand/disputes', {
+  method: 'POST', token: tokA,
+  body: { taskId: tid, reason: '线上验证申诉', detail: '对方没有履约', evidence: ['data:image/png;base64,iVBORw0KGgo='] },
+});
+check('A申诉 201（role=publisher）', dOk.status === 201 && dOk.data.dispute && dOk.data.dispute.role === 'publisher' && dOk.data.dispute.status === 'open', 's=' + dOk.status);
+const dDup = await api('/errand/disputes', { method: 'POST', token: tokA, body: { taskId: tid, reason: '再来一次' } });
+check('重复open申诉 400', dDup.status === 400, 's=' + dDup.status);
+const dList = await api('/errand/disputes?taskId=' + tid, { token: tokA });
+check('双方可见申诉列表', dList.status === 200 && dList.data.disputes.length === 1 && dList.data.disputes[0].userName === '验证发布者', 's=' + dList.status);
+const dListOther = await api('/errand/disputes?taskId=' + tid, { token: tokC });
+check('路人查看申诉 403', dListOther.status === 403, 's=' + dListOther.status);
+const dListAnon = await api('/errand/disputes?taskId=' + tid);
+check('匿名查看申诉 403', dListAnon.status === 403, 's=' + dListAnon.status);
+
+if (ADMIN) {
+  const aTasksNoAuth = await api('/errand/admin/tasks');
+  check('adminTasks 无token 401', aTasksNoAuth.status === 401, 's=' + aTasksNoAuth.status);
+  const aTasks = await api('/errand/admin/tasks?pageSize=50', { token: ADMIN });
+  check('adminTasks 含任务与联系方式', aTasks.status === 200 && aTasks.data.items && aTasks.data.items.some(t => t.id === tid && t.contact === '线上验证联系'), 's=' + aTasks.status);
+  const aDisp = await api('/errand/disputes', { token: ADMIN });
+  check('admin全量申诉含1条', aDisp.status === 200 && aDisp.data.disputes.length === 1 && aDisp.data.disputes[0].userName === '验证发布者', 's=' + aDisp.status);
+  const did = dOk.data.dispute.id;
+  const resNoAuth = await api('/errand/admin/disputes/' + did, { method: 'PATCH', body: { status: 'resolved', note: 'x' } });
+  check('处理申诉无token 401', resNoAuth.status === 401, 's=' + resNoAuth.status);
+  const res = await api('/errand/admin/disputes/' + did, { method: 'PATCH', token: ADMIN, body: { status: 'resolved', note: '已核实，双方协商一致' } });
+  check('处理申诉 resolved+备注', res.status === 200 && res.data.dispute.status === 'resolved' && res.data.dispute.adminNote === '已核实，双方协商一致', 's=' + res.status);
+  const res2 = await api('/errand/admin/disputes/' + did, { method: 'PATCH', token: ADMIN, body: { status: 'rejected' } });
+  check('重复处理 400', res2.status === 400, 's=' + res2.status);
+  const del = await api('/errand/admin/tasks/' + tid, { method: 'DELETE', token: ADMIN });
+  check('管理端删除任务', del.status === 200, 's=' + del.status);
+  const gone = await api('/errand/tasks/' + tid);
+  check('删除后详情 404', gone.status === 404, 's=' + gone.status);
+  const aDisp2 = await api('/errand/disputes', { token: ADMIN });
+  check('级联删除申诉', aDisp2.status === 200 && !aDisp2.data.disputes.some(d => d.taskId === tid), 's=' + aDisp2.status);
+} else {
+  console.log('  - 无 ADMIN_TOKEN，跳过管理端验证');
+}
+
 if (ADMIN) {
   const c1 = await api('/auth/account?email=' + encodeURIComponent(emailA), { method: 'DELETE', token: ADMIN });
   const c2 = await api('/auth/account?email=' + encodeURIComponent(emailB), { method: 'DELETE', token: ADMIN });
