@@ -29,8 +29,8 @@ const corsFor = request => {
 };
 
 export default {
-  async fetch(request, env) {
-    const response = await route(request, env);
+  async fetch(request, env, ctx) {
+    const response = await route(request, env, ctx);
     const cors = corsFor(request);
     for (const [key, value] of Object.entries(cors)) {
       if (value) response.headers.set(key, value);
@@ -40,10 +40,14 @@ export default {
       response.headers.set('Cache-Control', 'no-store');
     }
     return response;
+  },
+  /* 每日清理 D1 滚动数据（2026-08-22 审查 P1）：Cron UTC 02:30（北京 10:30） */
+  async scheduled(_event, env) {
+    return cleanupDb(env);
   }
 };
 
-async function route(request, env) {
+async function route(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -117,7 +121,7 @@ async function route(request, env) {
 
       // 反代（主域直连或 /proxy/ 兼容路径）；api.free60127.top 只提供 API，不反代
       if (url.hostname !== 'api.free60127.top' && !path.startsWith('/api/')) {
-        return handleProxy(request, env, path, path.startsWith('/proxy/') ? 'proxy' : 'root');
+        return handleProxy(request, env, path, path.startsWith('/proxy/') ? 'proxy' : 'root', ctx);
       }
 
       return json({ error: 'not found', path }, 404);
@@ -180,8 +184,10 @@ async function countPvUv(env, path, vid) {
   }
 }
 
-/** 统计一次页面访问；返回需要下发的 Set-Cookie 值（首访生成访客 id），无则空串 */
-async function countVisit(env, request, path) {
+/** 统计一次页面访问；返回需要下发的 Set-Cookie 值（首访生成访客 id），无则空串
+ *  2026-08-22 审查：计数移入 ctx.waitUntil 异步执行，不阻塞 HTML 首屏；
+ *  首访把即将下发的 Cookie 身份预占位进 uv_seen（不计数），避免同用户第二次访问重复计 UV */
+async function countVisit(env, request, path, ctx) {
   try {
     const today = todayCn();
     const cookieHeader = request.headers.get('Cookie') || '';
@@ -191,13 +197,22 @@ async function countVisit(env, request, path) {
       if (k === STATS_COOKIE && v) { vid = v; break; }
     }
     let setCookie = '';
+    const cookieVid = randomHex16();
     if (!vid) {
       // 首访/无 Cookie（爬虫）：以 IP+日期哈希兜底去重（同 IP 当日只算 1 UV），并下发随机 Cookie
       const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
       vid = 'ip:' + (await sha256Hex(ip + '|' + today)).slice(0, 16);
-      setCookie = STATS_COOKIE + '=' + randomHex16() + '; Path=/; Max-Age=31536000; SameSite=Lax';
+      setCookie = STATS_COOKIE + '=' + cookieVid + '; Path=/; Max-Age=31536000; SameSite=Lax';
     }
-    await countPvUv(env, path, vid);
+    const count = async () => {
+      // 预占位：本请求下发的 Cookie 身份当日算已见，带 Cookie 再来时不重复计 UV
+      if (setCookie && env.DB) {
+        try { await env.DB.prepare('INSERT OR IGNORE INTO uv_seen (day, vid) VALUES (?1, ?2)').bind(today, cookieVid).run(); } catch (_) {}
+      }
+      await countPvUv(env, path, vid);
+    };
+    if (ctx && ctx.waitUntil) { ctx.waitUntil(count().catch(() => {})); return setCookie; }
+    await count().catch(() => {});
     return setCookie;
   } catch (_) { return ''; }
 }
@@ -344,7 +359,8 @@ async function handleStats(env) {
   const pages = [];
   const pageRows = await env.DB.prepare("SELECT key, value FROM stats WHERE key LIKE 'stats:page:%' ORDER BY value DESC LIMIT 100").all();
   for (const row of pageRows.results || []) {
-    let decoded = decodeURIComponent(row.key.slice('stats:page:'.length));
+    let decoded;
+    try { decoded = decodeURIComponent(row.key.slice('stats:page:'.length)); } catch (_) { continue; }  // 审查：非法编码键不拖垮整个统计接口
     try { decoded = decodeURIComponent(decoded); } catch (_) {}  // 兼容早期双编码存量键
     const exist = pages.find(p => p.path === decoded);
     if (exist) exist.pv += row.value;  // 同路径聚合（%2F 存量键与 / 合并）
@@ -517,8 +533,8 @@ async function syncRateLimit(env, key, action) {
     const row = await env.DB.prepare(
       'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ' +
       'ON CONFLICT(key) DO UPDATE SET ' +
-      'count = CASE WHEN rate.until < ?3 THEN 1 ELSE rate.count + 1 END, ' +
-      'until = CASE WHEN rate.until < ?3 THEN ?4 ELSE rate.until END ' +
+      'count = CASE WHEN rate.until <= ?3 THEN 1 ELSE rate.count + 1 END, ' +
+      'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
       'RETURNING count'
     ).bind(rk, winEnd, winStart, winEnd).first();
     if (row && row.count > SYNC_RATE[action]) return false;
@@ -556,7 +572,9 @@ async function handleSyncUpload(request, env) {
   }
   if (!(await syncRateLimit(env, key, 'upload'))) return json({ error: 'too many requests, try again later' }, 429);
   const payload = JSON.stringify(body.payload ?? null);
-  if (payload.length > MAX_SYNC_BYTES) return json({ error: 'payload too large (max 2.5MB)' }, 413);
+  // 2026-08-22 审查：按 UTF-8 字节数校验（中文 1 字符=3 字节，字符数会漏放行）
+  const payloadBytes = new TextEncoder().encode(payload).length;
+  if (payloadBytes > MAX_SYNC_BYTES) return json({ error: 'payload too large (max 2.5MB)' }, 413);
   // 版本号 + 冲突检测（2026-08-22）：客户端带 baseRev 上传，服务端校验等于当前 rev 才写入，
   // 否则 409 并返回云端最新数据，前端自动合并后重试——任何上传都不覆盖他人/他设备的更新
   const current = await env.STUDY_KV.get('sync:' + key);
@@ -573,7 +591,7 @@ async function handleSyncUpload(request, env) {
   }
   const record = { data: JSON.parse(payload), updatedAt: new Date().toISOString(), rev: Date.now() };
   await env.STUDY_KV.put('sync:' + key, JSON.stringify(record), { expirationTtl: SYNC_TTL_SECONDS });
-  return json({ ok: true, size: payload.length, updatedAt: record.updatedAt, rev: record.rev });
+  return json({ ok: true, size: payloadBytes, updatedAt: record.updatedAt, rev: record.rev });
 }
 
 async function handleSyncDownload(request, env) {
@@ -607,7 +625,7 @@ async function handleSyncDelete(request, env) {
    mode 'root'：主域直连（https://free60127.top/xxx -> UPSTREAM/xxx，HTML 去 /666/ 前缀）
    mode 'proxy'：兼容路径（/proxy/xxx -> UPSTREAM/xxx，HTML 一律改 /proxy/ 前缀） */
 
-async function handleProxy(request, env, path, mode) {
+async function handleProxy(request, env, path, mode, ctx) {
   // 反代只允许读取类方法，避免经代理转发任意请求；敏感头一律不转发
   if (!['GET', 'HEAD'].includes(request.method)) {
     return new Response('method not allowed', { status: 405 });
@@ -650,7 +668,7 @@ async function handleProxy(request, env, path, mode) {
   headers.set('access-control-allow-origin', '*');
   // 页面浏览量统计：仅 GET 的 HTML 页面（HEAD/资源/API 不计），失败静默
   if (request.method === 'GET' && type.includes('text/html')) {
-    const setCookie = await countVisit(env, request, url.pathname);
+    const setCookie = await countVisit(env, request, url.pathname, ctx);
     if (setCookie) headers.append('Set-Cookie', setCookie);
   }
   return new Response(body, { status: upstream.status, headers });
@@ -665,4 +683,29 @@ function filterHeaders(headers) {
   }
   out.set('x-forwarded-host', 'free60127.github.io');
   return out;
+}
+
+/* ---------- D1 数据自动清理（2026-08-22 审查 P1）----------
+ * Cron 每日执行：uv_seen 保留 2 天、activity 保留 8 天（周榜窗口 7 天）、
+ * rate 删过期窗口、rank_cache 删 1 小时前的缓存、stats 日计数保留 30 天、
+ * login_fails 保留 1 天（锁 15 分钟过期后计数即可清）。
+ * 全部静默容错：清理失败不影响任何请求。 */
+async function cleanupDb(env) {
+  const db = env.DB;
+  if (!db) return;
+  try {
+    const now = Date.now();
+    const dayMs = 86400 * 1000;
+    const todayCnTs = () => new Date(now + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    const daysAgo = n => new Date(now + 8 * 3600 * 1000 - n * dayMs).toISOString().slice(0, 10);
+    await db.batch([
+      db.prepare('DELETE FROM uv_seen WHERE day < ?1').bind(daysAgo(2)),
+      db.prepare('DELETE FROM activity WHERE date < ?1').bind(daysAgo(8)),
+      db.prepare('DELETE FROM rate WHERE until < ?1').bind(now),
+      db.prepare('DELETE FROM rank_cache WHERE updated_at < ?1').bind(now - 3600 * 1000),
+      db.prepare("DELETE FROM stats WHERE key LIKE 'stats:pv:day:%' AND substr(key, 14) < ?1").bind(daysAgo(30)),
+      db.prepare("DELETE FROM stats WHERE key LIKE 'stats:uv:day:%' AND substr(key, 14) < ?1").bind(daysAgo(30)),
+      db.prepare('DELETE FROM login_fails WHERE updated_at < ?1').bind(now - dayMs),
+    ]);
+  } catch (_) { /* 清理失败静默 */ }
 }

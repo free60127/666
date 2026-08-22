@@ -6,7 +6,9 @@ test.use({
   launchOptions: { args: ['--unsafely-treat-insecure-origin-as-secure=http://127.0.0.1:8788'] },
 });
 
-// 内存 KV：模拟 Worker /api/sync（deviceId -> {payload, updatedAt}）
+// 内存 KV：模拟 Worker /api/sync（deviceId -> {payload, updatedAt, rev}）
+// rev 固定为大时间戳（> 2^31），验证前端不再用 | 0 截断版本号（2026-08-22 审查 P0）
+const BIG_REV = 1787367690098;
 function makeSyncMock(page) {
   const store = new Map();
   let lastUpload = null;
@@ -17,14 +19,14 @@ function makeSyncMock(page) {
     const method = req.method();
     if (method === 'POST') {
       const body = req.postDataJSON();
-      store.set(body.deviceId, { payload: body.payload, updatedAt: '2026-08-21T12:00:00.000Z' });
+      store.set(body.deviceId, { payload: body.payload, updatedAt: '2026-08-21T12:00:00.000Z', rev: BIG_REV });
       lastUpload = body;
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, size: JSON.stringify(body.payload).length, updatedAt: '2026-08-21T12:00:00.000Z' }) });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, size: JSON.stringify(body.payload).length, updatedAt: '2026-08-21T12:00:00.000Z', rev: BIG_REV }) });
     }
     const deviceId = url.searchParams.get('deviceId');
     if (method === 'GET') {
       const hit = store.get(deviceId);
-      return hit ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, payload: hit.payload, updatedAt: hit.updatedAt }) })
+      return hit ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, payload: hit.payload, updatedAt: hit.updatedAt, rev: hit.rev }) })
                  : route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not found' }) });
     }
     if (method === 'DELETE') {
@@ -184,4 +186,18 @@ test('云同步：恢复码错误时给出可读错误', async ({ page }) => {
   await page.fill('#cloud-code-input', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
   await page.click('[data-action="cloud-restore-go"]');
   await expect(page.locator('#data-status')).toContainText('云端还没有备份数据', { timeout: 15000 });
+});
+
+test('云同步：大版本号（>2^31）不截断，baseRev 原样上传（审查 P0）', async ({ page }) => {
+  const sync = makeSyncMock(page);
+  await seedLocal(page, SEED);
+  await page.goto('/' + encodeURI('学习中心/index.html'));
+  await page.click('[data-action="cloud-backup"]');
+  const codeText = (await page.locator('#cloud-code').textContent()).trim();
+  await page.click('[data-action="cloud-backup"]');   // 首次上传：云端空 → baseRev 0
+  await expect(page.locator('#data-status')).toContainText('云端备份完成', { timeout: 15000 });
+  await page.click('[data-action="cloud-backup"]');   // 再传：先下载（rev=BIG_REV）再上传
+  await expect(page.locator('#data-status')).toContainText('云端备份完成', { timeout: 15000 });
+  expect(sync.lastUpload.baseRev).toBe(BIG_REV);
+  expect(sync.lastUpload.baseRev).not.toBe(BIG_REV | 0);   // 截断后会是负数，必不等
 });

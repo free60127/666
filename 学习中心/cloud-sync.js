@@ -148,7 +148,7 @@
     let merged = payload, baseRev = 0;
     if (cloud && cloud.payload) {
       merged = mergeBackup(payload, cloud.payload, 'local');
-      baseRev = cloud.rev | 0;
+      baseRev = Number(cloud.rev) || 0;
     }
     const attempt = async () => request('/api/sync', {
       method: 'POST',
@@ -161,7 +161,7 @@
       if (err && err.status === 409 && err.body && err.body.payload) {
         // 并发写入：拉取最新云端数据合并后重试（仅一次，再冲突抛给上层提示）
         merged = mergeBackup(merged, err.body.payload, 'local');
-        baseRev = err.body.rev | 0;
+        baseRev = Number(err.body.rev) || 0;
         return request('/api/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -213,7 +213,7 @@
     let merged = payload, baseRev = 0;
     if (cloud && cloud.payload) {
       merged = mergeBackup(payload, cloud.payload, 'local');
-      baseRev = cloud.rev | 0;
+      baseRev = Number(cloud.rev) || 0;
     }
     const attempt = async () => request('/api/sync', {
       method: 'POST',
@@ -225,7 +225,7 @@
     } catch (err) {
       if (err && err.status === 409 && err.body && err.body.payload) {
         merged = mergeBackup(merged, err.body.payload, 'local');
-        baseRev = err.body.rev | 0;
+        baseRev = Number(err.body.rev) || 0;
         return request('/api/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },

@@ -61,7 +61,7 @@ for (const name of actKeys) {
   if (!raw) continue;
   let rec;
   try { rec = JSON.parse(raw); } catch { continue; }
-  actInserts.push([m[1], m[2], (rec.minutes | 0), (rec.learned | 0), (rec.lastTs | 0)]);
+  actInserts.push([m[1], m[2], (rec.minutes | 0), (rec.learned | 0), Number(rec.lastTs) || 0]);
 }
 
 const out = [];

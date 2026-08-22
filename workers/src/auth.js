@@ -1,6 +1,6 @@
 /* ============================================================
    账号认证模块（D1 版）：注册 / 登录 / 登出 / 会话 / 恢复码保险箱
-   - 密码：服务端 PBKDF2(SHA-256, 150k 轮, 16B salt) → 256bit，存 pbkdf2:iter:salt:hash
+   - 密码：服务端 PBKDF2(SHA-256, 10k 轮, 16B salt) → 256bit，存 pbkdf2:iter:salt:hash（iter 自适应）
    - 会话：32B 随机 token，D1 sessions 表 + 30 天 TTL（懒清理）
    - 恢复码保险箱：users.recovery_encrypted 存「密码派生密钥」加密的恢复码密文，
      服务端只能存/取，无法解密——密码即钥匙，换设备登录后前端自行解密解锁云端数据
@@ -20,10 +20,11 @@ const json = (data, status = 200) =>
 const b64 = bytes => btoa(String.fromCharCode(...bytes));
 const unb64 = text => Uint8Array.from(atob(text), ch => ch.charCodeAt(0));
 
-async function hashPassword(password, saltBytes) {
+async function hashPassword(password, saltBytes, iterations) {
   const salt = saltBytes || crypto.getRandomValues(new Uint8Array(16));
+  const iter = iterations || PBKDF2_ITERATIONS;
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' },
     await crypto.subtle.importKey('raw', new TextEncoder().encode(String(password)), 'PBKDF2', false, ['deriveBits']),
     256
   );
@@ -33,8 +34,9 @@ async function hashPassword(password, saltBytes) {
 async function verifyPassword(password, stored) {
   try {
     const [algo, iter, saltB64, hashB64] = String(stored).split(':');
-    if (algo !== 'pbkdf2') return false;
-    const result = await hashPassword(password, unb64(saltB64));
+    if (algo !== 'pbkdf2' || !iter) return false;
+    // 2026-08-22 审查：必须用哈希里存的迭代数验证（早期 150k，现 10k），否则存量账号全部验证失败
+    const result = await hashPassword(password, unb64(saltB64), Number(iter));
     const expect = unb64(hashB64);
     if (result.hash.length !== expect.length) return false;
     let diff = 0;
@@ -93,8 +95,8 @@ async function loginIpCheck(env, request) {
     const row = await env.DB.prepare(
       'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ' +
       'ON CONFLICT(key) DO UPDATE SET ' +
-      'count = CASE WHEN rate.until < ?3 THEN 1 ELSE rate.count + 1 END, ' +
-      'until = CASE WHEN rate.until < ?3 THEN ?4 ELSE rate.until END ' +
+      'count = CASE WHEN rate.until <= ?3 THEN 1 ELSE rate.count + 1 END, ' +
+      'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
       'RETURNING count'
     ).bind(ipKey, winEnd, winStart, winEnd).first();
     if (row && row.count > LOGIN_IP_MAX) return { ok: false, error: '尝试过于频繁，请稍后再试' };

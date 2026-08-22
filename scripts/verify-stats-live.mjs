@@ -48,9 +48,15 @@ const visit = async withCookie => {
   await visit(false); await visit(false);          // 无 cookie 两次（同 IP 去重）
   const r = await getStats();
   const after = r.data;
-  const pvDelta = (after.totals.pv || 0) - (before.totals.pv || 0);
+  // 2026-08-22 审查：统计计数改为 ctx.waitUntil 异步写入，响应返回后可能尚未落库 → 轮询等待
+  let pvDelta = (after.totals.pv || 0) - (before.totals.pv || 0);
+  for (let i = 0; i < 15 && pvDelta < 5; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    const poll = await getStats();
+    pvDelta = (poll.data.totals.pv || 0) - (before.totals.pv || 0);
+  }
   const uvDelta = (after.today.uv || 0) - (before.today.uv || 0);
-  check('PV 增量 ≥ 5（5 次页面访问）', pvDelta >= 5, 'delta=' + pvDelta);
+  check('PV 增量 ≥ 5（5 次页面访问，轮询等待异步统计）', pvDelta >= 5, 'delta=' + pvDelta);
   check('今日 UV 增量 ≤ 2（浏览器 1 + 并发新访客上限）', uvDelta >= 0 && uvDelta <= 2, 'delta=' + uvDelta);
   const homeBefore = (before.topPages || []).find(p => p.path === '/');
   // KV list 是最终一致的：写入后立即查询可能为空，轮询等待最多 15 秒
