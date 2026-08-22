@@ -44,8 +44,10 @@ test('普通单选：点正确选项 → 判题反馈 + 统一进度保存', asy
   await page.click(`${card} .option[data-opt="${rightIndex}"]`);
   await expect(page.locator(`${card} .option.correct`)).toHaveCount(1);
   await expect(page.locator(`${card} .answer`)).not.toBeHidden();
-  const state = await unified()(page);
-  expect(state && Object.values(state.progress).some(p => p.ok === true)).toBeTruthy();
+  await expect.poll(async () => {
+    const state = await unified()(page);
+    return !!(state && Object.values(state.progress).some(p => p.ok === true));
+  }, { timeout: 5000 }).toBe(true);
 });
 
 test('CF 六选项多选：点 C+F 自动判定 → 两个 correct + 记录多选', async ({ page }) => {
@@ -55,8 +57,10 @@ test('CF 六选项多选：点 C+F 自动判定 → 两个 correct + 记录多�
   await page.click(`${card} .option[data-opt="2"]`);
   await page.click(`${card} .option[data-opt="5"]`);
   await expect(page.locator(`${card} .option.correct`)).toHaveCount(2);
-  const state = await unified()(page);
-  expect(state && Object.values(state.progress).some(p => p.ok === true && p.attempts >= 1)).toBeTruthy();
+  await expect.poll(async () => {
+    const state = await unified()(page);
+    return !!(state && Object.values(state.progress).some(p => p.ok === true && p.attempts >= 1));
+  }, { timeout: 5000 }).toBe(true);
 });
 
 test('A or D 二选一：点任一即判定', async ({ page }) => {
@@ -80,8 +84,10 @@ test('多空填空（逗号答案必须完整）：只填部分判错，完整�
   await page.fill(`${card} .fill-input`, loc.q.answer);
   await page.click(`${card} .fill-submit`);
   await expect(page.locator(`${card} .fill-feedback.correct`)).toBeVisible();
-  const state = await unified()(page);
-  expect(state && Object.values(state.progress).some(p => p.ok === true)).toBeTruthy();
+  await expect.poll(async () => {
+    const state = await unified()(page);
+    return !!(state && Object.values(state.progress).some(p => p.ok === true));
+  }, { timeout: 5000 }).toBe(true);
 });
 
 test('多空填空（分号=多空答案）：只填第一空判错，完整逐空填写判对', async ({ page }) => {
@@ -97,8 +103,10 @@ test('多空填空（分号=多空答案）：只填第一空判错，完整逐�
   await page.fill(`${card} .fill-input`, loc.q.answer);
   await page.click(`${card} .fill-submit`);
   await expect(page.locator(`${card} .fill-feedback.correct`)).toBeVisible();
-  const state = await unified()(page);
-  expect(state && Object.values(state.progress).some(p => p.ok === true)).toBeTruthy();
+  await expect.poll(async () => {
+    const state = await unified()(page);
+    return !!(state && Object.values(state.progress).some(p => p.ok === true));
+  }, { timeout: 5000 }).toBe(true);
 });
 
 test('同义答案（分号=同义，单空）：填任一即判对', async ({ page }) => {
@@ -135,8 +143,10 @@ test('翻译题：展开答案 → 自评「我答对了」→ result=correct �
   await expect(page.locator(`${card} .answer`)).not.toBeHidden();
   await expect(page.locator(`${card} .unified-self-assess`)).toBeVisible();
   await page.click(`${card} [data-self="correct"]`);
-  const state = await unified()(page);
-  expect(state && Object.values(state.progress).some(p => p.result === 'correct')).toBeTruthy();
+  await expect.poll(async () => {
+    const state = await unified()(page);
+    return !!(state && Object.values(state.progress).some(p => p.result === 'correct'));
+  }, { timeout: 5000 }).toBe(true);
 });
 
 test('答案展开：toggle 显示/收起参考答案', async ({ page }) => {
@@ -156,8 +166,10 @@ test('泛读：单选点正确选项 → correct + 统一进度保存', async ({
   const rightIndex = loc.q.answer.toUpperCase().charCodeAt(0) - 65;
   await page.click(`${card} .option[data-opt="${rightIndex}"]`);
   await expect(page.locator(`${card} .option.correct`)).toHaveCount(1);
-  const state = await unified()(page);
-  expect(state && Object.values(state.progress).some(p => p.ok === true)).toBeTruthy();
+  await expect.poll(async () => {
+    const state = await unified()(page);
+    return !!(state && Object.values(state.progress).some(p => p.ok === true));
+  }, { timeout: 5000 }).toBe(true);
 });
 
 test('泛读：填空填标准答案 → 判对', async ({ page }) => {

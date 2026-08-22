@@ -83,6 +83,11 @@ async function route(request, env) {
         return handleAuth(request, env, path);
       }
 
+      if (path === '/api/stats') {
+        if (request.method === 'GET') return requireAdmin(request, env, () => handleStats(env));
+        return methodNotAllowed();
+      }
+
       if (path === '/api/sync') {
         if (request.method === 'POST') return handleSyncUpload(request, env);
         if (request.method === 'GET') return handleSyncDownload(request, env);
@@ -92,7 +97,7 @@ async function route(request, env) {
 
       // 反代（主域直连或 /proxy/ 兼容路径）；api.free60127.top 只提供 API，不反代
       if (url.hostname !== 'api.free60127.top' && !path.startsWith('/api/')) {
-        return handleProxy(request, path, path.startsWith('/proxy/') ? 'proxy' : 'root');
+        return handleProxy(request, env, path, path.startsWith('/proxy/') ? 'proxy' : 'root');
       }
 
       return json({ error: 'not found', path }, 404);
@@ -111,6 +116,87 @@ const json = (data, status = 200) =>
   });
 
 const methodNotAllowed = () => json({ error: 'method not allowed' }, 405);
+
+/* ---------- 站点统计（2026-08-22）：反代 HTML 页面时计数 PV/UV ----------
+ * 覆盖：free60127.top 主域直连 + /proxy/ 兼容路径（即所有经本 Worker 的页面访问）；
+ *      直接访问 github.io 源站不经 Worker，不计入（README 已注明）。
+ * 存储（STUDY_KV）：
+ *   stats:pv:total                   累计 PV
+ *   stats:pv:day:{YYYY-MM-DD}        每日 PV
+ *   stats:page:{encodeURIComponent}  页面累计 PV
+ *   stats:uv:day:{date}:{vid}        当日访客去重键（TTL 48h，vid = Cookie 或 IP 哈希）
+ *   stats:uv:day:{date}              每日 UV 计数
+ * 日期用 UTC+8 自然日（中国用户）。计数失败静默，绝不影响页面响应。 */
+const STATS_COOKIE = 'waiyuan_vid';
+const todayCn = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+
+async function sha256Hex(text) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(text)));
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+}
+const randomHex16 = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
+
+async function kvIncr(env, key, ttl) {
+  const cur = Number(await env.STUDY_KV.get(key)) || 0;
+  await env.STUDY_KV.put(key, String(cur + 1), ttl ? { expirationTtl: ttl } : undefined);
+  return cur + 1;
+}
+
+/** 统计一次页面访问；返回需要下发的 Set-Cookie 值（首访生成访客 id），无则空串 */
+async function countVisit(env, request, path) {
+  try {
+    const today = todayCn();
+    await kvIncr(env, 'stats:pv:total');
+    await kvIncr(env, 'stats:pv:day:' + today);
+    await kvIncr(env, 'stats:page:' + encodeURIComponent(path));
+    const cookieHeader = request.headers.get('Cookie') || '';
+    let vid = '';
+    for (const part of cookieHeader.split(';')) {
+      const [k, v] = part.trim().split('=');
+      if (k === STATS_COOKIE && v) { vid = v; break; }
+    }
+    let setCookie = '';
+    if (!vid) {
+      // 首访/无 Cookie（爬虫）：以 IP+日期哈希兜底去重（同 IP 当日只算 1 UV），并下发随机 Cookie
+      const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
+      vid = 'ip:' + (await sha256Hex(ip + '|' + today)).slice(0, 16);
+      setCookie = STATS_COOKIE + '=' + randomHex16() + '; Path=/; Max-Age=31536000; SameSite=Lax';
+    }
+    const uvKey = 'stats:uv:day:' + today + ':' + vid;
+    if (!(await env.STUDY_KV.get(uvKey))) {
+      await env.STUDY_KV.put(uvKey, '1', { expirationTtl: 172800 });
+      await kvIncr(env, 'stats:uv:day:' + today);
+    }
+    return setCookie;
+  } catch (_) { return ''; }
+}
+
+async function handleStats(env) {
+  const today = todayCn();
+  const num = async key => Number(await env.STUDY_KV.get(key)) || 0;
+  const daily = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(Date.now() + 8 * 3600 * 1000 - i * 86400 * 1000).toISOString().slice(0, 10);
+    daily.push({ date: d, pv: await num('stats:pv:day:' + d), uv: await num('stats:uv:day:' + d) });
+  }
+  const pages = [];
+  let cursor;
+  do {
+    const list = await env.STUDY_KV.list({ prefix: 'stats:page:', limit: 1000, cursor });
+    cursor = list.cursor || undefined;
+    for (const key of list.keys) {
+      pages.push({ path: decodeURIComponent(key.name.slice('stats:page:'.length)), pv: await num(key.name) });
+    }
+  } while (cursor);
+  pages.sort((a, b) => b.pv - a.pv);
+  return json({
+    ok: true,
+    totals: { pv: await num('stats:pv:total') },
+    today: { pv: await num('stats:pv:day:' + today), uv: await num('stats:uv:day:' + today) },
+    daily,
+    topPages: pages.slice(0, 20),
+  });
+}
 
 /** 管理操作鉴权：Authorization: Bearer <token>，token 由 env.ADMIN_TOKEN 提供 */
 function requireAdmin(request, env, next) {
@@ -351,7 +437,7 @@ async function handleSyncDelete(request, env) {
    mode 'root'：主域直连（https://free60127.top/xxx -> UPSTREAM/xxx，HTML 去 /666/ 前缀）
    mode 'proxy'：兼容路径（/proxy/xxx -> UPSTREAM/xxx，HTML 一律改 /proxy/ 前缀） */
 
-async function handleProxy(request, path, mode) {
+async function handleProxy(request, env, path, mode) {
   // 反代只允许读取类方法，避免经代理转发任意请求；敏感头一律不转发
   if (!['GET', 'HEAD'].includes(request.method)) {
     return new Response('method not allowed', { status: 405 });
@@ -392,6 +478,11 @@ async function handleProxy(request, path, mode) {
     headers.set('cache-control', 'no-cache');
   }
   headers.set('access-control-allow-origin', '*');
+  // 页面浏览量统计：仅 GET 的 HTML 页面（HEAD/资源/API 不计），失败静默
+  if (request.method === 'GET' && type.includes('text/html')) {
+    const setCookie = await countVisit(env, request, url.pathname);
+    if (setCookie) headers.append('Set-Cookie', setCookie);
+  }
   return new Response(body, { status: upstream.status, headers });
 }
 

@@ -17,6 +17,7 @@
 |---|---|---|---|
 | GET | `/api/health` | 健康检查 | 公开 |
 | GET | `/api/notice` | 读取公告 | 公开 |
+| GET | `/api/stats` | 站点统计：`{totals, today, daily[14], topPages[20]}`（PV/UV/趋势/热门页面） | Bearer ADMIN_TOKEN |
 | POST | `/api/notice` | 更新公告 `{text}` | Bearer ADMIN_TOKEN |
 | POST | `/api/feedback` | 提交反馈 `{page,question,answer,note,contact}`（同 IP 30 秒最多 5 次） | 公开 |
 | GET | `/api/feedback` | 拉取反馈列表（cursor 分页：`?cursor=&limit=&type=&since=&until=&handled=`） | Bearer ADMIN_TOKEN |
@@ -40,6 +41,14 @@
 - payload 全程端到端加密（PBKDF2 派生 AES-GCM-256），服务端/管理员读不到学习内容。
 - 反馈限频（进程内 `Map`）仅限单实例；`/api/feedback` 列表已支持 cursor 分页 + 类型/时间/已处理筛选。
 - 反代仅允许 `GET/HEAD`，并主动删除 `Authorization`、`Cookie` 等敏感请求头。
+
+## 站点统计（2026-08-22）
+
+- 统计范围：**经本 Worker 反代的页面访问**（`free60127.top` 主域直连 + `/proxy/* 路径）；直接访问 `github.io` 源站不经 Worker，不计入。
+- 口径：PV = 每次 HTML 页面 GET 请求；UV = 当日去重访客（浏览器 Cookie `waiyuan_vid` 识别，无 Cookie 的请求按 `CF-Connecting-IP + 日期` 哈希兜底，同 IP 当日只算 1）。
+- 存储（STUDY_KV，`stats:` 前缀）：`stats:pv:total`、`stats:pv:day:{YYYY-MM-DD}`、`stats:page:{encoded}`、`stats:uv:day:{date}` 计数器与去重键（去重键 TTL 48h）。日期用 UTC+8 自然日。
+- 读取：`GET /api/stats`（需 ADMIN_TOKEN）返回累计 PV、今日 PV/UV、近 14 天逐日 PV/UV、热门页面 Top 20（按 PV 降序）。
+- 注意：KV 是最终一致存储，写入后立即 list 可能短暂看不到新键（约 1 分钟内传播）；计数失败静默，不影响页面响应。
 
 ## 常用命令
 

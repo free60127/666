@@ -1539,7 +1539,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-0806'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-0845'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
@@ -2353,32 +2353,40 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
     const isAttempt = target.matches('.option,.confirm,[data-action="choose"],[data-action="confirm"]');
     if (!isAnswer && !isAttempt && !/answer|choose|confirm/i.test(action)) return;
     setTimeout(() => {
-      // 思政/计算机判题后整卡重渲染（页面 render()），事件目标已脱离 DOM——
-      // 先从点击坐标反查新卡，拿不到再退回到旧卡上的 key 等本引擎 enhance 完成后补记。
-      let current = card;
-      try {
-        const hit = document.elementFromPoint(event.clientX, event.clientY);
-        if (hit) { const hitCard = hit.closest(cardSelector); if (hitCard) current = hitCard; }
-      } catch (_) {}
-      if (!current.dataset.unifiedReady) {
-        // 快速作答时（点击早于 80ms 增强防抖）立即补一次增强（幂等），避免记录丢失；
-        // 页面整卡重绘时新 DOM 尚无 key，仍走下方轮询。
-        try { enhance(); } catch (_) {}
-      }
-      if (!current.dataset.unifiedReady) {
-        const waitKey = card.dataset.unifiedReady;  // 同题重渲染后 key 不变（stableId+title 确定性哈希）
-        setTimeout(() => {
-          const re = waitKey ? [...document.querySelectorAll(cardSelector)].find(item => item.dataset.unifiedReady === waitKey) : null;
-          if (!re) return;
-          const result = resultFromCard(re);
-          record(re, result === null ? undefined : result);
-          prepareCard(re);
-        }, 150);
-        return;
-      }
-      const result = resultFromCard(current);
-      record(current, result === null ? undefined : result);
-      prepareCard(current);  // 展开答案后挂自评按钮
+      // 思政/计算机判题后整卡重渲染（页面 render() 可能异步），事件目标已脱离 DOM。
+      // 统一策略：等「增强就绪 + 判题完成」后再记录一次——
+      //   定位：优先点击坐标反查新卡（判题不改变卡片位置），失败按 key（确定性哈希）或标题匹配；
+      //   就绪但未判题（页面重绘尚未完成）→ 继续轮询，最多 12 次 × 150ms，避免把空结果写进进度。
+      const waitKey = card.dataset.unifiedReady || '';
+      const waitTitle = card.dataset.unifiedTitle || questionText(card);  // 旧引用仍在内存，标题可读
+      let tries = 0;
+      const attempt = () => {
+        tries++;
+        let node = null;
+        try {
+          const hit = document.elementFromPoint(event.clientX, event.clientY);
+          if (hit) { const hitCard = hit.closest(cardSelector); if (hitCard) node = hitCard; }
+        } catch (_) {}
+        if (!node || !node.dataset.unifiedReady) {
+          if (tries === 1) { try { enhance(); } catch (_) {} }  // 快速作答（早于 80ms 增强防抖）时立即补一次（幂等）
+          const all = [...document.querySelectorAll(cardSelector)];
+          node = waitKey
+            ? all.find(item => item.dataset.unifiedReady === waitKey)
+            : all.find(item => item.dataset.unifiedTitle === waitTitle);
+        }
+        if (!node || !node.dataset.unifiedReady) {
+          if (tries < 12) setTimeout(attempt, 150);
+          return;
+        }
+        const result = resultFromCard(node);
+        if (result === null) {
+          if (tries < 12) setTimeout(attempt, 150);  // 页面判题尚未完成，等重绘后重试
+          return;
+        }
+        record(node, result === undefined ? undefined : result);
+        prepareCard(node);  // 展开答案后挂自评按钮
+      };
+      setTimeout(attempt, 0);
     }, 0);
   });
 
