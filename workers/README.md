@@ -117,6 +117,24 @@ node $W dev --port 8787 # 本地调试（miniflare 模拟 KV）
 node $W kv namespace create NAME   # 新建 KV
 node $W secret put ADMIN_TOKEN     # 更新管理令牌（stdin 管道输入）
 node $W tail            # 实时日志
+
+### 会员付费（payjs）上线步骤
+
+1. 用户提供 payjs 商户号与密钥后配置 secret：
+
+```powershell
+'<mchid>' | node $W secret put PAYJS_MCHID
+'<key>'   | node $W secret put PAYJS_KEY
+node $W deploy
+```
+
+2. 线上闭环验证（脚本用签名回调模拟 payjs 通知，验签链路与真实回调一致；真实扫码由用户手机完成）：
+
+```bash
+PAYJS_KEY=<key> node scripts/verify-pay-live.mjs   # 预期：注册→下单→回调→开通→幂等→清理 全绿
+```
+
+3. 给页面开收费：`<body data-member-only="1">` + 引入 `member-gate.js`（会员中心页内可购买）。
 ```
 
 ## 管理令牌
