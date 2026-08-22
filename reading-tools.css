@@ -26,6 +26,12 @@ body.reading-tools-enabled>:not(.reading-tools):not(#a4-mobile-download-panel){z
 .options>div[role="button"].is-selected{background:#e8f1ea;box-shadow:inset 3px 0 #28634f}
 .options>div[role="button"].is-correct{background:#e3f3e7;color:#174e31;box-shadow:inset 3px 0 #2b8a52}
 .options>div[role="button"].is-selected.is-wrong{background:#fff0ea;color:#8f3e27;box-shadow:inset 3px 0 #c96845}
+/* 一体收缩（2026-08-22）：折叠态只显示切换钮；展开态全部按钮可见 */
+.reading-tools--collapsed .reading-tools__button:not(.reading-tools__toggle){display:none}
+.reading-tools button.reading-tools__toggle{background:#28634f;color:#fff}
+.reading-tools--collapsed button.reading-tools__toggle{background:#fffefa;color:#28634f}
+html[data-theme='dark'] .reading-tools button.reading-tools__toggle{background:#28634f!important;color:#fff!important}
+html[data-theme='dark'] .reading-tools--collapsed button.reading-tools__toggle{background:#2c3a33!important;color:#dfe6e2!important}
 @media(max-width:560px){.reading-tools{right:12px;bottom:14px;gap:8px}.reading-tools__button{width:54px;height:54px}.reading-tools__font-menu{width:146px}}
 html.word-lookup-open{overflow:hidden}
 .word-lookup{position:fixed;inset:0;z-index:100010;display:none;zoom:1!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}

@@ -44,6 +44,12 @@ body.reading-tools-enabled>:not(.reading-tools):not(#a4-mobile-download-panel){z
 .options>div[role="button"].is-selected{background:#e8f1ea;box-shadow:inset 3px 0 #28634f}
 .options>div[role="button"].is-correct{background:#e3f3e7;color:#174e31;box-shadow:inset 3px 0 #2b8a52}
 .options>div[role="button"].is-selected.is-wrong{background:#fff0ea;color:#8f3e27;box-shadow:inset 3px 0 #c96845}
+/* 一体收缩（2026-08-22）：折叠态只显示切换钮；展开态全部按钮可见 */
+.reading-tools--collapsed .reading-tools__button:not(.reading-tools__toggle){display:none}
+.reading-tools button.reading-tools__toggle{background:#28634f;color:#fff}
+.reading-tools--collapsed button.reading-tools__toggle{background:#fffefa;color:#28634f}
+html[data-theme='dark'] .reading-tools button.reading-tools__toggle{background:#28634f!important;color:#fff!important}
+html[data-theme='dark'] .reading-tools--collapsed button.reading-tools__toggle{background:#2c3a33!important;color:#dfe6e2!important}
 @media(max-width:560px){.reading-tools{right:12px;bottom:14px;gap:8px}.reading-tools__button{width:54px;height:54px}.reading-tools__font-menu{width:146px}}
 html.word-lookup-open{overflow:hidden}
 .word-lookup{position:fixed;inset:0;z-index:100010;display:none;zoom:1!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
@@ -124,6 +130,11 @@ html[data-theme="dark"] .tomato-timer__kind{background:#2b3135;border-color:#3a4
 @media(max-width:560px){
   .tomato-timer__toggle{right:max(12px,env(safe-area-inset-right));bottom:calc(max(14px,env(safe-area-inset-bottom)) + 206px);width:54px;height:54px}
   .tomato-timer__panel{right:max(12px,env(safe-area-inset-right));bottom:calc(max(14px,env(safe-area-inset-bottom)) + 268px);width:min(288px,calc(100vw - 24px));max-height:min(430px,calc(100vh - 330px))}
+}
+/* 手机端（2026-08-22）：番茄钟悬浮球收进阅读工具条；运行中保留小球显示剩余时间 */
+@media(max-width:560px){
+  .tomato-timer__toggle{display:none}
+  .tomato-timer__toggle.is-running{display:flex}
 }
 @media print{.tomato-timer{display:none!important}}
 
@@ -1272,6 +1283,24 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
   topButton.classList.add('reading-tools__button--top');
   topButton.addEventListener('click', () => window.scrollTo({top: 0, behavior: 'smooth'}));
   tools.appendChild(topButton);
+
+  /* 一体收缩（2026-08-22）：工具条加折叠钮，窄屏默认收起成单个圆钮，点开展开全部工具 */
+  const toolsToggle = makeButton('🛠', '工具', '展开或收起工具');
+  toolsToggle.classList.add('reading-tools__toggle');
+  toolsToggle.addEventListener('click', () => tools.classList.toggle('reading-tools--collapsed'));
+  tools.prepend(toolsToggle);
+  if (window.matchMedia && window.matchMedia('(max-width: 560px)').matches) {
+    tools.classList.add('reading-tools--collapsed');  // 手机默认折叠，桌面保持展开
+  }
+
+  /* 番茄钟入口（2026-08-22）：手机端悬浮球收进工具条，点此开/关番茄钟面板 */
+  const tomatoButton = makeButton('🍅', '番茄', '打开番茄钟');
+  tomatoButton.classList.add('reading-tools__button--tomato');
+  tomatoButton.addEventListener('click', () => {
+    const t = document.querySelector('.tomato-timer__toggle');
+    if (t) t.click();
+  });
+  tools.appendChild(tomatoButton);
   body.appendChild(tools);
   const lookup = buildLookupPanel();
   body.appendChild(lookup.panel);
@@ -1549,7 +1578,7 @@ html[data-theme="dark"] .word-bank span { background: #2c3a33 !important; border
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-0959'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-1011'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;

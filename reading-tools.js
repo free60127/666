@@ -80,6 +80,24 @@
   topButton.classList.add('reading-tools__button--top');
   topButton.addEventListener('click', () => window.scrollTo({top: 0, behavior: 'smooth'}));
   tools.appendChild(topButton);
+
+  /* 一体收缩（2026-08-22）：工具条加折叠钮，窄屏默认收起成单个圆钮，点开展开全部工具 */
+  const toolsToggle = makeButton('🛠', '工具', '展开或收起工具');
+  toolsToggle.classList.add('reading-tools__toggle');
+  toolsToggle.addEventListener('click', () => tools.classList.toggle('reading-tools--collapsed'));
+  tools.prepend(toolsToggle);
+  if (window.matchMedia && window.matchMedia('(max-width: 560px)').matches) {
+    tools.classList.add('reading-tools--collapsed');  // 手机默认折叠，桌面保持展开
+  }
+
+  /* 番茄钟入口（2026-08-22）：手机端悬浮球收进工具条，点此开/关番茄钟面板 */
+  const tomatoButton = makeButton('🍅', '番茄', '打开番茄钟');
+  tomatoButton.classList.add('reading-tools__button--tomato');
+  tomatoButton.addEventListener('click', () => {
+    const t = document.querySelector('.tomato-timer__toggle');
+    if (t) t.click();
+  });
+  tools.appendChild(tomatoButton);
   body.appendChild(tools);
   const lookup = buildLookupPanel();
   body.appendChild(lookup.panel);
@@ -357,7 +375,7 @@
         document.head.appendChild(script);
       });
       const pending = [];
-      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-0959'));
+      if (!window.WAIYUAN_ENGLISH_LOOKUP) pending.push(loadScript('dictionary/english-lookup-data.js?v=20260822-1011'));
       Promise.all(pending).then(finish);
     });
     return dictionaryPromise;
