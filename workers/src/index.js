@@ -48,6 +48,21 @@ export default {
   }
 };
 
+/** 托管 APK 下载：https://free60127.top/apk/<name>（KV 存储，键 apk:<name>；未来可平滑切换 R2） */
+async function serveApk(request, env, path) {
+  const name = path.slice('/apk/'.length).replace(/^\/+/, '');
+  if (!/^[A-Za-z0-9._-]{1,80}$/.test(name)) return json({ error: 'not found' }, 404);
+  if (!env.STUDY_KV) return json({ error: 'not configured' }, 503);
+  const data = await env.STUDY_KV.get('apk:' + name, { type: 'arrayBuffer' }).catch(() => null);
+  if (!data) return json({ error: 'not found' }, 404);
+  const headers = new Headers();
+  headers.set('Content-Type', 'application/vnd.android.package-archive');
+  headers.set('Content-Disposition', 'attachment; filename="' + name + '"');
+  headers.set('Cache-Control', 'public, max-age=3600');
+  headers.set('Access-Control-Allow-Origin', '*');
+  headers.set('Content-Length', String(data.byteLength));
+  return new Response(data, { headers });
+}
 async function route(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -126,6 +141,9 @@ async function route(request, env, ctx) {
       }
 
       // 反代（主域直连或 /proxy/ 兼容路径）；api.free60127.top 只提供 API，不反代
+      // APK 下载（R2 托管，国内可直连）：/apk/waiyuan-share.apk | /apk/waiyuan-paotui.apk
+      if (path.startsWith('/apk/')) return serveApk(request, env, path);
+
       if (url.hostname !== 'api.free60127.top' && !path.startsWith('/api/')) {
         return handleProxy(request, env, path, path.startsWith('/proxy/') ? 'proxy' : 'root', ctx);
       }

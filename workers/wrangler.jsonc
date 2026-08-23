@@ -10,6 +10,9 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "waiyuan-study-db", "database_id": "c73a1670-5b73-4b85-9801-8e25b5f3aa1a" }
   ],
+  "r2_buckets": [
+    { "binding": "APK", "bucket_name": "waiyuan-apk" }
+  ],
   "triggers": {
     "crons": ["30 2 * * *", "0 */6 * * *"]
   }
