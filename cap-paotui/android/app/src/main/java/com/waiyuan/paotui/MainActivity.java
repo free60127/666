@@ -138,6 +138,7 @@ public class MainActivity extends BridgeActivity {
                     try (OutputStream os = getContentResolver().openOutputStream(uri)) {
                         os.write(data);
                     }
+                }
                 // minSdk 29（Android 10+）：MediaStore 写入公共「下载」目录，无需存储权限
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "已保存：" + safe, Toast.LENGTH_SHORT).show());
                 return true;
