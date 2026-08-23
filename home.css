@@ -57,3 +57,5 @@ html[data-theme='dark'] .continue-card i{background:#2f3d36}
 .auth-bar button.auth-email-btn{background:none;border:none;color:var(--green);font-size:13px;font-weight:800;padding:8px 0;text-decoration:underline dotted;cursor:pointer}
 
 .auth-fields[hidden]{display:none!important}
+
+.install-apk{display:flex;align-items:center;gap:14px;padding:12px 14px;border:1px solid var(--line);border-radius:16px;background:var(--cream);box-shadow:0 8px 24px rgba(35,61,49,.05);text-decoration:none;margin-top:12px}.install-apk-text{flex:1;min-width:0}.install-apk-text b{display:block;color:var(--ink);font-size:15px}.install-apk-text small{display:block;margin-top:3px;color:var(--muted);font-size:12px;line-height:1.5}.install-apk-btn{flex:0 0 auto;border-radius:10px;padding:10px 16px;background:var(--green);color:#fff;font:inherit;font-size:13px;font-weight:800}
