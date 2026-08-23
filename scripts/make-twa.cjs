@@ -29,7 +29,8 @@ const cfg = {
   },
 }[app];
 
-const keystore = process.env.TWA_KEYSTORE ? path.resolve(process.env.TWA_KEYSTORE) : path.join(outdir, 'android.keystore');
+const keystoreSrc = process.env.TWA_KEYSTORE ? path.resolve(process.env.TWA_KEYSTORE) : null;
+const keystore = path.join(outdir, 'android.keystore');
 const twaManifest = new TwaManifest({
   packageId: cfg.packageId,
   host: 'free60127.top',
@@ -70,5 +71,35 @@ fs.mkdirSync(outdir, { recursive: true });
   await twaManifest.saveToFile(path.join(outdir, 'twa-manifest.json'));
   const generator = new TwaGenerator();
   await generator.createTwaProject(outdir, twaManifest, new MockLog(), () => {});
+  if (keystoreSrc) {
+    fs.copyFileSync(keystoreSrc, keystore);
+    console.log('keystore copied ->', keystore);
+  }
+  // 注入 AGP 签名配置（bubblewrap 模板不含 signingConfig，产出为 unsigned）
+  const bgPath = path.join(outdir, 'app', 'build.gradle');
+  const bg = fs.readFileSync(bgPath, 'utf8');
+  const signBlock = [
+    '    signingConfigs {',
+    '        release {',
+    "            storeFile file('android.keystore')",
+    "            storePassword '" + (process.env.TWA_KEYSTORE_PASS || '') + "'",
+    "            keyAlias '" + (process.env.TWA_KEY_ALIAS || 'waiyuan') + "'",
+    "            keyPassword '" + (process.env.TWA_KEY_PASS || '') + "'",
+    '        }',
+    '    }',
+  ].join('\n');
+  const oldBt = [
+    '    buildTypes {',
+    '        release {',
+    '            minifyEnabled true',
+    '        }',
+    '    }',
+  ].join('\n');
+  const newBt = [
+    signBlock + '\n' + oldBt.replace('            minifyEnabled true', "            minifyEnabled true\n            signingConfig signingConfigs.release"),
+  ].join('\n');
+  if (!bg.includes(oldBt)) throw new Error('buildTypes block not found in generated build.gradle');
+  fs.writeFileSync(bgPath, bg.replace(oldBt, newBt));
+  console.log('signing config injected');
   console.log('generated ->', outdir);
 })().catch(e => { console.error(e); process.exit(1); });
