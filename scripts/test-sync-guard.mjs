@@ -106,6 +106,30 @@ function makeVisitDb({ failVisitRate = false } = {}) {
   check('/api/visit 控制字符路径 -> 400', res.status === 400);
 }
 
+
+// 7) 同步数据损坏 -> 500（safeParseJson 兜底）
+{
+  const db = makeDb(sql => {
+    if (sql.includes('INTO rate')) return { count: 1 };
+    if (sql.includes('FROM sync_data')) return { payload: '{not-json', rev: 5, updated_at: 1750000000000 };
+    return null;
+  });
+  const res = await handleSyncDownload(new Request('https://api.free60127.top/api/sync/download?deviceId=' + 'a'.repeat(64)), { DB: db });
+  const body = await res.json();
+  check('同步数据损坏 -> 500', res.status === 500 && body.error.includes('损坏'));
+}
+
+// 8) /api/visit 请求体 > 256KB -> 413（统一 readJsonBody 限制）
+{
+  const db = makeVisitDb();
+  const big = JSON.stringify({ vid: 'd'.repeat(32), path: '/', pad: 'x'.repeat(300 * 1024) });
+  const res = await worker.fetch(new Request('https://api.free60127.top/api/visit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: big,
+  }), { DB: db });
+  check('/api/visit 请求体超 256KB -> 413', res.status === 413);
+}
 console.log('');
 console.log(pass + '/' + (pass + fail) + ' passed');
 process.exit(fail ? 1 : 0);

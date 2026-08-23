@@ -117,6 +117,22 @@ async function serveApk(request, env, path) {
   return new Response(data, { headers });
 }
 
+// 2026-08-23 复审：JSON 损坏兜底解析（KV/D1 中存的 JSON 损坏时不直接 500）
+const safeParseJson = (text, fallback = null) => {
+  if (text == null) return fallback;
+  try { return JSON.parse(text); } catch (_) { return fallback; }
+};
+// 2026-08-23 复审：非上传类接口统一请求体上限（反馈/公告/访问/活跃；同步上传另有 2.5MB 专用校验）
+const MAX_JSON_BODY = 256 * 1024;
+async function readJsonBody(request) {
+  const cl = Number(request.headers.get('content-length') || 0);
+  if (cl > MAX_JSON_BODY) throw new Error('payload too large');
+  let text;
+  try { text = await request.text(); } catch { return null; }
+  if (text.length > MAX_JSON_BODY) throw new Error('payload too large');
+  try { return JSON.parse(text); } catch { return null; }
+}
+
 async function route(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -138,7 +154,7 @@ async function route(request, env, ctx) {
       if (path === '/api/notice') {
         if (request.method === 'GET') {
           const raw = await env.STUDY_KV.get('notice');
-          return json(raw ? JSON.parse(raw) : { text: '', updatedAt: null });
+          return json(safeParseJson(raw, { text: '', updatedAt: null }));
         }
         if (request.method === 'POST') return requireAdmin(request, env, () => handleSetNotice(request, env));
         if (request.method === 'DELETE') return requireAdmin(request, env, () => handleDeleteNotice(env));
@@ -317,7 +333,8 @@ async function visitRateLimit(env, ip) {
 
 async function handleVisit(request, env) {
   let body;
-  try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400); }
+  try { body = await readJsonBody(request); } catch { return json({ error: '请求体过大（最大 256KB）' }, 413); }
+  if (!body) return json({ error: 'invalid json' }, 400);
   const vid = String(body.vid || '').trim();
   if (!/^[0-9a-f]{32}$/.test(vid)) return json({ error: 'vid must be 32 hex chars' }, 400);
   let path = String(body.path || '/');
@@ -344,7 +361,8 @@ const HEARTBEAT_MIN_INTERVAL_MS = 40000;  // 同一身份两次心跳最短间�
 
 async function handleActivity(request, env) {
   let body;
-  try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400); }
+  try { body = await readJsonBody(request); } catch { return json({ error: '请求体过大（最大 256KB）' }, 413); }
+  if (!body) return json({ error: 'invalid json' }, 400);
   const learned = Math.max(0, Math.min(Number(body.learned) || 0, 500));
   let key;
   const auth = request.headers.get('Authorization') || '';
@@ -419,7 +437,10 @@ async function handleRank(request, env) {
   if (!nocache) {
     const cached = await env.DB.prepare('SELECT payload, updated_at FROM rank_cache WHERE period = ?1 AND range = ?2').bind(period, range).first();
     if (cached && Date.now() - cached.updated_at < RANK_CACHE_TTL * 1000) {
-      return json({ ok: true, period, range, items: JSON.parse(cached.payload), cached: true });
+      const items = safeParseJson(cached.payload, null);
+      if (Array.isArray(items)) return json({ ok: true, period, range, items, cached: true });
+      // 2026-08-23 复审：缓存损坏时忽略缓存强制重扫（记录日志，不 500）
+      console.error('rank cache corrupted, rescan:', period, range);
     }
   }
   // 2026-08-22 迁 D1：GROUP BY 聚合替代 KV list 全量扫描（week = 最近 7 个自然日）
@@ -516,7 +537,8 @@ async function feedbackRateLimit(env, ip) {
 
 async function handleSetNotice(request, env) {
   let body;
-  try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400); }
+  try { body = await readJsonBody(request); } catch { return json({ error: '请求体过大（最大 256KB）' }, 413); }
+  if (!body) return json({ error: 'invalid json' }, 400);
   const text = String(body.text || '').trim().slice(0, 500);
   if (!text) return json({ error: 'text is required' }, 400);
   const record = { text, updatedAt: new Date().toISOString() };
@@ -537,7 +559,8 @@ async function handleFeedback(request, env) {
   if (fbRl.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
   if (!fbRl.ok) return json({ error: 'too many requests, try again later' }, 429);
   let body;
-  try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400); }
+  try { body = await readJsonBody(request); } catch { return json({ error: '请求体过大（最大 256KB）' }, 413); }
+  if (!body) return json({ error: 'invalid json' }, 400);
   const clean = str => String(str || '').trim().slice(0, 2000);
   const record = {
     page: clean(body.page),
@@ -606,7 +629,8 @@ async function handleFeedbackHandled(request, env) {
   if (handled !== '1' && handled !== '0') return json({ error: 'handled must be 1 or 0' }, 400);
   const raw = await env.STUDY_KV.get(key);
   if (!raw) return json({ error: 'not found' }, 404);
-  const record = JSON.parse(raw);
+  const record = safeParseJson(raw, null);
+  if (!record) return json({ error: 'feedback record corrupted' }, 500);
   record.handled = handled === '1';
   await env.STUDY_KV.put(key, JSON.stringify(record));
   return json({ ok: true, key, handled: record.handled });
@@ -720,7 +744,7 @@ async function handleSyncUpload(request, env) {
       if (!res || !res.meta || Number(res.meta.changes) < 1) {
         const cur = await env.DB.prepare('SELECT payload, rev, updated_at FROM sync_data WHERE user_id = ?').bind(key).first();
         const curRev = cur ? Number(cur.rev) || 0 : 0;
-        return json({ error: 'conflict', rev: curRev, payload: cur ? JSON.parse(cur.payload) : null, updatedAt: cur ? new Date(Number(cur.updated_at)).toISOString() : null }, 409);
+        return json({ error: 'conflict', rev: curRev, payload: cur ? safeParseJson(cur.payload, null) : null, updatedAt: cur ? new Date(Number(cur.updated_at)).toISOString() : null }, 409);
       }
     } catch (e) {
       console.error('sync upload cas error:', e);
@@ -748,7 +772,12 @@ async function handleSyncDownload(request, env) {
   }
   if (!row) return json({ error: 'not found' }, 404);
   // 旧记录 rev 视为 0（前端据此做首次合并）
-  return json({ ok: true, payload: JSON.parse(row.payload), updatedAt: new Date(Number(row.updated_at)).toISOString(), rev: Number(row.rev) || 0 });
+  const payload = safeParseJson(row.payload, null);
+  if (payload === null) {
+    console.error('sync data corrupted, key:', key);
+    return json({ error: '同步数据已损坏，请删除后重新备份' }, 500);
+  }
+  return json({ ok: true, payload, updatedAt: new Date(Number(row.updated_at)).toISOString(), rev: Number(row.rev) || 0 });
 }
 async function handleSyncDelete(request, env) {
   const identity = await resolveSyncIdentity(request, env);

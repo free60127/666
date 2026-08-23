@@ -149,10 +149,23 @@ async function recordLoginSuccess(db, email) {
   try { await db.prepare('DELETE FROM login_fails WHERE email = ?').bind(email).run(); } catch (_) {}
 }
 
+// 2026-08-23 复审：统一 JSON body 上限（认证请求体远小于 64KB，宽松覆盖恢复码密文 c<=8192）
+const MAX_AUTH_BODY = 64 * 1024;
+// 2026-08-23 复审：损坏 JSON 兜底解析（recovery_encrypted 异常时不崩接口，返回 null 视作未绑定）
+const safeParseJson = (text, fallback = null) => {
+  if (text == null) return fallback;
+  try { return JSON.parse(text); } catch (_) { return fallback; }
+};
+
 /* ---------- 认证处理（env.DB = D1） ---------- */
 async function handleAuth(request, env, path) {
   const db = env.DB;
   if (!db) return json({ error: 'database not configured' }, 500);
+  // 2026-08-23 复审：认证接口统一请求体预检（防超大 body 打满内存）
+  if (['POST', 'PATCH', 'PUT'].includes(request.method)) {
+    const cl = Number(request.headers.get('content-length') || 0);
+    if (cl > MAX_AUTH_BODY) return json({ error: '请求体过大（最大 64KB）' }, 413);
+  }
 
   if (path === '/api/auth/register' && request.method === 'POST') return register(db, env, request);
   if (path === '/api/auth/login' && request.method === 'POST') return login(db, env, request);
@@ -168,7 +181,14 @@ async function handleAuth(request, env, path) {
 }
 
 async function readJson(request) {
-  try { return await request.json(); } catch { return null; }
+  // 2026-08-23 复审：content-length 预检 + 实际字节数兜底（chunked 请求无 content-length）
+  // 读取失败/超限均返回 null，由调用方按 invalid json（400）拒绝
+  const cl = Number(request.headers.get('content-length') || 0);
+  if (cl > MAX_AUTH_BODY) return null;
+  let text;
+  try { text = await request.text(); } catch { return null; }
+  if (text.length > MAX_AUTH_BODY) return null;
+  try { return JSON.parse(text); } catch { return null; }
 }
 
 async function register(db, env, request) {
@@ -234,7 +254,7 @@ async function login(db, env, request) {
   return json({
     ok: true, token,
     user: { id: user.id, email: user.email, nickname: user.nickname || '' },
-    recovery: user.recovery_encrypted ? JSON.parse(user.recovery_encrypted) : null,
+    recovery: user.recovery_encrypted ? safeParseJson(user.recovery_encrypted, null) : null,
   });
 }
 
@@ -255,7 +275,7 @@ async function me(db, request) {
   return json({
     ok: true,
     user: { id: row.id, email: row.email, nickname: row.nickname || '' },
-    recovery: row.recovery_encrypted ? JSON.parse(row.recovery_encrypted) : null,
+    recovery: row.recovery_encrypted ? safeParseJson(row.recovery_encrypted, null) : null,
   });
 }
 

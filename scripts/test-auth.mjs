@@ -429,4 +429,25 @@ console.log('7) 找回密码（forgot / reset-password / admin-reset-code）');
 }
 
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
-process.exit(failed ? 1 : 0);
+
+/* ---------- 组 8：复审整改（2026-08-23）---------- */
+{
+  // 认证请求体 > 64KB -> 413（handleAuth 入口 content-length 预检）
+  const bigBody = JSON.stringify({ email: 'big@test.com', password: 'secret123' });
+  const bigReq = new Request('https://api.free60127.top/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': String(100 * 1024) },
+    body: bigBody,
+  });
+  const bigRes = await handleAuth(bigReq, { DB: sharedDb }, '/api/auth/register');
+  check('认证请求体超 64KB -> 413', bigRes.status === 413);
+}
+{
+  // recovery_encrypted 损坏 -> login 200 且 recovery null（不 500）
+  const corrupt = [...sharedDb.users.values()].find(u => u.email === 'a@b.com');
+  const savedRec = corrupt.recovery_encrypted;
+  corrupt.recovery_encrypted = '{not-json';
+  const r = await api('/api/auth/login', { method: 'POST', body: { email: 'a@b.com', password: 'secret123' } });
+  check('损坏恢复码 -> 登录 200 且 recovery null', r.status === 200 && r.data.recovery === null, JSON.stringify(r.data));
+  corrupt.recovery_encrypted = savedRec;
+}process.exit(failed ? 1 : 0);

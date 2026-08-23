@@ -23,4 +23,6 @@ module.exports = defineConfig({
     reuseExistingServer: !process.env.CI, // 2026-08-23 审查：本地已有 server 时复用；CI 由 playwright 自管生命周期结束自动杀
     timeout: 15000,
   },
+  // 2026-08-23 复审：测试结束后幂等清除 8788 残留 test-server（防外部复用场景进程不退出）
+  globalTeardown: './teardown-server.cjs',
 });
