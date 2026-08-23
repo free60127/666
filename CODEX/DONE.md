@@ -37,4 +37,5 @@
 
 ## 未解决 / 后续
 - R2 真实 bucket 未创建（CF 账号需 Dashboard 启用 R2，API 10042）：代码已安全回退并写明启用步骤（wrangler.jsonc 注释 + README 节）。
-- 未部署/未发布本轮改动（按循环约定等 Codex 检查指示；本地 commit 已推进）。
+- 未部署/未发布本轮改动（按循环约定等 Codex 检查指示；本地 commit 1642bed 已推进）。
+- 自动通知 Codex 尝试失败：codex exec resume --last 报 "thread-store conflict: thread 01a02181-a814-7af1-83a4-7c1471f6d5f2 already has an active writer"——Codex 桌面会话正处于活跃写入状态，锁被占用。需 Codex 会话空闲后重试 node scripts/notify-codex.cjs，或由用户/Codex 直接下达第 2 轮指令。
