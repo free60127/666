@@ -182,7 +182,7 @@
     if (!cloud()) { setStatus('云端模块未加载，请刷新页面重试。', 'error'); return; }
     try {
       const authed = cloud().isAuthed ? cloud().isAuthed() : false;
-      if (authed && insuranceBroken) {
+      if (authed && window.WaiyuanAuthUI && window.WaiyuanAuthUI.isInsuranceBroken()) {
         setStatus('账号恢复码保险箱异常，已暂停备份。请先点「导出学习数据」保存本机数据，再联系管理员。', 'error');
         return;
       }
@@ -283,243 +283,7 @@
     try { await cloud().removeAccount(); setStatus('账号云端备份已删除。', 'success'); }
     catch (error) { setStatus('清除失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error'); }
   };
-  /* ---------- 账号登录（2026-08-21，D1）：登录态 + 恢复码保险箱 ---------- */
   const auth = () => window.WaiyuanAuth;
-  let authMode = 'login';
-  let insuranceBroken = false;  // 账号恢复码保险箱解密失败（防覆盖云端数据）
-  const showAuthPanel = show => { const p = document.getElementById('auth-panel'); if (p) p.hidden = !show; };
-  /* ---------- 账号管理 UI（2026-08-22）：忘记密码 / 修改密码 / 注销 ---------- */
-  const showAuthView = view => {
-    const ids = { login: 'auth-login-view', forgot: 'auth-forgot-view', reset: 'auth-reset-view', manage: 'auth-manage-view' };
-    Object.keys(ids).forEach(key => {
-      const el = document.getElementById(ids[key]);
-      if (el) el.hidden = key !== view;
-    });
-  };
-  const doAuthForgotSend = async () => {
-    if (!auth()) { setStatus('账号模块未加载，请刷新页面重试。', 'error'); return; }
-    const email = (document.getElementById('auth-forgot-email')?.value || '').trim();
-    if (!email) { setStatus('请输入注册邮箱。', 'error'); return; }
-    const btn = document.getElementById('auth-forgot-send-btn');
-    if (btn) { btn.disabled = true; btn.textContent = '发送中…'; }
-    try {
-      await auth().forgot(email);
-      setStatus('验证码已发送（若该邮箱已注册）。请查收邮件。', 'success');
-      const resetEmail = document.getElementById('auth-reset-email');
-      if (resetEmail) resetEmail.value = email;
-      showAuthView('reset');
-      document.getElementById('auth-reset-code')?.focus();
-    } catch (error) {
-      setStatus('发送失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '发送验证码'; }
-    }
-  };
-  const doAuthResetSubmit = async () => {
-    if (!auth()) { setStatus('账号模块未加载，请刷新页面重试。', 'error'); return; }
-    const email = (document.getElementById('auth-reset-email')?.value || '').trim();
-    const code = (document.getElementById('auth-reset-code')?.value || '').trim();
-    const newPassword = document.getElementById('auth-reset-password')?.value || '';
-    const recoveryInput = (document.getElementById('auth-reset-recovery')?.value || '').trim();
-    if (!email || !code || !newPassword) { setStatus('请填写邮箱、验证码和新密码。', 'error'); return; }
-    if (newPassword.length < 8) { setStatus('新密码至少 8 位。', 'error'); return; }
-    let recovery;
-    if (recoveryInput) {
-      try { recovery = await auth().lockRecovery(newPassword, recoveryInput); }
-      catch (_) { setStatus('恢复码格式无效（可留空跳过，但云端数据将需原恢复码解锁）。', 'error'); return; }
-    }
-    const btn = document.getElementById('auth-reset-submit-btn');
-    if (btn) btn.disabled = true;
-    try {
-      const result = await auth().resetPassword({ email, code, newPassword, recovery });
-      if (result && result.recoveryReset) {
-        setStatus('密码已重置。注意：云端数据需原恢复码才能解锁——请用原恢复码做云端恢复，或联系管理员。', 'success');
-      } else {
-        setStatus('密码已重置，请用新密码登录。', 'success');
-      }
-      if (recoveryInput && window.WaiyuanCloudSync && window.WaiyuanCloudSync.saveCode) window.WaiyuanCloudSync.saveCode(recoveryInput);
-      showAuthView('login');
-      ['auth-reset-email', 'auth-reset-code', 'auth-reset-password', 'auth-reset-recovery'].forEach(id => { const n = document.getElementById(id); if (n) n.value = ''; });
-    } catch (error) {
-      setStatus('重置失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
-    } finally {
-      if (btn) btn.disabled = false;
-    }
-  };
-  const doAuthChangePassword = async () => {
-    if (!auth()) { setStatus('账号模块未加载，请刷新页面重试。', 'error'); return; }
-    const session = auth().getSession ? auth().getSession() : null;
-    if (!session || !session.token) { setStatus('请先登录。', 'error'); return; }
-    const oldPassword = document.getElementById('auth-old-password')?.value || '';
-    const newPassword = document.getElementById('auth-new-password')?.value || '';
-    if (!oldPassword || !newPassword) { setStatus('请输入当前密码和新密码。', 'error'); return; }
-    if (newPassword.length < 8) { setStatus('新密码至少 8 位。', 'error'); return; }
-    const btn = document.getElementById('auth-change-submit-btn');
-    if (btn) btn.disabled = true;
-    try {
-      let recovery;
-      const meData = await auth().me(session.token);
-      if (meData && meData.recovery) {
-        try {
-          const code = await auth().unlockRecovery(oldPassword, meData.recovery);
-          recovery = await auth().lockRecovery(newPassword, code);
-        } catch (_) {
-          setStatus('恢复码保险箱解锁失败：请确认当前密码正确，或先在旧设备导出数据。', 'error');
-          return;
-        }
-      }
-      await auth().changePassword(session.token, { oldPassword, newPassword, recovery });
-      setStatus('密码已修改，其他设备已退出登录。', 'success');
-      ['auth-old-password', 'auth-new-password'].forEach(id => { const n = document.getElementById(id); if (n) n.value = ''; });
-      showAuthPanel(false);
-    } catch (error) {
-      setStatus('修改失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
-    } finally {
-      if (btn) btn.disabled = false;
-    }
-  };
-  const doAuthDeleteAccount = async () => {
-    if (!auth()) { setStatus('账号模块未加载，请刷新页面重试。', 'error'); return; }
-    const session = auth().getSession ? auth().getSession() : null;
-    if (!session || !session.token) { setStatus('请先登录。', 'error'); return; }
-    const password = document.getElementById('auth-delete-password')?.value || '';
-    if (!password) { setStatus('请输入密码确认注销。', 'error'); return; }
-    if (!window.confirm('确定注销账号吗？账号、云端备份与学习记录将全部删除，且无法恢复！')) return;
-    const btn = document.getElementById('auth-delete-submit-btn');
-    if (btn) btn.disabled = true;
-    try {
-      const result = await auth().deleteAccount(session.token, { password });
-      if (auth()) auth().clearSession();
-      if (window.WaiyuanCloudSync) {
-        if (window.WaiyuanCloudSync.clearAuth) window.WaiyuanCloudSync.clearAuth();
-        if (window.WaiyuanCloudSync.clearCode) window.WaiyuanCloudSync.clearCode();
-      }
-      refreshAuthBar();
-      setStatus(result && result.cleanupPending
-        ? '账号已注销，云端备份删除任务已排队重试。本机学习数据保留，但本机恢复码已清除。'
-        : '账号已注销。本机学习数据保留，但本机恢复码已清除。感谢使用！', 'success');
-      showAuthPanel(false);
-    } catch (error) {
-      setStatus('注销失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
-    } finally {
-      if (btn) btn.disabled = false;
-    }
-  };
-  const setAuthMode = mode => {
-    authMode = mode;
-    document.querySelectorAll('[data-auth-tab]').forEach(t => t.classList.toggle('active', t.dataset.authTab === mode));
-    const nickname = document.getElementById('auth-nickname-input');
-    if (nickname) nickname.hidden = mode !== 'register';
-    const submit = document.getElementById('auth-submit-btn');
-    if (submit) submit.textContent = mode === 'register' ? '注册' : '登录';
-    showAuthView('login');
-  };
-  const refreshAuthBar = () => {
-    const session = auth() && auth().getSession ? auth().getSession() : null;
-    const openBtn = document.getElementById('auth-open-btn');
-    const email = document.getElementById('auth-email');
-    const logoutBtn = document.getElementById('auth-logout-btn');
-    if (!openBtn || !email || !logoutBtn) return;
-    if (session && session.user) {
-      openBtn.hidden = true;
-      email.hidden = false;
-      email.textContent = '👤 ' + (session.user.nickname || session.user.email);
-      logoutBtn.hidden = false;
-      showAuthPanel(false);
-    } else {
-      openBtn.hidden = false;
-      email.hidden = true;
-      logoutBtn.hidden = true;
-    }
-  };
-  const doAuthSubmit = async () => {
-    if (!auth()) { setStatus('账号模块未加载，请刷新页面重试。', 'error'); return; }
-    const email = (document.getElementById('auth-email-input')?.value || '').trim();
-    const password = document.getElementById('auth-password-input')?.value || '';
-    const nickname = (document.getElementById('auth-nickname-input')?.value || '').trim();
-    if (!email || !password) { setStatus('请输入邮箱和密码。', 'error'); return; }
-    const submit = document.getElementById('auth-submit-btn');
-    if (submit) submit.disabled = true;
-    try {
-      let migratedNote = '';
-      if (authMode === 'register') {
-        let code = window.WaiyuanCloudSync && window.WaiyuanCloudSync.loadCode ? window.WaiyuanCloudSync.loadCode() : '';
-        if (!code && window.WaiyuanCloudSync && window.WaiyuanCloudSync.createCode) {
-          code = window.WaiyuanCloudSync.createCode();
-          window.WaiyuanCloudSync.saveCode(code);
-        }
-        const recovery = code ? await auth().lockRecovery(password, code) : null;
-        const result = await auth().register({ email, password, nickname: nickname || undefined, recovery });
-        auth().saveSession(result);
-        if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.setAuth) window.WaiyuanCloudSync.setAuth(result.token, result.user.id);
-        migratedNote = await tryMigrate(code);  // 注册前若有匿名备份则搬入账号
-        setStatus('注册成功，已登录。' + (recovery ? '本机恢复码已加密保存到账号，换设备登录即可解锁。' : '建议先做一次云端备份以生成恢复码。') + migratedNote, 'success');
-        showAuthPanel(false);
-        refreshCloudCodeBox();
-      } else {
-        const result = await auth().login({ email, password });
-        auth().saveSession(result);
-        if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.setAuth) window.WaiyuanCloudSync.setAuth(result.token, result.user.id);
-        let unlocked = false, broken = false;
-        let localCode = window.WaiyuanCloudSync && window.WaiyuanCloudSync.loadCode ? window.WaiyuanCloudSync.loadCode() : '';
-        if (result.recovery) {
-          try {
-            const code = await auth().unlockRecovery(password, result.recovery);
-            if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.saveCode) window.WaiyuanCloudSync.saveCode(code);
-            localCode = code;
-            refreshCloudCodeBox();
-            unlocked = true;
-            migratedNote = await tryMigrate(code);
-          } catch (_) {
-            broken = true;  // 密码已通过服务端验证，解不开 = 保险箱数据异常，与「未绑定」严格区分
-          }
-        } else {
-          // 账号从未绑定保险箱：用登录密码把本机恢复码（没有则新生成）绑定到账号
-          if (!localCode && window.WaiyuanCloudSync && window.WaiyuanCloudSync.createCode) {
-            localCode = window.WaiyuanCloudSync.createCode();
-            window.WaiyuanCloudSync.saveCode(localCode);
-          }
-          if (localCode) {
-            try {
-              const box = await auth().lockRecovery(password, localCode);
-              await auth().setRecovery(result.token, box);
-              refreshCloudCodeBox();
-            } catch (_) { /* 绑定失败不阻断登录；备份时若账号云端无数据仍可继续 */ }
-          }
-        }
-        insuranceBroken = broken;
-        if (broken) {
-          setStatus('登录成功，但账号恢复码保险箱异常（解密失败）。为防覆盖云端数据已暂停自动备份：请先点「导出学习数据」保存本机数据，并联系管理员检查账号。', 'error');
-        } else {
-          setStatus('登录成功。' + (unlocked ? '云端恢复码已解锁，可点「云端恢复」取回学习数据。' : '该账号尚未绑定恢复码，可用原恢复码手动恢复或做一次云端备份。') + migratedNote, 'success');
-        }
-        showAuthPanel(false);
-      }
-      refreshAuthBar();
-      ['auth-email-input', 'auth-password-input', 'auth-nickname-input'].forEach(id => { const n = document.getElementById(id); if (n) n.value = ''; });
-    } catch (error) {
-      setStatus('操作失败：' + (error && error.message ? error.message : '网络错误') + '。', 'error');
-    } finally {
-      if (submit) submit.disabled = false;
-    }
-  };
-  const doAuthLogout = async () => {
-    const session = auth() && auth().getSession ? auth().getSession() : null;
-    try { if (session && auth()) await auth().logout(session.token); } catch (_) {}
-    if (auth()) auth().clearSession();
-    if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.clearAuth) window.WaiyuanCloudSync.clearAuth();
-    refreshAuthBar();
-    setStatus('已退出登录。', 'success');
-  };
-  /** 登录/注册后：把旧匿名恢复码数据迁移到账号（无数据/账号已有数据则跳过，静默） */
-  const tryMigrate = async code => {
-    try {
-      const cloudSync = window.WaiyuanCloudSync;
-      if (!cloudSync || !cloudSync.migrateAnonymous) return '';
-      const result = await cloudSync.migrateAnonymous(code || cloudSync.loadCode());
-      return result && result.status === 'migrated' ? '原恢复码数据已自动迁移到账号。' : '';
-    } catch (_) { return ''; }
-  };
 
   const sourceName = item => clean(item.page).replace(/s*[·|-]s*外院知识分享站.*$/i, '') || '网页题库';
   const sourceUrl = item => {
@@ -671,33 +435,6 @@ ${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title
     if (action === 'cloud-restore-go') doCloudRestore(document.getElementById('cloud-code-input')?.value);
     if (action === 'cloud-clear') doCloudClear();
     if (action === 'copy-code') copyCloudCode();
-    if (action === 'auth-open') {
-      showAuthPanel(true);
-      const session = auth() && auth().getSession ? auth().getSession() : null;
-      if (session && session.token) {
-        showAuthView('manage');
-        document.getElementById('auth-old-password')?.focus();
-      } else {
-        setAuthMode('login');
-        showAuthView('login');
-        document.getElementById('auth-email-input')?.focus();
-      }
-    }
-    if (action === 'auth-logout') doAuthLogout();
-    if (action === 'auth-submit') doAuthSubmit();
-    if (action === 'auth-forgot') { showAuthPanel(true); showAuthView('forgot'); document.getElementById('auth-forgot-email')?.focus(); }
-    if (action === 'auth-forgot-send') doAuthForgotSend();
-    if (action === 'auth-forgot-back') { setAuthMode('login'); showAuthView('login'); }
-    if (action === 'auth-reset-submit') doAuthResetSubmit();
-    if (action === 'auth-change-submit') doAuthChangePassword();
-    if (action === 'auth-delete-open') {
-      const delBtn = document.getElementById('auth-delete-submit-btn');
-      if (delBtn) delBtn.hidden = false;
-      document.getElementById('auth-delete-password')?.focus();
-    }
-    if (action === 'auth-delete-submit') doAuthDeleteAccount();
-    const authTab = event.target.closest('[data-auth-tab]');
-    if (authTab) setAuthMode(authTab.dataset.authTab);
     if (action === 'set-goal') {
       const state = read();
       const value = parseInt(document.getElementById('daily-goal-input')?.value, 10);
@@ -732,8 +469,15 @@ ${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title
   window.addEventListener('pageshow', render);
   window.addEventListener('storage', render);
   refreshCloudCodeBox();
-  refreshAuthBar();
-  setAuthMode('login');
+  if (window.WaiyuanAuthUI) {
+    window.WaiyuanAuthUI.init({
+      hint: (m, isErr) => setStatus(m, isErr ? 'error' : 'success'),
+      panelMode: 'attribute',
+      onCloudCodeRefresh: refreshCloudCodeBox,
+      migrateNote: '原恢复码数据已自动迁移到账号。',
+    });
+    window.WaiyuanAuthUI.bindActions();
+  }
   render();
 
   // 页面刷新后恢复账号模式（cloud-sync 的 identity 只在内存，必须从会话重建），
@@ -750,7 +494,7 @@ ${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title
       } catch (_) {
         if (auth()) auth().clearSession();
         if (window.WaiyuanCloudSync && window.WaiyuanCloudSync.clearAuth) window.WaiyuanCloudSync.clearAuth();
-        refreshAuthBar();
+        if (window.WaiyuanAuthUI) window.WaiyuanAuthUI.refreshAuthBar();
       }
     } catch (_) {}
   })();
