@@ -29,6 +29,8 @@ jobs:
       TWA_KEY_PASS: ${{ secrets.APK_KEY_PASS }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # versionCode 需要全量提交数（浅克隆=1 会小于旧版导致无法覆盖安装）
 
       - uses: actions/setup-java@v4
         with:
