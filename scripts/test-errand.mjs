@@ -2,6 +2,7 @@
    用法：node scripts/test-errand.mjs */
 import { handleAuth } from '../workers/src/auth.js';
 import { handleErrand } from '../workers/src/errand.js';
+import { deleteR2Objects, recordPendingR2, pendingR2Keys, retryPendingR2 } from '../workers/src/evidence-store.js';
 
 let passed = 0, failed = 0;
 const check = (name, cond, extra) => {
@@ -22,6 +23,7 @@ class MemoryD1 {
     this.failRates = false;   // 模拟限流存储故障
     this.enforceUniqueDispute = false; // 模拟唯一部分索引
     this.failEvidenceInsert = false; // 模拟证据 D1 元数据写入故障（R2 闭环测试）
+    this.failEvidenceKeys = false;   // 模拟证据 R2 键查询（JOIN）故障（第 2 轮 fail-closed 测试）
   }
   prepare(sql) {
     const db = this;
@@ -163,6 +165,7 @@ class MemoryD1 {
     // 证据 R2 键查询（evidence-store 的 JOIN 查询）——必须放在 FROM errand_tasks 分支之前，
     // 否则 evidenceKeysForUser 的 SQL 会因包含 JOIN errand_tasks t 被误判为任务查询
     if (s.includes('FROM errand_evidence e') && s.includes('JOIN errand_disputes d')) {
+      if (this.failEvidenceKeys) throw new Error('evidence keys down (fake)');
       const urls = [];
       if (s.includes('d.task_id = ?')) {
         const taskId = Number(args[0]);
@@ -358,7 +361,15 @@ class MemoryD1 {
 
 /* ---------- 请求封装 ---------- */
 const db = new MemoryD1();
-const env = { DB: db, STUDY_KV: { delete: async () => undefined }, ADMIN_TOKEN: 'admin-token', SMTP_TEST_MODE: true, SMTP_SENT: [] };
+const kvStore = new Map();
+const studyKv = {
+  failGet: false,      // 模拟 KV 读取故障（pending 状态未知）
+  failDeleteKv: false, // 模拟 KV 清空失败（不能谎报 pending=0）
+  async get(k) { if (this.failGet) throw new Error('fake KV get down'); return kvStore.has(k) ? kvStore.get(k) : null; },
+  async put(k, v) { kvStore.set(k, v); },
+  async delete(k) { if (this.failDeleteKv) throw new Error('fake KV delete down'); kvStore.delete(k); },
+};
+const env = { DB: db, STUDY_KV: studyKv, ADMIN_TOKEN: 'admin-token', SMTP_TEST_MODE: true, SMTP_SENT: [] };
 
 /* fake R2（2026-08-23 审查第 6 项闭环）：不依赖真实 bucket 的本地测试替身 */
 const fakeR2 = {
@@ -372,7 +383,8 @@ const fakeR2 = {
     if (this.failPut || (this.failAtPut && this.puts >= this.failAtPut)) throw new Error('fake R2 put down');
     this.store.set(key, value);
   },
-  async delete(key) { this.deletes++; this.store.delete(key); },
+  failDelete: false, // 第 2 轮：模拟 R2 对象删除失败（pending 重试测试）
+  async delete(key) { this.deletes++; if (this.failDelete) throw new Error('fake R2 delete down'); this.store.delete(key); },
   async get(key) { const v = this.store.get(key); return v === undefined ? null : { body: v }; },
 };
 async function api(path, { method = 'GET', token, body } = {}) {
@@ -767,5 +779,80 @@ const tByte = await api('/api/errand/disputes', { method: 'POST', token: tokenA,
 check('申诉体按 UTF-8 字节限制 413（中文 40 万字符）', tByte.status === 413 && (await data(tByte)).error.includes('请求体过大'), String(tByte.status));
 env.EVIDENCE_BUCKET = undefined;
 
+/* ---------- 23) R2 fail-closed + 删除失败可重试（2026-08-23 审查第 2 轮第 3 项） ---------- */
+console.log('23) R2 fail-closed + pending 重试');
+// 证据键查询失败：管理删除必须 503，且任务仍保留（否则 D1 行删除后 R2 对象成孤儿）
+resetR2();
+db.failEvidenceKeys = true;
+env.EVIDENCE_BUCKET = fakeR2;
+const tFC = await mkTask();
+await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: tFC, reason: 'failclosed', evidence: [pngA] } });
+const delFC = await api('/api/errand/admin/tasks/' + tFC, { method: 'DELETE', token: 'admin-token' });
+check('证据键查询失败→管理删除 503（fail-closed）', delFC.status === 503 && db.tasks.has(tFC), String(delFC.status));
+db.failEvidenceKeys = false;
+
+// R2 删除失败：对象保留但键记入 KV pending；恢复后 retryPendingR2 清理成功
+resetR2();
+kvStore.clear();
+env.EVIDENCE_BUCKET = fakeR2;
+fakeR2.store.set('evidence/1-test.bin', new Uint8Array([1]));
+fakeR2.failDelete = true;
+const delFail = await deleteR2Objects(env, ['evidence/1-test.bin']);
+check('R2 删除失败返回 failedKeys', delFail.failed === 1 && delFail.failedKeys[0] === 'evidence/1-test.bin');
+check('失败的键已记入 KV pending', (await pendingR2Keys(env)).includes('evidence/1-test.bin'));
+fakeR2.failDelete = false;
+const retry1 = await retryPendingR2(env);
+check('重试成功后对象清除且 pending 清空', retry1.deleted === 1 && retry1.pending === 0 && fakeR2.store.size === 0 && (await pendingR2Keys(env)).length === 0, 'deleted=' + retry1.deleted + ' pending=' + retry1.pending);
+
+// recordPendingR2 幂等合并
+await recordPendingR2(env, ['a', 'b']);
+await recordPendingR2(env, ['b', 'c']);
+const pend = await pendingR2Keys(env);
+check('pending 合并去重（a,b,c）', pend.length === 3 && pend.includes('a') && pend.includes('c') && pend.filter(x => x === 'b').length === 1, JSON.stringify(pend));
+kvStore.clear();
+
+// 管理删除时 R2 删除失败：主删除成功、对象保留但进入 pending（安全失败 + 可重试记录）
+resetR2();
+fakeR2.failDelete = false;
+env.EVIDENCE_BUCKET = fakeR2;
+const tPF = await mkTask();
+await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: tPF, reason: 'pending删除', evidence: [pngA] } });
+fakeR2.failDelete = true;
+const delPF = await api('/api/errand/admin/tasks/' + tPF, { method: 'DELETE', token: 'admin-token' });
+check('管理删除遇 R2 删除失败仍 200（对象进 pending 重试）', delPF.status === 200 && fakeR2.store.size === 1 && (await pendingR2Keys(env)).length >= 1, String(delPF.status) + ' store=' + fakeR2.store.size);
+fakeR2.failDelete = false;
+env.EVIDENCE_BUCKET = undefined;
+
+
+// KV pending 读取失败 = 状态未知：跳过重试、保留对象与 KV 原值（不当作无 pending）
+env.EVIDENCE_BUCKET = fakeR2;
+fakeR2.store.clear();
+kvStore.clear();
+kvStore.set('r2:pending-cleanup', JSON.stringify(['evidence/x.bin']));
+fakeR2.store.set('evidence/x.bin', new Uint8Array([1]));
+studyKv.failGet = true;
+const retrNull = await retryPendingR2(env);
+check('pending 读取失败→跳过重试且对象与 KV 原值保留', retrNull.error === 'pending-read-failed' && retrNull.pending === -1 && fakeR2.store.size === 1 && kvStore.has('r2:pending-cleanup'), JSON.stringify(retrNull));
+studyKv.failGet = false;
+
+// 删除成功后 KV 清空失败：不得谎报 pending=0
+env.EVIDENCE_BUCKET = fakeR2;
+fakeR2.store.clear();
+kvStore.clear();
+kvStore.set('r2:pending-cleanup', JSON.stringify(['evidence/y.bin']));
+fakeR2.store.set('evidence/y.bin', new Uint8Array([1]));
+studyKv.failDeleteKv = true;
+const retrClear = await retryPendingR2(env);
+check('KV 清空失败时 pending=键数（不谎报 0）', retrClear.pending === 1 && retrClear.deleted === 1 && fakeR2.store.size === 0 && kvStore.has('r2:pending-cleanup'), JSON.stringify(retrClear));
+studyKv.failDeleteKv = false;
+
+// pending 存量损坏：record 不能覆盖旧值
+kvStore.clear();
+kvStore.set('r2:pending-cleanup', '{broken json');
+const recCorrupt = await recordPendingR2(env, ['new-key']);
+check('pending 存量损坏时 record 失败且保留原值', recCorrupt === false && kvStore.get('r2:pending-cleanup') === '{broken json');
+kvStore.clear();
+fakeR2.store.clear();
+fakeR2.failDelete = false;
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
 process.exit(failed ? 1 : 0);

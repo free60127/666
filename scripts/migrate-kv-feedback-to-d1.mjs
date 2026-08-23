@@ -11,8 +11,10 @@
 //   4. node scripts/migrate-kv-feedback-to-d1.mjs --delete-after
 //        → 自动先执行 --verify，核对通过后才删除 KV 键；任一删除失败 → exit 1（保留剩余键）
 // 失败保护：任何一步失败（网络/权限/核对不通过）都不会删除任何 KV 键。
+// 2026-08-23 审查第 2 轮第 5 项加固：阶段 1 里 KV 读取（非 2xx/网络异常）或记录无法解析
+// 一律让迁移失败（exit 1），并先清理旧的 _tmp-feedback-migrate.sql，杜绝「半成品 SQL 被误用」。
 //
-import { writeFileSync, readFileSync } from "node:fs";
+import { writeFileSync, readFileSync, unlinkSync } from "node:fs";
 
 const TOKEN = process.env.CF_API_TOKEN;
 const ACCOUNT = process.env.CF_ACCOUNT_ID;
@@ -48,8 +50,21 @@ async function kvListAll() {
 }
 
 async function kvGet(name) {
-  const res = await fetch(BASE + "/accounts/" + ACCOUNT + "/storage/kv/namespaces/" + NS + "/values/" + encodeURIComponent(name), { headers: H });
-  if (!res.ok) { console.error("KV get 失败", name, res.status); return null; }
+  // 2026-08-23 审查第 2 轮第 5 项：KV 读取失败（非 2xx / 网络异常）必须让阶段 1 失败，
+  // 绝不静默跳过并生成不完整 SQL——否则阶段 2 的 --verify 会因数量不匹配而阻塞，
+  // 但更危险的是用户误以为阶段 1 完成而直接执行导入。
+  let res;
+  try {
+    res = await fetch(BASE + "/accounts/" + ACCOUNT + "/storage/kv/namespaces/" + NS + "/values/" + encodeURIComponent(name), { headers: H });
+  } catch (e) {
+    console.error("KV get 网络失败", name, e);
+    process.exit(1);
+  }
+  if (!res.ok) {
+    const bodyText = await res.text().catch(() => "");
+    console.error("KV get 失败", name, res.status, bodyText);
+    process.exit(1);
+  }
   return await res.text();
 }
 
@@ -91,18 +106,28 @@ if (DO_VERIFY || DO_DELETE) {
 
 if (!DO_DELETE) {
   // 阶段 1：只读 KV 生成 SQL（不删除）
+  // 先清掉上一次可能残留的临时 SQL，避免旧半成品被误当作本次产物（2026-08-23 审查第 2 轮第 5 项）
+  try { unlinkSync("scripts/_tmp-feedback-migrate.sql"); } catch (_) {}
   const esc = s => String(s == null ? "" : s).replace(/'/g, "''");
   const lines = [];
   let migrated = 0;
+  const bad = [];
   for (const name of names) {
     const raw = await kvGet(name);
-    if (!raw) continue;
+    if (!raw) { bad.push(name + "(空)"); continue; }
     let rec;
-    try { rec = JSON.parse(raw); } catch { console.warn("跳过损坏记录:", name); continue; }
+    try { rec = JSON.parse(raw); } catch (_) { bad.push(name); continue; }
     const ts = Date.parse(rec.ts) || Date.now();
     lines.push("INSERT OR IGNORE INTO feedbacks (id, page, question, answer, type, note, contact, ts, handled, created_at) VALUES (" +
       "'" + esc(name) + "', '" + esc(rec.page) + "', '" + esc(rec.question) + "', '" + esc(rec.answer) + "', '" + esc(rec.type) + "', '" + esc(rec.note) + "', '" + esc(rec.contact) + "', " + ts + ", " + (rec.handled ? 1 : 0) + ", " + ts + ");");
     migrated++;
+  }
+  // 任何无法读取/解析的记录都让阶段 1 失败：绝不生成「看似完整其实缺行」的 SQL（2026-08-23 审查第 2 轮第 5 项）
+  if (bad.length) {
+    console.error("阶段 1 终止：有 " + bad.length + " 条记录无法读取或解析，未生成 SQL（已清掉旧临时产物）：");
+    for (const b of bad.slice(0, 20)) console.error("  - " + b);
+    if (bad.length > 20) console.error("  … 还有 " + (bad.length - 20) + " 条");
+    process.exit(1);
   }
   const file = "scripts/_tmp-feedback-migrate.sql";
   writeFileSync(file, lines.join(String.fromCharCode(10)) + String.fromCharCode(10));

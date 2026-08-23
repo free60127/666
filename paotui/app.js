@@ -110,6 +110,29 @@
     return res.blob();
   }
 
+  /* 证据图片 objectURL 生命周期（2026-08-23 审查第 2 轮第 4 项）：
+     登记创建的所有 objectURL；容器被重新渲染/更新时 revoke 其中不再使用的 URL；
+     页面卸载（pagehide/beforeunload）统一 revoke，避免 WebView/Safari 内存泄漏。
+     仅隐藏（wrap.hidden=true）不撤销——图片仍会再次显示。 */
+  const liveObjectUrls = new Set();
+  function registerObjectUrl(u) { if (u) liveObjectUrls.add(u); }
+  function revokeContainerUrls(container) {
+    if (!container) return;
+    container.querySelectorAll('img[data-obj-url]').forEach(img => {
+      const u = img.getAttribute('data-obj-url');
+      if (u && liveObjectUrls.has(u)) {
+        try { URL.revokeObjectURL(u); } catch (_) {}
+        liveObjectUrls.delete(u);
+      }
+    });
+  }
+  function revokeAllObjectUrls() {
+    for (const u of liveObjectUrls) { try { URL.revokeObjectURL(u); } catch (_) {} }
+    liveObjectUrls.clear();
+  }
+  window.addEventListener('pagehide', revokeAllObjectUrls);
+  window.addEventListener('beforeunload', revokeAllObjectUrls);
+
   /* ---------- 列表渲染 ---------- */
   function taskParams() {
     if (tab === 'open' || tab === 'doing' || tab === 'done') return 'status=' + tab;
@@ -169,6 +192,7 @@
   /* ---------- 详情 ---------- */
   async function openDetail(id) {
     const seq = ++detailSeq;
+    revokeAllObjectUrls(); // 详情整体重渲染：旧证据 objectURL 全部销毁（2026-08-23 审查第 2 轮第 4 项）
     const bodyEl = $('detail-body');
     bodyEl.innerHTML = '<div class="loading">加载中…</div>';
     openModal('detail-modal');
@@ -383,7 +407,8 @@
       const data = await api('/api/errand/disputes?taskId=' + taskId);
       if (seq !== detailSeq) return; // 详情已切换，丢弃过期响应
       const list = data.disputes || [];
-      if (!list.length) return;
+      revokeContainerUrls(box); // 整块重渲染前撤销旧证据 objectURL
+      if (!list.length) { box.innerHTML = ''; return; }
       const stMap = { open: ['待处理', 'st-open'], resolved: ['已解决', 'st-done'], rejected: ['已驳回', 'st-cancelled'] };
       box.innerHTML = '<div class="review-head">⚠️ 申诉（' + list.length + '）</div>' +
         list.map(d => {
@@ -402,6 +427,7 @@
           const wrap = box.querySelector('.di-evidence[data-for="' + btn.dataset.dpEvidence + '"]');
           if (!wrap) return;
           if (!wrap.hidden) { wrap.hidden = true; return; }
+          revokeContainerUrls(wrap); // 重新加载前撤销已渲染但即将被替换的证据 URL
           wrap.innerHTML = '<span class="muted">加载中…</span>'; wrap.hidden = false;
           try {
             const data = await api('/api/errand/disputes/' + btn.dataset.dpEvidence + '/evidence');
@@ -411,7 +437,7 @@
             else for (const v of evs) {
               try {
                 const blob = await apiBlob('/api/errand/evidence/' + v.id);
-                const img = document.createElement('img'); img.className = 'dp-ev-img'; img.src = URL.createObjectURL(blob); img.alt = '证据'; img.loading = 'lazy'; wrap.append(img);
+                const img = document.createElement('img'); img.className = 'dp-ev-img'; const objUrl = URL.createObjectURL(blob); registerObjectUrl(objUrl); img.dataset.objUrl = objUrl; img.src = objUrl; img.alt = '证据'; img.loading = 'lazy'; wrap.append(img);
               } catch (er2) {
                 const sp = document.createElement('span'); sp.className = 'muted'; sp.textContent = '证据 ' + v.id + ' 加载失败。'; wrap.append(sp);
               }

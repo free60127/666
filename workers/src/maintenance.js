@@ -1,5 +1,7 @@
 /* D1/KV 定时维护：与 HTTP 路由解耦，失败只记录日志，不影响在线请求。 */
 
+import { retryPendingR2 } from './evidence-store.js';
+
 const SYNC_TTL_SECONDS = 730 * 24 * 3600;
 
 /**
@@ -11,6 +13,12 @@ const SYNC_TTL_SECONDS = 730 * 24 * 3600;
  * - 跑腿过期任务自动取消，完成任务 48 小时后自动确认
  */
 export async function cleanupDb(env) {
+  // 2026-08-23 审查第 2 轮收尾：R2 pending 重试不依赖 D1——没有 DB 也必须照常回收 R2 孤儿。
+  try {
+    await retryPendingR2(env).catch(e => console.error('retryPendingR2 error:', e));
+  } catch (e) {
+    console.error('retryPendingR2 outer error:', e);
+  }
   const db = env.DB;
   if (!db) return;
   const now = Date.now();

@@ -17,6 +17,20 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = ts => { try { return new Date(ts).toLocaleString('zh-CN', {hour12:false}); } catch (e) { return ts || ''; } };
 
+  /* 证据图片 objectURL 生命周期（2026-08-23 审查第 2 轮第 4 项）：登记 + 重渲染/页面卸载时 revoke */
+  const liveObjectUrls = new Set();
+  const registerObjectUrl = u => { if (u) liveObjectUrls.add(u); };
+  const revokeAllObjectUrls = () => { for (const u of liveObjectUrls) { try { URL.revokeObjectURL(u); } catch (_) {} } liveObjectUrls.clear(); };
+  const revokeContainerUrls = container => {
+    if (!container) return;
+    container.querySelectorAll('img[data-obj-url]').forEach(img => {
+      const u = img.getAttribute('data-obj-url');
+      if (u && liveObjectUrls.has(u)) { try { URL.revokeObjectURL(u); } catch (_) {} liveObjectUrls.delete(u); }
+    });
+  };
+  window.addEventListener('pagehide', revokeAllObjectUrls);
+  window.addEventListener('beforeunload', revokeAllObjectUrls);
+
   $('#save').addEventListener('click', () => {
     try {
       localStorage.setItem(LS.base, apiBase.value.trim());
@@ -364,6 +378,7 @@
   };
   const renderDisputes = items => {
     const list = $('#dp-list');
+    revokeAllObjectUrls(); // 列表整体重渲染：旧证据 objectURL 全部失效
     list.innerHTML = '';
     if (!items.length) { list.innerHTML = '<div class="empty">暂无申诉。</div>'; return; }
     for (const d of items) {
@@ -388,9 +403,14 @@
       const actions = document.createElement('div'); actions.className = 'actions';
       const evBtn = document.createElement('button'); evBtn.className = 'ghost'; evBtn.textContent = '查看证据';
       evBtn.addEventListener('click', async () => {
-        const box = el.querySelector('.di-evidence');
-        if (box) { box.hidden = !box.hidden; return; }
-        const box2 = document.createElement('div'); box2.className = 'di-evidence'; box2.hidden = false;
+        // 2026-08-23 审查第 2 轮收尾：已有容器时只做「显示/隐藏」切换（不重载、不撤销仍显示的 URL）；
+        // 仅当上次加载失败（dataset.failed=1）时移除旧容器允许重试。
+        const prev = el.querySelector('.di-evidence');
+        if (prev && prev.dataset.failed !== '1') { prev.hidden = !prev.hidden; return; }
+        if (prev) { revokeContainerUrls(prev); prev.remove(); }
+        const box2 = document.createElement('div');
+        box2.className = 'di-evidence';
+        box2.hidden = false;
         box2.textContent = '加载中…';
         el.append(box2);
         try {
@@ -405,11 +425,11 @@
                 const rb2 = await fetch(base() + '/api/errand/evidence/' + v.id, { headers: { Authorization: auth() } });
                 if (!rb2.ok) { const sp = document.createElement('span'); sp.className = 'hint'; sp.textContent = '证据 ' + v.id + ' 加载失败：' + rb2.status; box2.append(sp); continue; }
                 const blob = await rb2.blob();
-                const img = document.createElement('img'); img.className = 'ev-img'; img.src = URL.createObjectURL(blob); img.alt = '证据'; img.loading = 'lazy'; box2.append(img);
+                const img = document.createElement('img'); img.className = 'ev-img'; const objUrl = URL.createObjectURL(blob); registerObjectUrl(objUrl); img.dataset.objUrl = objUrl; img.src = objUrl; img.alt = '证据'; img.loading = 'lazy'; box2.append(img);
               } catch (e2) { const sp = document.createElement('span'); sp.className = 'hint'; sp.textContent = '证据 ' + v.id + ' 请求失败：' + e2.message; box2.append(sp); }
             }
-          } else { box2.textContent = '加载失败：' + (j.error || r.status); }
-        } catch (e) { box2.textContent = '请求失败：' + e.message; }
+          } else { box2.textContent = '加载失败：' + (j.error || r.status); box2.dataset.failed = '1'; }
+        } catch (e) { box2.textContent = '请求失败：' + e.message; box2.dataset.failed = '1'; }
       });
       actions.append(evBtn);
       if (d.status === 'open') {

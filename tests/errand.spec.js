@@ -550,6 +550,76 @@ test('证据查看：详情页申诉区查看证据 + 管理面板查看证据',
   await expect(page.locator('#dp-list img.ev-img')).toBeVisible();
 });
 
+test('证据 objectURL：重开重新拉取时 revoke 旧 URL，隐藏不撤销（2026-08-23 审查第 2 轮第 4 项）', async ({ page }) => {
+  const store = newStore();
+  store.users.push({ id: 'u0', email: 'pub@test.com', password: 'secret123', nickname: '发布者' });
+  store.users.push({ id: 'u1', email: 'taker@test.com', password: 'secret123', nickname: '跑腿小王' });
+  const now = Date.now();
+  store.tasks.push({
+    id: 1, publisherId: 'u0', title: '送文件', reward: 8, pickup: 'A', dropoff: 'B', contact: '13800000000', deadline: null,
+    status: 'done', takerId: 'u1', createdAt: now, updatedAt: now,
+    completedAt: now, confirmedAt: null, cancelledAt: null, cancelReason: '', publisherName: '发布者', takerName: '跑腿小王',
+  });
+  store.disputes.push({
+    id: 1, taskId: 1, userId: 'u1', role: 'taker', reason: '对方不确认', detail: '已送达但拖延', status: 'open', adminNote: '', createdAt: now, updatedAt: now,
+  });
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  store.evidence.push({ id: 1, disputeId: 1, data: PNG, createdAt: now });
+  await page.addInitScript(() => {
+    const orig = URL.revokeObjectURL.bind(URL);
+    window.__revoked = [];
+    URL.revokeObjectURL = function (u) { window.__revoked.push(u); try { orig(u); } catch (_) {} };
+  });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE);
+  await uiRegisterAndLogin(page, store, 'pub@test.com', '发布者', 'secret123');
+  await page.locator('#tabs .tab[data-tab=done]').click();
+  await page.locator('.task-card').first().click();
+  await page.locator('button[data-dp-evidence]').click();
+  await expect(page.locator('img.dp-ev-img')).toBeVisible();
+  const firstUrl = await page.locator('img.dp-ev-img').getAttribute('src');
+  // 关闭详情再重开：dispute-box 重新渲染，旧 objectURL 必须被 revoke
+  await page.locator('#detail-modal [data-act=close]').click();
+  await page.locator('.task-card').first().click();
+  await expect(page.locator('#dispute-box')).toContainText('对方不确认');
+  await page.locator('button[data-dp-evidence]').click();
+  await expect(page.locator('img.dp-ev-img')).toBeVisible();
+  const secondUrl = await page.locator('img.dp-ev-img').getAttribute('src');
+  let revoked = await page.evaluate(() => window.__revoked);
+  expect(revoked.some(u => u === firstUrl)).toBe(true);
+  expect(secondUrl).not.toBe(firstUrl);
+  // 仅隐藏（再点一次收起）不撤销
+  await page.locator('button[data-dp-evidence]').click();
+  await expect(page.locator('img.dp-ev-img')).toBeHidden();
+  const revokedAfterHide = await page.evaluate(() => window.__revoked.length);
+  expect(revokedAfterHide).toBe(revoked.length);
+  // 管理面板：重复点击=显示/隐藏切换（不重载、不撤销仍显示的 URL、不重复追加 img）
+  await page.addInitScript(() => {
+    localStorage.setItem('waiyuan-admin-api-v1', 'http://127.0.0.1:8788');
+    sessionStorage.setItem('waiyuan-admin-token-v1', 'admin-token');
+  });
+  await page.goto('http://127.0.0.1:8788/admin.html');
+  await page.locator('.tabs button[data-tab=errand]').click();
+  await page.locator('#load-disputes').click();
+  const evBtn = page.locator('#dp-list .fb button:has-text("查看证据")');
+  await evBtn.click();
+  await expect(page.locator('#dp-list img.ev-img')).toBeVisible();
+  const adminUrl = await page.locator('#dp-list img.ev-img').getAttribute('src');
+  revoked = await page.evaluate(() => window.__revoked);
+  expect(revoked.some(u => u === adminUrl)).toBe(false);
+  // 第二次点击：仅隐藏（URL 保留不撤销）
+  await evBtn.click();
+  await expect(page.locator('#dp-list img.ev-img')).toBeHidden();
+  revoked = await page.evaluate(() => window.__revoked);
+  expect(revoked.some(u => u === adminUrl)).toBe(false);
+  // 第三次点击：重新显示同一 URL（不重新加载、不重复追加）
+  await evBtn.click();
+  await expect(page.locator('#dp-list img.ev-img')).toBeVisible();
+  expect(await page.locator('#dp-list img.ev-img').getAttribute('src')).toBe(adminUrl);
+  expect(await page.locator('#dp-list img.ev-img').count()).toBe(1);
+});
+
 test('管理面板：审计日志 tab 渲染操作记录', async ({ page }) => {
   const store = newStore();
   store.logs.push({ id: 1, action: 'errand.task.delete', detail: '删除任务 #2（带饭）', admin: 'admin-to', createdAt: Date.now() - 60000 });

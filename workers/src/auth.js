@@ -397,7 +397,10 @@ async function deleteAccount(db, env, request) {
   let evKeys = [];
   if (env.EVIDENCE_BUCKET) {
     try { evKeys = await evidenceKeysForUser(db, user.id); }
-    catch (e) { console.error('delete-account evidence keys error:', e); }
+    catch (e) { // 2026-08-23 审查第 2 轮第 3 项：fail-closed，注销前查不到对象键则拒绝删除账号
+      console.error('delete-account evidence keys error:', e);
+      return json({ error: '服务繁忙，请稍后再试' }, 503);
+    }
   }
   try {
     const cleanupStatements = [
