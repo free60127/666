@@ -22,6 +22,7 @@ function mockAuthApi(page, store) {
       if (users.some(u => u.email === b.email)) return fail(409, '该邮箱已注册，请直接登录');
       const user = { id: 'u' + users.length, email: b.email, password: b.password, nickname: b.nickname || '' };
       users.push(user);
+      store.sessions['tok-' + user.id] = user; // 2026-08-23：注册即建会话（前端免二次登录）
       return ok({ ok: true, token: 'tok-' + user.id, user });
     }
     if (url.pathname === '/api/auth/login') {
@@ -279,6 +280,7 @@ test('注册登录后发布任务成功并出现在列表', async ({ page }) => 
   await page.fill('#p-reward', '3');
   await page.fill('#p-pickup', '二食堂');
   await page.fill('#p-dropoff', '图书馆');
+  await page.fill('#p-contact', '13800138000');
   await page.locator('#pub-submit').click();
 
   await expect(page.locator('#toast')).toContainText('发布成功');
@@ -604,3 +606,53 @@ test('分享卡片：底部入口生成平台卡与任务卡，可保存图片',
 });
 
 
+test('发布表单：必填字段校验提示（联系方式缺失拦截）', async ({ page }) => {
+  const store = newStore();
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE);
+  await uiRegisterAndLogin(page, store, 'req@test.com', '必填君', 'secret123');
+  await page.locator('#fab-publish').click();
+  await page.fill('#p-title', '帮取快递');
+  await page.fill('#p-reward', '2');
+  await page.fill('#p-pickup', '菜鸟驿站');
+  await page.fill('#p-dropoff', '宿舍');
+  await page.locator('#pub-submit').click();
+  await expect(page.locator('#pub-hint')).toContainText('联系方式');
+  await page.fill('#p-contact', '13800138000');
+  await page.locator('#pub-submit').click();
+  await expect(page.locator('#toast')).toContainText('发布成功');
+});
+
+test('分享深链：?task=ID 打开页面自动进入任务详情', async ({ page }) => {
+  const store = newStore();
+  store.tasks.push({
+    id: 7, publisherId: 'u0', title: '深链任务', description: '', reward: 5,
+    pickup: 'A', dropoff: 'B', contact: '13800000000', deadline: null, status: 'open',
+    takerId: null, createdAt: Date.now(), updatedAt: Date.now(), completedAt: null,
+    confirmedAt: null, cancelledAt: null, cancelReason: '', publisherName: '发布者', takerName: null,
+  });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE + '?task=7');
+  await expect(page.locator('#detail-modal')).toBeVisible();
+  await expect(page.locator('#detail-body')).toContainText('深链任务');
+});
+
+test('添加到主屏幕：beforeinstallprompt 触发后显示安装区块', async ({ page }) => {
+  const store = newStore();
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE);
+  await expect(page.locator('#install-site')).toBeHidden();
+  await page.evaluate(() => {
+    const ev = new Event('beforeinstallprompt', { cancelable: true });
+    ev.prompt = () => Promise.resolve();
+    ev.userChoice = Promise.resolve({ outcome: 'accepted' });
+    window.dispatchEvent(ev);
+  });
+  await expect(page.locator('#install-site')).toBeVisible();
+  await expect(page.locator('#install-hint')).toHaveText('像 App 一样从桌面直接打开');
+  await page.locator('#install-btn').click();
+  await expect(page.locator('#install-site')).toBeHidden();
+});

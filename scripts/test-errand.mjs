@@ -407,14 +407,14 @@ const confirmAgain = await api('/api/errand/tasks/1/confirm', { method: 'POST', 
 check('重复确认 400', confirmAgain.status === 400);
 
 console.log('5) 取消');
-const t2 = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '带饭', reward: 3, pickup: '二食堂', dropoff: '图书馆' } }));
+const t2 = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '带饭', reward: 3, pickup: '二食堂', dropoff: '图书馆', contact: '13900000000' } }));
 const doneCancel = await api('/api/errand/tasks/1/cancel', { method: 'POST', token: tokenA, body: { reason: 'x' } });
 check('已完成不能取消 400', doneCancel.status === 400);
 const pubCancel = await data(await api('/api/errand/tasks/' + t2.task.id + '/cancel', { method: 'POST', token: tokenA, body: { reason: '自己去了' } }));
 check('发布者取消待接单', pubCancel.ok === true && pubCancel.task.status === 'cancelled' && pubCancel.task.cancelReason === '自己去了');
 const listAfterCancel = await data(await api('/api/errand/tasks?status=all'));
 check('all 列表不含已取消（1 条）', listAfterCancel.total === 1);
-const t3 = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '送文件', reward: 8, pickup: '行政楼', dropoff: '教学楼' } }));
+const t3 = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '送文件', reward: 8, pickup: '行政楼', dropoff: '教学楼', contact: '13900000000' } }));
 await api('/api/errand/tasks/' + t3.task.id + '/take', { method: 'POST', token: tokenB });
 const takerCancel = await data(await api('/api/errand/tasks/' + t3.task.id + '/cancel', { method: 'POST', token: tokenB }));
 check('接单者取消进行中', takerCancel.ok === true && takerCancel.task.status === 'cancelled' && takerCancel.task.cancelReason === '接单者取消');
@@ -430,19 +430,19 @@ check('未登录 mine 401', mineNoAuth.status === 401);
 console.log('7) 发布限流');
 let hit429 = false;
 for (let i = 0; i < 31; i++) {
-  const r = await api('/api/errand/tasks', { method: 'POST', token: tokenB, body: { title: '刷单' + i, reward: 1 } });
+  const r = await api('/api/errand/tasks', { method: 'POST', token: tokenB, body: { title: '刷单' + i, reward: 1, pickup: 'A', dropoff: 'B', contact: '13900000000' } });
   if (r.status === 429) { hit429 = true; break; }
 }
 check('第 31 次发布触发 429', hit429);
 
 console.log('8) 截止时间过期：不可接单 + 自动取消');
-const tExp = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '过期任务', reward: 2, pickup: 'A', dropoff: 'B', deadline: Date.now() + 3600e3 } }));
+const tExp = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '过期任务', reward: 2, pickup: 'A', dropoff: 'B', contact: '13900000000', deadline: Date.now() + 3600e3 } }));
 db.tasks.get(tExp.task.id).deadline = Date.now() - 1000; // 直接改内存模拟过期
 const expTake = await api('/api/errand/tasks/' + tExp.task.id + '/take', { method: 'POST', token: tokenB });
 check('过期任务接单被拒 409', expTake.status === 409);
 const expBody = await data(expTake);
 check('过期任务自动置为 cancelled', expBody.status === 'cancelled' && expBody.error.includes('已过期'));
-const tExp2 = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '过期任务2', reward: 2, pickup: 'A', dropoff: 'B', deadline: Date.now() + 3600e3 } }));
+const tExp2 = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '过期任务2', reward: 2, pickup: 'A', dropoff: 'B', contact: '13900000000', deadline: Date.now() + 3600e3 } }));
 db.tasks.get(tExp2.task.id).deadline = Date.now() - 1000;
 const expList = await data(await api('/api/errand/tasks?status=open'));
   // 过期任务仍会出现在 open 列表（前端展示已过期徽标 + 禁用接单；cron 兜底清理为 cancelled）
@@ -461,7 +461,7 @@ check('A 评价 B 201', revA.status === 201);
 const revDup = await api('/api/errand/reviews', { method: 'POST', token: tokenA, body: { taskId: 1, rating: 4 } });
 check('重复评价 400', revDup.status === 400);
 // 新任务走完闭环：B 评 A
-const tRev = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '评价闭环', reward: 3, pickup: 'X', dropoff: 'Y' } }));
+const tRev = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '评价闭环', reward: 3, pickup: 'X', dropoff: 'Y', contact: '13900000000' } }));
 await api('/api/errand/tasks/' + tRev.task.id + '/take', { method: 'POST', token: tokenB });
 await api('/api/errand/tasks/' + tRev.task.id + '/complete', { method: 'POST', token: tokenB });
 await api('/api/errand/tasks/' + tRev.task.id + '/confirm', { method: 'POST', token: tokenA });
@@ -476,7 +476,7 @@ check('新任务互评 2 条（双方各一条）', revList2.reviews.length === 
 const revAnon = await data(await api('/api/errand/reviews?taskId=1'));
 check('匿名可看评价列表', revAnon.reviews.length === 1);
 // 未确认任务不可评：新建任务只接单不确认
-const tUn = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '未确认', reward: 1, pickup: 'A', dropoff: 'B' } }));
+const tUn = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '未确认', reward: 1, pickup: 'A', dropoff: 'B', contact: '13900000000' } }));
 await api('/api/errand/tasks/' + tUn.task.id + '/take', { method: 'POST', token: tokenB });
 const revUn = await api('/api/errand/reviews', { method: 'POST', token: tokenA, body: { taskId: tUn.task.id, rating: 5 } });
 check('未确认任务不能评价 400', revUn.status === 400);
@@ -485,7 +485,7 @@ check('未确认任务不能评价 400', revUn.status === 400);
 console.log('10) 申诉（doing/done/confirmed 可申诉 + 证据上传）');
 const dNoAuth = await api('/api/errand/disputes', { method: 'POST', body: { taskId: 1, reason: 'x' } });
 check('未登录申诉 401', dNoAuth.status === 401);
-const tOpen = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '申诉测试open', reward: 1, pickup: 'A', dropoff: 'B' } }));
+const tOpen = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '申诉测试open', reward: 1, pickup: 'A', dropoff: 'B', contact: '13900000000' } }));
 const dOpen = await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: tOpen.task.id, reason: 'x' } });
 check('open 状态任务不能申诉 400', dOpen.status === 400);
 const dOther = await api('/api/errand/disputes', { method: 'POST', token: tokenC, body: { taskId: 1, reason: 'x' } });
@@ -537,7 +537,7 @@ const delAfter = await api('/api/errand/tasks/' + tOpen.task.id);
 check('删除后详情 404', delAfter.status === 404);
 const del404 = await api('/api/errand/admin/tasks/99999', { method: 'DELETE', token: 'admin-token' });
 check('删除不存在 404', del404.status === 404);
-const tDel = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '待删除', reward: 2, pickup: 'A', dropoff: 'B' } }));
+const tDel = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '待删除', reward: 2, pickup: 'A', dropoff: 'B', contact: '13900000000' } }));
 await api('/api/errand/tasks/' + tDel.task.id + '/take', { method: 'POST', token: tokenB });
 await api('/api/errand/tasks/' + tDel.task.id + '/complete', { method: 'POST', token: tokenB });
 const dDel = await data(await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: tDel.task.id, reason: '删除测试', evidence: ['data:image/png;base64,DDDD'] } }));
@@ -551,7 +551,7 @@ const rd = await data(await api('/api/auth/register', { method: 'POST', body: { 
 const ld = await api('/api/auth/login', { method: 'POST', body: { email: 'del@test.com', password: 'secret123' } });
 const tokenD = (await data(ld)).token;
 check('D 账号就绪', !!tokenD);
-const tDel1 = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenD, body: { title: '注销前任务', reward: 2, pickup: 'A', dropoff: 'B' } }));
+const tDel1 = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenD, body: { title: '注销前任务', reward: 2, pickup: 'A', dropoff: 'B', contact: '13900000000' } }));
 const delBlocked = await api('/api/auth/delete-account', { method: 'POST', token: tokenD, body: { password: 'secret123' } });
 check('有进行中任务注销被拒 400', delBlocked.status === 400 && (await data(delBlocked)).error.includes('跑腿'), JSON.stringify(await data(delBlocked)));
 await api('/api/errand/tasks/' + tDel1.task.id + '/cancel', { method: 'POST', token: tokenD, body: { reason: '清理' } });
@@ -587,10 +587,10 @@ check('管理端申诉仍含 userId', dAdmin2.disputes.length >= 2 && dAdmin2.di
 /* ---------- 15) 限流存储故障：写操作保守失败 503 ---------- */
 console.log('15) 限流存储故障 503');
 db.failRates = true;
-const rateFail = await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '限流故障', reward: 1 } });
+const rateFail = await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '限流故障', reward: 1, pickup: 'A', dropoff: 'B', contact: '13900000000' } });
 check('限流故障时发布 503', rateFail.status === 503);
 db.failRates = false;
-const rateOk = await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '限流恢复', reward: 1 } });
+const rateOk = await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '限流恢复', reward: 1, pickup: 'A', dropoff: 'B', contact: '13900000000' } });
 check('限流恢复后发布 201', rateOk.status === 201);
 
 /* ---------- 16) 申诉限流：用户 60s/5 次 ---------- */
@@ -598,7 +598,7 @@ console.log('16) 申诉限流');
 const re = await data(await api('/api/auth/register', { method: 'POST', body: { email: 'rate@test.com', password: 'secret123', nickname: '申诉狂' } }));
 const le = await api('/api/auth/login', { method: 'POST', body: { email: 'rate@test.com', password: 'secret123' } });
 const tokenE = (await data(le)).token;
-const tRate = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenE, body: { title: '限流任务', reward: 1, pickup: 'A', dropoff: 'B' } }));
+const tRate = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenE, body: { title: '限流任务', reward: 1, pickup: 'A', dropoff: 'B', contact: '13900000000' } }));
 await api('/api/errand/tasks/' + tRate.task.id + '/take', { method: 'POST', token: tokenB });
 let dp429 = null;
 for (let i = 0; i < 6; i++) {
@@ -616,7 +616,7 @@ check('申诉请求体过大 413', tooBig.status === 413);
 /* ---------- 18) 唯一 open 申诉索引（并发兜底） ---------- */
 console.log('18) 唯一 open 申诉索引');
 db.enforceUniqueDispute = true;
-const tUniq = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '唯一申诉', reward: 1, pickup: 'A', dropoff: 'B' } }));
+const tUniq = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '唯一申诉', reward: 1, pickup: 'A', dropoff: 'B', contact: '13900000000' } }));
 await api('/api/errand/tasks/' + tUniq.task.id + '/take', { method: 'POST', token: tokenB });
 const uq1 = await api('/api/errand/disputes', { method: 'POST', token: tokenB, body: { taskId: tUniq.task.id, reason: '索引测试' } });
 check('唯一索引下首次申诉 201', uq1.status === 201, String(uq1.status));
@@ -626,7 +626,7 @@ db.enforceUniqueDispute = false;
 
 /* ---------- 19) cancelTask 并发语义 ---------- */
 console.log('19) cancelTask 并发语义');
-const tConc = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '并发取消', reward: 1, pickup: 'A', dropoff: 'B' } }));
+const tConc = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '并发取消', reward: 1, pickup: 'A', dropoff: 'B', contact: '13900000000' } }));
 await api('/api/errand/tasks/' + tConc.task.id + '/take', { method: 'POST', token: tokenB });
 const cancOther = await api('/api/errand/tasks/' + tConc.task.id + '/cancel', { method: 'POST', token: tokenC });
 check('路人取消 doing 任务 403', cancOther.status === 403);

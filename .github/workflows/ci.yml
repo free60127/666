@@ -61,7 +61,9 @@ jobs:
         with:
           node-version: 20
       - name: Worker 单元测试（内存 D1）
-        run: node scripts/test-auth.mjs
+        run: |
+          node scripts/test-auth.mjs
+          node scripts/test-errand.mjs
       - name: Worker + D1 本地集成测试（wrangler dev --local）
         run: |
           cd workers

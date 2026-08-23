@@ -6,6 +6,8 @@ const MAIN = 'https://free60127.top/';
 const API = 'https://api.free60127.top';
 const PAGES = 'https://free60127.github.io/666/';
 const withPages = process.argv.includes('--pages');
+let failures = 0;
+function mark(ok) { if (!ok) failures++; return ok; }
 
 const checks = [
   ['index.html', '首页'],
@@ -37,8 +39,10 @@ async function checkResources(base, title) {
     try {
       const res = await fetch(base + file, { redirect: 'follow', signal: AbortSignal.timeout(15000) });
       const ok = res.ok || res.status === 304;
+      mark(ok);
       console.log(`${ok ? '✓' : '✗'} ${res.status} ${file} (${label})`);
     } catch (e) {
+      failures++;
       console.log(`✗ ERR ${file} (${label}): ${e.message}`);
     }
   }
@@ -53,34 +57,43 @@ async function checkHome(base, title) {
     console.log('  favicon 引用:', home.includes('favicon.svg') ? '✓' : '✗');
     console.log('  home.css 版本:', (home.match(/home\.css\?v=([^"']+)/) || [])[1] || '?');
     console.log('  /666/ 残留:', home.includes('/666/') ? '✗ 有残留' : '✓ 无残留');
-  } catch (e) { console.log(title + ' 首页抓取失败:', e.message); }
+  } catch (e) { console.log(title + ' 首页抓取失败:', e.message); return false; }
+  return true;
 }
 
 (async () => {
   await checkResources(MAIN, '主域 free60127.top');
-  await checkHome(MAIN, '主域');
+  mark(await checkHome(MAIN, '主域'));
 
   // API 子域健康检查
   try {
     const res = await fetch(API + '/api/health', { signal: AbortSignal.timeout(15000) });
     const j = await res.json().catch(() => ({}));
+    mark(res.ok && !!j.ok);
     console.log(`${res.ok && j.ok ? '✓' : '✗'} ${res.status} api.free60127.top/api/health`);
   } catch (e) { console.log('✗ ERR api.free60127.top/api/health:', e.message); }
   // 主域反代 API 通道
   try {
     const res = await fetch(MAIN + 'api/health', { signal: AbortSignal.timeout(15000) });
     const j = await res.json().catch(() => ({}));
+    mark(res.ok && !!j.ok);
     console.log(`${res.ok && j.ok ? '✓' : '✗'} ${res.status} free60127.top/api/health（反代通道）`);
   } catch (e) { console.log('✗ ERR free60127.top/api/health:', e.message); }
   // www 跳转
   try {
     const res = await fetch('https://www.free60127.top/', { redirect: 'manual', signal: AbortSignal.timeout(15000) });
     const loc = res.headers.get('location') || '';
+    mark(res.status === 301 && loc === 'https://free60127.top/');
     console.log(`${res.status === 301 && loc === 'https://free60127.top/' ? '✓' : '✗'} ${res.status} www.free60127.top → 301 ${loc}`);
   } catch (e) { console.log('✗ ERR www.free60127.top:', e.message); }
 
   if (withPages) {
     await checkResources(PAGES, '源站 free60127.github.io/666（--pages）');
-    await checkHome(PAGES, '源站');
+    mark(await checkHome(PAGES, '源站'));
   }
+  if (failures) {
+    console.error('\n' + failures + ' 项检查失败');
+    process.exit(1);
+  }
+  console.log('\n全部检查通过');
 })();

@@ -173,6 +173,41 @@ if (ADMIN) {
   console.log('  - 无 ADMIN_TOKEN，跳过管理端验证');
 }
 
+// ===== 2026-08-23 审查整改验证：字段校验 / 限流 / 路径白名单 =====
+{
+  // 必填字段（前后端一致：pickup/dropoff/contact 必填）
+  const noContact = await api('/errand/tasks', { method: 'POST', token: tokA, body: { title: '缺联系方式', reward: 1, pickup: 'A', dropoff: 'B' } });
+  check('发布缺联系方式 400', noContact.status === 400 && String(noContact.data.error || '').includes('联系方式'), 's=' + noContact.status);
+  const noPickup = await api('/errand/tasks', { method: 'POST', token: tokA, body: { title: '缺取件地', reward: 1, dropoff: 'B', contact: 'x' } });
+  check('发布缺取件地点 400', noPickup.status === 400 && String(noPickup.data.error || '').includes('取件'), 's=' + noPickup.status);
+  const badDeadline = await api('/errand/tasks', { method: 'POST', token: tokA, body: { title: '非整数截止', reward: 1, pickup: 'A', dropoff: 'B', contact: 'x', deadline: 1.5e12 + 0.5 } });
+  check('非安全整数截止 400', badDeadline.status === 400, 's=' + badDeadline.status);
+  // 注册限流：邮箱维度 1 小时 5 次，第 6 次 429
+  let reg429 = false;
+  const regEmail = 'rl-' + Date.now() + '@test.com';
+  for (let i = 0; i < 7; i++) {
+    const r = await api('/auth/register', { method: 'POST', body: { email: regEmail, password: 'secret123' } });
+    if (r.status === 429) { reg429 = true; break; }
+  }
+  check('注册邮箱限流 429（第 6 次）', reg429, '');
+  // forgot 防枚举 + 邮箱 1 分钟 1 次限流（未注册邮箱不发信，安全）
+  const fMail = 'nobody-' + Date.now() + '@test.com';
+  const f1 = await api('/auth/forgot', { method: 'POST', body: { email: fMail } });
+  const f2 = await api('/auth/forgot', { method: 'POST', body: { email: fMail } });
+  check('forgot 未注册邮箱 200（防枚举）+ 二次 429', f1.status === 200 && f2.status === 429, 's1=' + f1.status + ' s2=' + f2.status);
+  // /api/visit：IP 限流（60/分钟） + 路径白名单
+  const vid = 'a'.repeat(32);
+  let visit429 = false;
+  for (let i = 0; i < 61; i++) {
+    const r = await api('/visit', { method: 'POST', body: { vid, path: '/验证页' } });
+    if (r.status === 429) { visit429 = true; break; }
+  }
+  check('visit IP 限流 429（61 次内触发）', visit429, '');
+  const badPath = await api('/visit', { method: 'POST', body: { vid, path: '/a//b' } });
+  check('visit 双斜杠路径 400', badPath.status === 400, 's=' + badPath.status);
+  const badPath2 = await api('/visit', { method: 'POST', body: { vid, path: '/../etc' } });
+  check('visit 路径穿越 400', badPath2.status === 400, 's=' + badPath2.status);
+}
 if (ADMIN) {
   const c1 = await api('/auth/account?email=' + encodeURIComponent(emailA), { method: 'DELETE', token: ADMIN });
   const c2 = await api('/auth/account?email=' + encodeURIComponent(emailB), { method: 'DELETE', token: ADMIN });

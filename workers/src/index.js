@@ -224,6 +224,25 @@ async function countVisit(env, request, path, ctx) {
 }
 
 /** GitHub Pages 直连通道统计上报（common.js 只在 github.io 域名下调用，避免与主域双计） */
+/** /api/visit IP 维度限流：每 IP 每分钟 60 次；限流器故障保守拒绝（写操作防伪造 vid 刷量） */
+async function visitRateLimit(env, ip) {
+  try {
+    const now = Date.now();
+    const winEnd = now + 60000;
+    const row = await env.DB.prepare(
+      'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ' +
+      'ON CONFLICT(key) DO UPDATE SET ' +
+      'count = CASE WHEN rate.until <= ?3 THEN 1 ELSE rate.count + 1 END, ' +
+      'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
+      'RETURNING count'
+    ).bind('rate:visit:ip:' + ip, winEnd, now, winEnd).first();
+    return !(row && Number(row.count) > 60);
+  } catch (error) {
+    console.error('visitRateLimit error:', error);
+    return false;
+  }
+}
+
 async function handleVisit(request, env) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400); }
@@ -232,6 +251,11 @@ async function handleVisit(request, env) {
   let path = String(body.path || '/');
   if (!path.startsWith('/')) path = '/' + path;
   if (path.length > 200) path = path.slice(0, 200);
+  // 2026-08-23 审查：路径白名单——拒绝控制字符（ -）/反斜杠/路径穿越/双斜杠
+  if (path.includes('..') || path.includes('//') || path.includes(String.fromCharCode(92)) || /[ -]/.test(path)) return json({ error: 'invalid path' }, 400);
+  // IP 维度限流（防伪造 vid 刷量）；限流器故障保守拒绝
+  const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
+  if (!(await visitRateLimit(env, ip))) return json({ error: 'too many requests, try again later' }, 429);
   if (!(await syncRateLimit(env, vid, 'visit'))) return json({ error: 'too many requests, try again later' }, 429);
   await countPvUv(env, path, vid);
   return json({ ok: true });

@@ -116,8 +116,22 @@ class MemoryD1 {
       const [email] = args;
       changes = this.loginFails.delete(email) ? 1 : 0;
     } else if (s.startsWith('INSERT INTO login_fails')) {
-      const [email, failCount, lockedUntil, updatedAt] = args;
-      this.loginFails.set(email, { email, fail_count: failCount, locked_until: lockedUntil, updated_at: updatedAt });
+      if (args.length === 6) {
+        // 原子 UPSERT 版（2026-08-23）：args = [email, now(insert), now, now, max, lockUntil]
+        const [email, now, , , max, lockUntil] = args;
+        const prev = this.loginFails.get(email);
+        let count = 1, lockedUntilV = 0;
+        if (prev) {
+          const expired = prev.locked_until > 0 && prev.locked_until < now;
+          count = expired ? 1 : prev.fail_count + 1;
+          lockedUntilV = prev.locked_until;
+        }
+        if (count >= max) lockedUntilV = lockUntil;
+        this.loginFails.set(email, { email, fail_count: count, locked_until: lockedUntilV, updated_at: now });
+      } else {
+        const [email, failCount, lockedUntil, updatedAt] = args;
+        this.loginFails.set(email, { email, fail_count: failCount, locked_until: lockedUntil, updated_at: updatedAt });
+      }
       changes = 1;
     } else if (s.startsWith('UPDATE users')) {
       if (s.includes('EXISTS (SELECT 1 FROM reset_tokens')) {

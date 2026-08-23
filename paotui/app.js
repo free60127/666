@@ -101,8 +101,11 @@
     if (tab === 'open' || tab === 'doing' || tab === 'done') return 'status=' + tab;
     return null; // mine-posted / mine-taken
   }
+  let listRequestId = 0;
+  let loadingMore = false;
   async function loadList(append) {
     const listEl = $('task-list');
+    const rid = ++listRequestId; // 2026-08-23：切 tab/刷新时旧响应作废，防止旧数据覆盖新列表
     if (!append) { listEl.innerHTML = '<div class="loading">加载中…</div>'; page = 1; }
     try {
       let path = '/api/errand/tasks?page=' + page + '&pageSize=' + PAGE_SIZE;
@@ -110,6 +113,7 @@
       if (p) path += '&' + p;
       else path = '/api/errand/mine?role=' + (tab === 'mine-posted' ? 'posted' : 'taken') + '&page=' + page + '&pageSize=' + PAGE_SIZE;
       const data = await api(path);
+      if (rid !== listRequestId) return;
       total = data.total || 0;
       const items = data.items || [];
       if (!append) listEl.innerHTML = '';
@@ -122,6 +126,7 @@
       const hasMore = listEl.children.length < total;
       $('load-more').classList.toggle('hidden', !hasMore);
     } catch (e) {
+      if (rid !== listRequestId) return;
       if (page === 1) listEl.innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '</div>';
       else toast(e.message, true);
     }
@@ -425,6 +430,9 @@
     const hint = $('pub-hint');
     if (!title) { hint.textContent = '请填写标题'; return; }
     if (!/^\d+$/.test(reward)) { hint.textContent = '赏金需为整数（元）'; return; }
+    if (!pickup) { hint.textContent = '请填写取件地点'; return; }
+    if (!dropoff) { hint.textContent = '请填写送达地点'; return; }
+    if (!$('p-contact').value.trim()) { hint.textContent = '请填写联系方式（手机号 / 微信号）'; return; }
     const payload = {
       title, reward: Number(reward),
       description: $('p-desc').value.trim(),
@@ -468,10 +476,13 @@
     const btn = $('auth-submit');
     btn.disabled = true;
     try {
+      let result;
       if (authView === 'register') {
-        await auth.register({ email, password, nickname: $('auth-nick-input').value.trim() || email.split('@')[0] });
+        // 2026-08-23 审查：注册响应已含会话 token，直接使用（原逻辑再 login 会创建两个会话）
+        result = await auth.register({ email, password, nickname: $('auth-nick-input').value.trim() || email.split('@')[0] });
+      } else {
+        result = await auth.login({ email, password });
       }
-      const result = await auth.login({ email, password });
       if (!result || !result.token) throw new Error('登录响应异常');
       auth.saveSession(result);
       me = { token: result.token, id: null, nickname: result.user && result.user.nickname ? result.user.nickname : email.split('@')[0] };
@@ -552,6 +563,7 @@
     let qrSize = 220, qrData = 'https://free60127.top/paotui/';
     if (type === 'task' && currentShareTask) {
       const t = currentShareTask;
+      qrData = 'https://free60127.top/paotui/?task=' + t.id; // 2026-08-23：任务卡扫码直达任务详情
       ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.font = '22px ' + F;
       ctx.fillText('任务详情', 48, 216);
       ctx.fillStyle = '#fff'; ctx.font = 'bold 42px ' + F;
@@ -667,7 +679,13 @@
   $('auth-submit').addEventListener('click', submitAuth);
   $('auth-password-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
   document.querySelectorAll('#auth-tabs .tab').forEach(b => b.addEventListener('click', () => { authView = b.dataset.aview; renderAuthView(); }));
-  $('load-more').addEventListener('click', () => { page++; loadList(true); });
+  $('load-more').addEventListener('click', () => {
+    if (loadingMore) return;
+    loadingMore = true;
+    $('load-more').disabled = true;
+    page++;
+    loadList(true).then(() => { loadingMore = false; $('load-more').disabled = false; });
+  });
   // 评价弹窗
   $('rv-cancel').addEventListener('click', () => closeModal('review-modal'));
   $('rv-submit').addEventListener('click', submitReview);
@@ -687,8 +705,50 @@
     renderShareTabs(); renderSharePreview();
   }));
 
+  /* ---------- 添加到主屏幕（PWA 安装引导，与主页一致） ---------- */
+  const installSite = $('install-site');
+  const installBtn = $('install-btn');
+  const installHint = $('install-hint');
+  let deferredPrompt = null;
+  if (installSite && installBtn) {
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (!isStandalone) {
+      if (isIOS) {
+        installSite.hidden = false;
+        installHint.textContent = '用 Safari 打开，点底部「分享」→「添加到主屏幕」';
+      } else if (isWeChat) {
+        installSite.hidden = false;
+        installHint.textContent = '点右上角「···」→「在浏览器打开」，再从浏览器菜单添加到桌面';
+      }
+      window.addEventListener('beforeinstallprompt', event => {
+        event.preventDefault();
+        deferredPrompt = event;
+        installSite.hidden = false;
+        installHint.textContent = '像 App 一样从桌面直接打开';
+      });
+      window.addEventListener('appinstalled', () => { installSite.hidden = true; });
+      installBtn.addEventListener('click', async () => {
+        if (isIOS && !deferredPrompt) { alert('请打开 Safari 浏览器访问本站，点底部「分享」按钮，选择「添加到主屏幕」即可。'); return; }
+        if (isWeChat && !deferredPrompt) { alert('微信内置浏览器不支持添加到桌面：请点微信右上角「···」，选择「在浏览器打开」，再从浏览器菜单选择「添加到主屏幕/桌面」。'); return; }
+        if (!deferredPrompt) { alert('当前浏览器未显示安装按钮。请在浏览器菜单（右上角 ⋮ 或 ⌄）中找「添加到主屏幕」；Chrome、Edge 通常会自动出现安装图标（首次访问可能需再次访问后出现）。'); return; }
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice.catch(() => {});
+        deferredPrompt = null;
+        installSite.hidden = true;
+      });
+    }
+  }
+
   /* ---------- init ---------- */
   initTheme();
   bindCardClicks();
-  refreshMe().then(() => loadList(false));
+  // 2026-08-23：分享卡二维码 ?task=ID 直达任务详情
+  const taskParam = new URLSearchParams(location.search).get('task');
+  const deepTaskId = taskParam ? Number(taskParam) : NaN;
+  refreshMe().then(() => {
+    loadList(false);
+    if (Number.isInteger(deepTaskId) && deepTaskId > 0) openDetail(deepTaskId);
+  });
 })();

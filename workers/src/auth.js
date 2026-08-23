@@ -85,24 +85,31 @@ function bearerToken(request) {
  */
 const LOGIN_IP_MAX = 30, LOGIN_EMAIL_FAIL_MAX = 8, LOGIN_EMAIL_LOCK_MS = 15 * 60 * 1000;
 
-async function loginIpCheck(env, request) {
-  if (!env || !env.DB) return { ok: true };
+/** 通用滚动窗口限流（D1 rate 表）。返回 {count, failed}；failed=true 表示限流器故障 */
+async function rateWindow(db, key, windowMs, max) {
   try {
-    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
     const now = Date.now();
-    const windowMs = 600000;  // 10 分钟窗口
-    const winStart = Math.floor(now / windowMs) * windowMs;
-    const winEnd = winStart + windowMs;
-    const ipKey = 'rate:login:ip:' + ip;
-    const row = await env.DB.prepare(
+    const end = now + windowMs;
+    const row = await db.prepare(
       'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ' +
       'ON CONFLICT(key) DO UPDATE SET ' +
       'count = CASE WHEN rate.until <= ?3 THEN 1 ELSE rate.count + 1 END, ' +
       'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
       'RETURNING count'
-    ).bind(ipKey, winEnd, winStart, winEnd).first();
-    if (row && row.count > LOGIN_IP_MAX) return { ok: false, error: '尝试过于频繁，请稍后再试' };
-  } catch (_) { /* 限流器故障不阻断 */ }
+    ).bind(key, end, now, end).first();
+    return { count: row ? Number(row.count) : 0, failed: false };
+  } catch (error) {
+    console.error('rateWindow error:', error);
+    return { count: 0, failed: true };
+  }
+}
+
+async function loginIpCheck(env, request) {
+  if (!env || !env.DB) return { ok: true };
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const r = await rateWindow(env.DB, 'rate:login:ip:' + ip, 600000, LOGIN_IP_MAX);
+  if (r.failed) return { ok: true }; // 限流器故障不阻断登录（登录可用性优先）
+  if (r.count > LOGIN_IP_MAX) return { ok: false, error: '尝试过于频繁，请稍后再试' };
   return { ok: true };
 }
 
@@ -117,22 +124,22 @@ async function loginEmailCheck(db, email) {
 }
 
 async function recordLoginFail(db, email) {
+  // 原子 UPSERT（2026-08-23 审查：原「先查后改」并发下会互相覆盖丢失计数）：
+  // 仅当「曾锁定且已过期」才重新计数；locked_until=0（从未锁定）继续累计。
   try {
     const now = Date.now();
-    const row = await db.prepare('SELECT fail_count, locked_until FROM login_fails WHERE email = ?').bind(email).first();
-    let count = 1, lockedUntil = 0;
-    if (row) {
-      // 仅当「曾锁定且已过期」才重新计数；locked_until=0（从未锁定）必须继续累计
-      const expired = row.locked_until > 0 && row.locked_until < now;
-      count = expired ? 1 : row.fail_count + 1;
-      lockedUntil = row.locked_until;
-    }
-    if (count >= LOGIN_EMAIL_FAIL_MAX) lockedUntil = now + LOGIN_EMAIL_LOCK_MS;
+    const lockUntil = now + LOGIN_EMAIL_LOCK_MS;
     await db.prepare(
-      'INSERT INTO login_fails (email, fail_count, locked_until, updated_at) VALUES (?, ?, ?, ?) ' +
-      'ON CONFLICT(email) DO UPDATE SET fail_count = excluded.fail_count, locked_until = excluded.locked_until, updated_at = excluded.updated_at'
-    ).bind(email, count, lockedUntil, now).run();
-  } catch (_) {}
+      'INSERT INTO login_fails (email, fail_count, locked_until, updated_at) VALUES (?1, 1, 0, ?2) ' +
+      'ON CONFLICT(email) DO UPDATE SET ' +
+      'fail_count = CASE WHEN login_fails.locked_until > 0 AND login_fails.locked_until < ?3 THEN 1 ELSE login_fails.fail_count + 1 END, ' +
+      'locked_until = CASE WHEN login_fails.locked_until > ?4 THEN login_fails.locked_until ' +
+      'WHEN (CASE WHEN login_fails.locked_until > 0 AND login_fails.locked_until < ?3 THEN 1 ELSE login_fails.fail_count + 1 END) >= ?5 THEN ?6 ELSE 0 END, ' +
+      'updated_at = ?3'
+    ).bind(email, now, now, now, LOGIN_EMAIL_FAIL_MAX, lockUntil).run();
+  } catch (error) {
+    console.error('recordLoginFail error:', error);
+  }
 }
 
 async function recordLoginSuccess(db, email) {
@@ -166,6 +173,13 @@ async function register(db, env, request) {
   if (!body) return json({ error: 'invalid json' }, 400);
   const v = validate(body);
   if (v.error) return json({ error: v.error }, 400);
+  // 2026-08-23 审查：注册接口限流（原无限流，可被脚本刷号）
+  const regIp = await rateWindow(db, 'auth:reg:ip:' + (request.headers.get('CF-Connecting-IP') || 'unknown'), 10 * 60 * 1000, 30);
+  if (regIp.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (regIp.count > 30) return json({ error: '注册太频繁，请稍后再试' }, 429);
+  const regEmail = await rateWindow(db, 'auth:reg:email:' + v.email, 60 * 60 * 1000, 5);
+  if (regEmail.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (regEmail.count > 5) return json({ error: '该邮箱注册过于频繁，请稍后再试' }, 429);
   // 恢复码保险箱（可选）：{salt,iv,c} 均为 base64url 字符串
   const recovery = sanitizeRecovery(body.recovery);
   const id = randomHex(16);
@@ -367,12 +381,19 @@ async function deleteAccount(db, env, request) {
   if (!(await verifyPassword(body.password, user.password_hash))) return json({ error: '密码不正确' }, 401);
   // 注销拦截：仍有进行中跑腿单（open/doing/done 未确认）时禁止注销，
   // 避免发布者删除任务级联删单、接单者退出后形成无人可完成的订单。
-  const openPub = await db.prepare(
-    "SELECT COUNT(*) AS c FROM errand_tasks WHERE publisher_id = ? AND status IN ('open', 'doing', 'done') AND confirmed_at IS NULL"
-  ).bind(user.id).first().catch(() => ({ c: 0 }));
-  const openTak = await db.prepare(
-    "SELECT COUNT(*) AS c FROM errand_tasks WHERE taker_id = ? AND status IN ('doing', 'done') AND confirmed_at IS NULL"
-  ).bind(user.id).first().catch(() => ({ c: 0 }));
+  let openPub, openTak;
+  try {
+    openPub = await db.prepare(
+      "SELECT COUNT(*) AS c FROM errand_tasks WHERE publisher_id = ? AND status IN ('open', 'doing', 'done') AND confirmed_at IS NULL"
+    ).bind(user.id).first();
+    openTak = await db.prepare(
+      "SELECT COUNT(*) AS c FROM errand_tasks WHERE taker_id = ? AND status IN ('doing', 'done') AND confirmed_at IS NULL"
+    ).bind(user.id).first();
+  } catch (error) {
+    // 2026-08-23 审查：原 .catch(()=>({c:0})) 在 DB 故障时误放行注销 → 改为显式 503
+    console.error('delete-account errand check error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
   const openCount = Number(openPub && openPub.c || 0) + Number(openTak && openTak.c || 0);
   if (openCount > 0) return json({ error: '仍有 ' + openCount + ' 个进行中的跑腿任务，请先完成或取消后再注销' }, 400);
   const now = Date.now();
@@ -422,13 +443,27 @@ async function forgot(db, env, request) {
   const email = normalizeEmail(body);
   if (!EMAIL_RE.test(email)) return json({ error: '邮箱格式不正确' }, 400);
   const now = Date.now();
-  const rl = await db.prepare(
-    'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ON CONFLICT(key) DO UPDATE SET count = CASE WHEN rate.until <= ?3 THEN 1 ELSE rate.count + 1 END, until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END RETURNING count'
-  ).bind('auth:forgot:' + email, now + 60000, now, now + 60000).first().catch(() => null);
-  if (rl && rl.count > 1) return json({ error: '发送太频繁，请 1 分钟后再试' }, 429);
+  // 2026-08-23 审查：原仅邮箱维度限流且限流器故障放行 → 三重限流，故障一律拒绝
+  const rlEmail = await rateWindow(db, 'auth:forgot:' + email, 60000, 1);
+  if (rlEmail.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (rlEmail.count > 1) return json({ error: '发送太频繁，请 1 分钟后再试' }, 429);
+  const rlIp = await rateWindow(db, 'auth:forgot:ip:' + (request.headers.get('CF-Connecting-IP') || 'unknown'), 10 * 60 * 1000, 10);
+  if (rlIp.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (rlIp.count > 10) return json({ error: '发送太频繁，请稍后再试' }, 429);
+  const rlGlobal = await rateWindow(db, 'auth:forgot:global', 60000, 30);
+  if (rlGlobal.failed) return json({ error: '系统繁忙，请稍后再试' }, 503);
+  if (rlGlobal.count > 30) return json({ error: '系统繁忙，请稍后再试' }, 429);
   const user = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
   if (!user) return json({ ok: true });
   const code = generateResetCode();
+  // 先入库再发信：写入失败不发信；发信失败回滚验证码（避免「用户收到码但库里没有」）
+  try {
+    await db.prepare('INSERT OR REPLACE INTO reset_tokens (email, code_hash, expires_at, used, created_at) VALUES (?, ?, ?, 0, ?)')
+      .bind(email, await sha256Hex(code), now + RESET_TTL_MS, now).run();
+  } catch (error) {
+    console.error('forgot reset_tokens error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
   const sent = await sendEmail(env, {
     to: email,
     subject: '外院知识分享站 - 密码重置验证码',
@@ -436,10 +471,9 @@ async function forgot(db, env, request) {
   });
   if (!sent.ok) {
     console.error('forgot smtp error:', sent.error);
+    await db.prepare('DELETE FROM reset_tokens WHERE email = ?').bind(email).run().catch(() => {});
     return json({ error: '邮件发送失败，请稍后重试或联系管理员' }, 503);
   }
-  await db.prepare('INSERT OR REPLACE INTO reset_tokens (email, code_hash, expires_at, used, created_at) VALUES (?, ?, ?, 0, ?)')
-    .bind(email, await sha256Hex(code), now + RESET_TTL_MS, now).run();
   return json({ ok: true });
 }
 

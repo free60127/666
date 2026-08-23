@@ -82,12 +82,15 @@ async function createTask(db, request) {
   if (rewardRaw === null || rewardRaw < 0 || rewardRaw > 99999 || !Number.isInteger(rewardRaw))
     return json({ error: '赏金需为 0~99999 的整数（元）' }, 400);
   const pickup = String(body.pickup || '').trim().slice(0, 50);
+  if (!pickup) return json({ error: '取件地点必填' }, 400);
   const dropoff = String(body.dropoff || '').trim().slice(0, 50);
+  if (!dropoff) return json({ error: '送达地点必填' }, 400);
   const contact = String(body.contact || '').trim().slice(0, 100);
+  if (!contact) return json({ error: '联系方式必填' }, 400);
   let deadline = null;
   if (body.deadline) {
     const d = num(body.deadline);
-    if (d === null || d <= Date.now()) return json({ error: '截止时间需晚于当前时间' }, 400);
+    if (d === null || !Number.isSafeInteger(d) || d <= Date.now()) return json({ error: '截止时间需为合法时间戳且晚于当前时间' }, 400);
     deadline = d;
   }
   const now = Date.now();
@@ -156,7 +159,14 @@ async function myTasks(db, request) {
 
 /* ---------- 详情（可选鉴权；联系方式仅双方可见） ---------- */
 async function taskDetail(db, request, id) {
-  const row = await db.prepare(TASK_SELECT + 'WHERE t.id = ?').bind(id).first().catch(() => null);
+  let row;
+  try {
+    row = await db.prepare(TASK_SELECT + 'WHERE t.id = ?').bind(id).first();
+  } catch (error) {
+    // 2026-08-23 审查：DB 故障不再是「任务不存在」(404)，显式 503
+    console.error('errand taskDetail error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
   if (!row) return json({ error: '任务不存在' }, 404);
   const user = await sessionUser(db, request).catch(() => null);
   const task = sanitizeContact(mapTask(row), user, row);
@@ -193,7 +203,7 @@ async function takeTask(db, request, id) {
     return json({ ok: true, task: mapTask(row) });
   } catch (error) {
     console.error('errand take error:', error);
-    return json({ error: 'internal error' }, 500);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
   }
 }
 
@@ -202,12 +212,25 @@ async function completeTask(db, request, id) {
   const user = await sessionUser(db, request);
   if (!user) return json({ error: 'unauthorized' }, 401);
   const now = Date.now();
-  const result = await db.prepare(
-    'UPDATE errand_tasks SET status = \'done\', completed_at = ?, updated_at = ? ' +
-    'WHERE id = ? AND status = \'doing\' AND taker_id = ?'
-  ).bind(now, now, id, user.id).run().catch((e) => { console.error('errand complete error:', e); return null; });
+  let result;
+  try {
+    result = await db.prepare(
+      'UPDATE errand_tasks SET status = \'done\', completed_at = ?, updated_at = ? ' +
+      'WHERE id = ? AND status = \'doing\' AND taker_id = ?'
+    ).bind(now, now, id, user.id).run();
+  } catch (error) {
+    // 2026-08-23 审查：DB 故障 → 503，与「无权限/状态不符」(400) 区分
+    console.error('errand complete error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
   if (!result || !result.meta || Number(result.meta.changes) !== 1) return json({ error: '只有接单者能在进行中标记完成' }, 400);
-  const row = await db.prepare(TASK_SELECT + 'WHERE t.id = ?').bind(id).first();
+  let row;
+  try {
+    row = await db.prepare(TASK_SELECT + 'WHERE t.id = ?').bind(id).first();
+  } catch (error) {
+    console.error('errand complete fetch error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
   return json({ ok: true, task: mapTask(row) });
 }
 
@@ -216,12 +239,25 @@ async function confirmTask(db, request, id) {
   const user = await sessionUser(db, request);
   if (!user) return json({ error: 'unauthorized' }, 401);
   const now = Date.now();
-  const result = await db.prepare(
-    'UPDATE errand_tasks SET confirmed_at = ?, confirmed_by = \'publisher\', updated_at = ? ' +
-    'WHERE id = ? AND status = \'done\' AND publisher_id = ? AND confirmed_at IS NULL'
-  ).bind(now, now, id, user.id).run().catch((e) => { console.error('errand confirm error:', e); return null; });
+  let result;
+  try {
+    result = await db.prepare(
+      'UPDATE errand_tasks SET confirmed_at = ?, confirmed_by = \'publisher\', updated_at = ? ' +
+      'WHERE id = ? AND status = \'done\' AND publisher_id = ? AND confirmed_at IS NULL'
+    ).bind(now, now, id, user.id).run();
+  } catch (error) {
+    // 2026-08-23 审查：DB 故障 → 503
+    console.error('errand confirm error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
   if (!result || !result.meta || Number(result.meta.changes) !== 1) return json({ error: '只有发布者能确认已完成的任务' }, 400);
-  const row = await db.prepare(TASK_SELECT + 'WHERE t.id = ?').bind(id).first();
+  let row;
+  try {
+    row = await db.prepare(TASK_SELECT + 'WHERE t.id = ?').bind(id).first();
+  } catch (error) {
+    console.error('errand confirm fetch error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
   return json({ ok: true, task: mapTask(row) });
 }
 

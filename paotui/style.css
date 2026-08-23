@@ -159,3 +159,21 @@ html[data-theme="dark"] .review-stars .dim { color: #4a4a4a; }/* ---------- 分�
 .share-preview img { width: 100%; max-width: 380px; margin: 0 auto; display: block; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
 html[data-theme="dark"] .share-card-btn { background: #1a1f21; border-color: var(--border); }
 html[data-theme="dark"] .share-card-btn:active { background: #242b2d; }
+/* ---------- 添加到主屏幕（2026-08-23，与主页一致） ---------- */
+.install-site[hidden] { display: none !important; } /* 2026-08-23：display:flex 会覆盖 [hidden] UA 样式 */
+.install-site {
+  display: flex; align-items: center; gap: 14px;
+  width: 100%; margin: 14px auto 4px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--card);
+}
+.install-site-text { flex: 1; min-width: 0; }
+.install-site-text b { display: block; color: var(--ink); font-size: 15px; }
+.install-site-text small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.install-site button {
+  flex: 0 0 auto; border: 0; border-radius: 10px; padding: 10px 16px;
+  background: var(--orange, #d9822b); color: #fff; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
+}
+.install-site button:hover { background: var(--orange-dark, #c0683a); }
+html[data-theme="dark"] .install-site { background: #1a1f21; border-color: var(--border); }
+html[data-theme="dark"] .install-site button { background: #c68a3e; }
+html[data-theme="dark"] .install-site button:hover { background: #a9702f; }
