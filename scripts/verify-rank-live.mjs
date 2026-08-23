@@ -42,7 +42,7 @@ cleanupActivity('anon:' + deviceId, todayCn());
 {
   const h1 = await post('/api/activity', { deviceId, learned: 3 });
   const h1j = await h1.json();
-  check('首次心跳 → 200 minutes=1 learned=3', h1.status === 200 && h1j.minutes === 1 && h1j.learned === 3, JSON.stringify(h1j));
+  check('首次心跳 → 200 且不 skipped（原子 UPSERT 不再返回 minutes/learned）', h1.status === 200 && h1j.ok === true && h1j.skipped !== true, JSON.stringify(h1j));
   const bad = await post('/api/activity', { deviceId: 'zz', learned: 1 });
   check('非法 deviceId → 400', bad.status === 400);
   const none = await post('/api/activity', { learned: 1 });
@@ -53,7 +53,7 @@ cleanupActivity('anon:' + deviceId, todayCn());
   const a1 = await post('/api/activity', { deviceId: hbId, learned: 1 });
   const a2 = await post('/api/activity', { deviceId: hbId, learned: 1 });
   const a1j = await a1.json(), a2j = await a2.json();
-  check('间隔校验：首次计数 minutes=1', a1.status === 200 && a1j.minutes === 1, JSON.stringify(a1j));
+  check('间隔校验：首次计数不 skipped（原子 UPSERT 不再返回 minutes）', a1.status === 200 && a1j.ok === true && a1j.skipped !== true, JSON.stringify(a1j));
   check('间隔校验：紧接第二次 skipped 不计数', a2.status === 200 && a2j.skipped === true && !a2j.minutes, JSON.stringify(a2j));
 }
 

@@ -48,21 +48,68 @@ export default {
   }
 };
 
-/** 托管 APK 下载：https://free60127.top/apk/<name>（KV 存储，键 apk:<name>；未来可平滑切换 R2） */
+/** 托管 APK 下载（KV 存储，键 apk:<name>）：
+ *  稳定地址 /apk/waiyuan-share.apk → 302 到版本化地址（KV 键 apk:latest:<稳定名> = 版本号）
+ *  版本化地址 /apk/waiyuan-share-v1.1.0.apk → 直接读 KV 键 apk:waiyuan-share-v1.1.0.apk（长缓存 + ETag）
+ *  KV 无文件 → 404；KV 故障 → 503（2026-08-23 审查：区分存储故障与文件不存在） */
 async function serveApk(request, env, path) {
-  const name = path.slice('/apk/'.length).replace(/^\/+/, '');
+  let name = path.slice('/apk/'.length).replace(/^\/+/, '');
   if (!/^[A-Za-z0-9._-]{1,80}$/.test(name)) return json({ error: 'not found' }, 404);
   if (!env.STUDY_KV) return json({ error: 'not configured' }, 503);
-  const data = await env.STUDY_KV.get('apk:' + name, { type: 'arrayBuffer' }).catch(() => null);
-  if (!data) return json({ error: 'not found' }, 404);
+  let key = 'apk:' + name;
+  // 稳定地址：查最新版本号 → 302 到版本化地址（302 不缓存，客户端始终跟随最新）
+  if (!/-v[0-9]/.test(name)) {
+    try {
+      const latest = await env.STUDY_KV.get('apk:latest:' + name);
+      if (latest) {
+        const ver = String(latest).trim();
+        if (/^[0-9][A-Za-z0-9._-]*$/.test(ver)) {
+          const vName = name.replace(/\.apk$/, '') + '-v' + ver + '.apk';
+          if (/^[A-Za-z0-9._-]{1,80}$/.test(vName)) {
+            return new Response(null, { status: 302, headers: { Location: '/apk/' + vName, 'Cache-Control': 'no-store' } });
+          }
+        }
+      }
+    } catch (e) {
+      console.error('serveApk latest error:', e);
+      // latest 读取失败：容错回落到稳定键本身（兼容仅写入稳定键的旧部署）
+    }
+  }
+  let got;
+  try {
+    got = await env.STUDY_KV.getWithMetadata(key, { type: 'arrayBuffer' });
+  } catch (e) {
+    console.error('serveApk kv error:', e);
+    return json({ error: 'storage unavailable' }, 503);
+  }
+  if (!got || !got.value) return json({ error: 'not found' }, 404);
+  const data = got.value;
   const headers = new Headers();
   headers.set('Content-Type', 'application/vnd.android.package-archive');
   headers.set('Content-Disposition', 'attachment; filename="' + name + '"');
-  headers.set('Cache-Control', 'public, max-age=3600');
   headers.set('Access-Control-Allow-Origin', '*');
   headers.set('Content-Length', String(data.byteLength));
+  // ETag：优先用上传时存的 metadata.sha；缺失（如 API 直传）则实时计算内容 SHA-256（2.4MB 约 10ms）
+  let etag = got.metadata && got.metadata.sha ? '"' + String(got.metadata.sha) + '"' : '';
+  if (!etag) {
+    try {
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      const bytes = new Uint8Array(digest);
+      let hex = '';
+      for (let bi = 0; bi < bytes.length; bi++) hex += bytes[bi].toString(16).padStart(2, '0');
+      etag = '"' + hex + '"';
+    } catch (e) {
+      console.error('serveApk digest error:', e);
+    }
+  }
+  if (etag) headers.set('ETag', etag);
+  if (etag && request.headers.get('If-None-Match') === etag) {
+    return new Response(null, { status: 304, headers: { ETag: etag, 'Cache-Control': 'public, max-age=3600' } });
+  }
+  headers.set('Cache-Control', /-v[0-9]/.test(name) ? 'public, max-age=604800, immutable' : 'public, max-age=3600');
   return new Response(data, { headers });
 }
+
 async function route(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -141,7 +188,7 @@ async function route(request, env, ctx) {
       }
 
       // 反代（主域直连或 /proxy/ 兼容路径）；api.free60127.top 只提供 API，不反代
-      // APK 下载（R2 托管，国内可直连）：/apk/waiyuan-share.apk | /apk/waiyuan-paotui.apk
+      // APK 下载（KV 托管，国内可直连）：/apk/waiyuan-share.apk | /apk/waiyuan-paotui.apk（稳定地址 302 → 版本化地址）
       if (path.startsWith('/apk/')) return serveApk(request, env, path);
 
       if (url.hostname !== 'api.free60127.top' && !path.startsWith('/api/')) {
@@ -274,7 +321,8 @@ async function handleVisit(request, env) {
   // IP 维度限流（防伪造 vid 刷量）；限流器故障保守拒绝
   const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
   if (!(await visitRateLimit(env, ip))) return json({ error: 'too many requests, try again later' }, 429);
-  if (!(await syncRateLimit(env, vid, 'visit'))) return json({ error: 'too many requests, try again later' }, 429);
+  const rlVisit = await syncRateLimit(env, vid, 'visit');
+  if (!rlVisit.ok && !rlVisit.failed) return json({ error: 'too many requests, try again later' }, 429);
   await countPvUv(env, path, vid);
   return json({ ok: true });
 }
@@ -305,29 +353,32 @@ async function handleActivity(request, env) {
     key = 'anon:' + deviceId;
   }
   // 双维度限流：每身份 6 次/分 + 每 IP 20 次/分（防换 deviceId 批量刷）
-  if (!(await syncRateLimit(env, key, 'heartbeat'))) return json({ error: 'too many requests, try again later' }, 429);
+  const rlHb = await syncRateLimit(env, key, 'heartbeat');
+  if (rlHb.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (!rlHb.ok) return json({ error: 'too many requests, try again later' }, 429);
   const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
-  if (!(await syncRateLimit(env, 'ip:' + ip, 'heartbeatIp'))) return json({ error: 'too many requests, try again later' }, 429);
+  const rlHbIp = await syncRateLimit(env, 'ip:' + ip, 'heartbeatIp');
+  if (rlHbIp.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (!rlHbIp.ok) return json({ error: 'too many requests, try again later' }, 429);
   const now = Date.now();
   const today = todayCn();
-  const row = await env.DB.prepare('SELECT minutes, learned, last_ts FROM activity WHERE act_key = ?1 AND date = ?2').bind(key, today).first();
-  const cur = {
-    minutes: (row && row.minutes) || 0,
-    learned: (row && row.learned) || 0,
-    lastTs: (row && row.last_ts) || 0,
-  };
-  if (cur.lastTs && now - cur.lastTs < HEARTBEAT_MIN_INTERVAL_MS) {
-    // 心跳过密（伪造/重放/双标签页）：本次不计数，不污染时长与学习量；返回 ok 让前端正常续期
-    return json({ ok: true, skipped: true });
+  // 2026-08-23 审查：先查后改并发丢计数 → 单条原子 UPSERT + 40s 间隔条件
+  //（ON CONFLICT 的 WHERE 只作用于 UPDATE 分支；条件不满足 → changes=0 → skipped）
+  let res;
+  try {
+    res = await env.DB.prepare(
+      'INSERT INTO activity (act_key, date, minutes, learned, last_ts) VALUES (?1, ?2, 1, ?3, ?4) ' +
+      'ON CONFLICT(act_key, date) DO UPDATE SET ' +
+      'minutes = activity.minutes + 1, learned = activity.learned + excluded.learned, last_ts = excluded.last_ts ' +
+      'WHERE activity.last_ts IS NULL OR activity.last_ts <= ?5'
+    ).bind(key, today, learned, now, now - HEARTBEAT_MIN_INTERVAL_MS).run();
+  } catch (error) {
+    console.error('activity upsert error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
   }
-  cur.minutes += 1;
-  cur.learned += learned;
-  cur.lastTs = now;
-  await env.DB.prepare(
-    'INSERT INTO activity (act_key, date, minutes, learned, last_ts) VALUES (?1, ?2, ?3, ?4, ?5) ' +
-    'ON CONFLICT(act_key, date) DO UPDATE SET minutes = excluded.minutes, learned = excluded.learned, last_ts = excluded.last_ts'
-  ).bind(key, today, cur.minutes, cur.learned, cur.lastTs).run();
-  return json({ ok: true, minutes: cur.minutes, learned: cur.learned });
+  const changed = res && res.meta && Number(res.meta.changes) > 0;
+  if (!changed) return json({ ok: true, skipped: true });
+  return json({ ok: true });
 }
 
 /** 管理操作：按邮箱删除账号（级联删会话；用于清理线上测试账号，requireAdmin） */
@@ -434,17 +485,23 @@ function requireAdmin(request, env, next) {
   return next();
 }
 
-/** 简单限频：同一 IP 30 秒内最多 5 次 POST */
-const RATE_KEYS = new Map();
-function rateLimit(request) {
-  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-  const now = Date.now();
-  const windowStart = now - 30_000;
-  const hits = (RATE_KEYS.get(ip) || []).filter(t => t > windowStart);
-  if (hits.length >= 5) return false;
-  hits.push(now);
-  RATE_KEYS.set(ip, hits);
-  return true;
+/** 反馈限流（2026-08-23 审查：实例内存 Map 迁 D1 rate 表，多节点一致）：同一 IP 30 秒内最多 5 次 POST；故障保守拒绝 */
+async function feedbackRateLimit(env, ip) {
+  try {
+    const now = Date.now();
+    const end = now + 30000;
+    const row = await env.DB.prepare(
+      'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ' +
+      'ON CONFLICT(key) DO UPDATE SET ' +
+      'count = CASE WHEN rate.until <= ?3 THEN 1 ELSE rate.count + 1 END, ' +
+      'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
+      'RETURNING count'
+    ).bind('rate:fb:' + ip, end, now, end).first();
+    return { ok: !(row && row.count > 5), failed: false };
+  } catch (error) {
+    console.error('feedbackRateLimit error:', error);
+    return { ok: false, failed: true };
+  }
 }
 
 /* ---------- 公告 ---------- */
@@ -467,7 +524,10 @@ async function handleDeleteNotice(env) {
 /* ---------- 反馈 ---------- */
 
 async function handleFeedback(request, env) {
-  if (!rateLimit(request)) return json({ error: 'too many requests, try again later' }, 429);
+  const fbIp = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const fbRl = await feedbackRateLimit(env, fbIp);
+  if (fbRl.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (!fbRl.ok) return json({ error: 'too many requests, try again later' }, 429);
   let body;
   try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400); }
   const clean = str => String(str || '').trim().slice(0, 2000);
@@ -572,6 +632,7 @@ const SYNC_RATE = { upload: 10, download: 30, delete: 6, heartbeat: 6, heartbeat
 
 /** D1 滚动窗口限流（2026-08-22 自 KV 迁出）：每身份×动作仅一行，窗口过期自动重置，键量恒定无需清理 */
 async function syncRateLimit(env, key, action) {
+  // 2026-08-23 审查：返回 {ok, failed}；写操作调用方对 failed 保守拒绝（503）
   try {
     const now = Date.now();
     const windowMs = 60000;  // 1 分钟窗口
@@ -585,9 +646,12 @@ async function syncRateLimit(env, key, action) {
       'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
       'RETURNING count'
     ).bind(rk, winEnd, winStart, winEnd).first();
-    if (row && row.count > SYNC_RATE[action]) return false;
-  } catch (_) { /* 限流器故障不阻断主流程 */ }
-  return true;
+    if (row && row.count > SYNC_RATE[action]) return { ok: false, failed: false };
+    return { ok: true, failed: false };
+  } catch (error) {
+    console.error('syncRateLimit error:', error);
+    return { ok: false, failed: true };
+  }
 }
 
 /** 解析请求身份：带有效 Bearer → 账号模式 {key:'user:{id}'}；否则匿名（由调用方取 deviceId） */
@@ -618,30 +682,46 @@ async function handleSyncUpload(request, env) {
     if (!DEVICE_ID_RE.test(deviceId)) return json({ error: 'deviceId must be 64 hex chars' }, 400);
     key = deviceId;
   }
-  if (!(await syncRateLimit(env, key, 'upload'))) return json({ error: 'too many requests, try again later' }, 429);
+  const rlUp = await syncRateLimit(env, key, 'upload');
+  if (rlUp.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (!rlUp.ok) return json({ error: 'too many requests, try again later' }, 429);
   const payload = JSON.stringify(body.payload ?? null);
   // 2026-08-22 审查：按 UTF-8 字节数校验（中文 1 字符=3 字节，字符数会漏放行）
   const payloadBytes = new TextEncoder().encode(payload).length;
   if (payloadBytes > MAX_SYNC_BYTES) return json({ error: 'payload too large (max 2.5MB)' }, 413);
-  // 版本号 + 冲突检测（2026-08-22）：客户端带 baseRev 上传，服务端校验等于当前 rev 才写入，
-  // 否则 409 并返回云端最新数据，前端自动合并后重试——任何上传都不覆盖他人/他设备的更新
-  const current = await env.STUDY_KV.get('sync:' + key);
-  const curRev = current ? (Number(JSON.parse(current).rev) || 0) : 0;  // 注意不能用 |0（会截断 64 位毫秒时间戳）
+  const now = Date.now();
+  const rev = now;
   const baseRev = body.baseRev;
-  if (baseRev !== undefined && Number(baseRev) !== curRev) {
-    let latestPayload = null, latestUpdatedAt = null;
-    if (current) {
-      const parsed = JSON.parse(current);
-      latestPayload = parsed.data;
-      latestUpdatedAt = parsed.updatedAt;
+  // 2026-08-23：baseRev 只要存在（含 0）就做 CAS 校验，与 KV 版语义一致；仅 undefined/null（旧客户端）走覆盖
+  if (baseRev === undefined || baseRev === null) {
+    // 旧客户端不带 baseRev：最后写入覆盖（INSERT OR REPLACE）
+    try {
+      await env.DB.prepare('INSERT OR REPLACE INTO sync_data (user_id, payload, rev, updated_at) VALUES (?, ?, ?, ?)' )
+        .bind(key, payload, rev, now).run();
+    } catch (e) {
+      console.error('sync upload error:', e);
+      return json({ error: '服务繁忙，请稍后再试' }, 503);
     }
-    return json({ error: 'conflict', rev: curRev, payload: latestPayload, updatedAt: latestUpdatedAt }, 409);
+  } else {
+    // 原子 CAS：仅当云端 rev === baseRev 才覆盖；否则 409 返回云端最新（2026-08-23 审查）
+    try {
+      const res = await env.DB.prepare(
+        'INSERT INTO sync_data (user_id, payload, rev, updated_at) VALUES (?1, ?2, ?3, ?4) ' +
+        'ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload, rev = excluded.rev, updated_at = excluded.updated_at ' +
+        'WHERE sync_data.rev = ?5')
+        .bind(key, payload, rev, now, Number(baseRev)).run();
+      if (!res || !res.meta || Number(res.meta.changes) < 1) {
+        const cur = await env.DB.prepare('SELECT payload, rev, updated_at FROM sync_data WHERE user_id = ?').bind(key).first();
+        const curRev = cur ? Number(cur.rev) || 0 : 0;
+        return json({ error: 'conflict', rev: curRev, payload: cur ? JSON.parse(cur.payload) : null, updatedAt: cur ? new Date(Number(cur.updated_at)).toISOString() : null }, 409);
+      }
+    } catch (e) {
+      console.error('sync upload cas error:', e);
+      return json({ error: '服务繁忙，请稍后再试' }, 503);
+    }
   }
-  const record = { data: JSON.parse(payload), updatedAt: new Date().toISOString(), rev: Date.now() };
-  await env.STUDY_KV.put('sync:' + key, JSON.stringify(record), { expirationTtl: SYNC_TTL_SECONDS });
-  return json({ ok: true, size: payloadBytes, updatedAt: record.updatedAt, rev: record.rev });
+  return json({ ok: true, size: payloadBytes, updatedAt: new Date(rev).toISOString(), rev });
 }
-
 async function handleSyncDownload(request, env) {
   const identity = await resolveSyncIdentity(request, env);
   if (identity.error) return json({ error: identity.error }, 401);
@@ -649,14 +729,19 @@ async function handleSyncDownload(request, env) {
   const key = identity.key || deviceId;
   if (!key) return json({ error: 'deviceId required (64 hex chars)' }, 400);
   if (!identity.key && !DEVICE_ID_RE.test(key)) return json({ error: 'deviceId must be 64 hex chars' }, 400);
-  if (!(await syncRateLimit(env, key, 'download'))) return json({ error: 'too many requests, try again later' }, 429);
-  const raw = await env.STUDY_KV.get('sync:' + key);
-  if (!raw) return json({ error: 'not found' }, 404);
-  const record = JSON.parse(raw);
-  // 旧格式记录无 rev 字段 → 视为 0（前端据此做首次合并）
-  return json({ ok: true, payload: record.data, updatedAt: record.updatedAt, rev: Number(record.rev) || 0 });
+  const rlDl = await syncRateLimit(env, key, 'download');
+  if (!rlDl.ok && !rlDl.failed) return json({ error: 'too many requests, try again later' }, 429);
+  let row;
+  try {
+    row = await env.DB.prepare('SELECT payload, rev, updated_at FROM sync_data WHERE user_id = ?').bind(key).first();
+  } catch (e) {
+    console.error('sync download error:', e);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
+  if (!row) return json({ error: 'not found' }, 404);
+  // 旧记录 rev 视为 0（前端据此做首次合并）
+  return json({ ok: true, payload: JSON.parse(row.payload), updatedAt: new Date(Number(row.updated_at)).toISOString(), rev: Number(row.rev) || 0 });
 }
-
 async function handleSyncDelete(request, env) {
   const identity = await resolveSyncIdentity(request, env);
   if (identity.error) return json({ error: identity.error }, 401);
@@ -664,11 +749,17 @@ async function handleSyncDelete(request, env) {
   const key = identity.key || deviceId;
   if (!key) return json({ error: 'deviceId required (64 hex chars)' }, 400);
   if (!identity.key && !DEVICE_ID_RE.test(key)) return json({ error: 'deviceId must be 64 hex chars' }, 400);
-  if (!(await syncRateLimit(env, key, 'delete'))) return json({ error: 'too many requests, try again later' }, 429);
-  await env.STUDY_KV.delete('sync:' + key);
+  const rlDel = await syncRateLimit(env, key, 'delete');
+  if (rlDel.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (!rlDel.ok) return json({ error: 'too many requests, try again later' }, 429);
+  try {
+    await env.DB.prepare('DELETE FROM sync_data WHERE user_id = ?').bind(key).run();
+  } catch (e) {
+    console.error('sync delete error:', e);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
   return json({ ok: true });
 }
-
 /* ---------- 反代加速 ----------
    mode 'root'：主域直连（https://free60127.top/xxx -> UPSTREAM/xxx，HTML 去 /666/ 前缀）
    mode 'proxy'：兼容路径（/proxy/xxx -> UPSTREAM/xxx，HTML 一律改 /proxy/ 前缀） */
@@ -775,6 +866,8 @@ async function processCleanupJobs(env, now) {
   }
   for (const row of rows) {
     try {
+      // 2026-08-23 云同步迁 D1：同步数据主存 D1，KV 仅删旧残留
+      await env.DB.prepare('DELETE FROM sync_data WHERE user_id = ?').bind(row.kv_key).run();
       await env.STUDY_KV.delete(row.kv_key);
       await env.DB.prepare('DELETE FROM cleanup_jobs WHERE id = ?').bind(row.id).run();
     } catch (error) {

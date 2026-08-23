@@ -53,8 +53,9 @@ const twaManifest = new TwaManifest({
     keyPassword: process.env.TWA_KEY_PASS || 'waiyuan2026',
     password: process.env.TWA_KEYSTORE_PASS || 'waiyuan2026',
   },
-  appVersion: '1.0',
-  appVersionCode: 1,
+  // 2026-08-23 审查：版本号由 workflow 注入（TWA_VERSION/TWA_VERSION_CODE），versionCode 随 git 提交数递增，Android 才能覆盖更新
+  appVersion: process.env.TWA_VERSION || '1.0.0',
+  appVersionCode: Number(process.env.TWA_VERSION_CODE || 1) || 1,
   shortcuts: [],
   generatorApp: 'bubblewrap-cli',
   webManifestUrl: cfg.webManifestUrl,

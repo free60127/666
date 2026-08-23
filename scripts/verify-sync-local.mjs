@@ -108,9 +108,9 @@ console.log('6) /api/activity 加固（间隔校验 + IP 限流 + 管理删除')
     return { status: res.status, data: await res.json().catch(() => null) };
   };
   const a1 = await hb({ deviceId: hbId, learned: 3 });
-  check('首次心跳 → 200 minutes=1 learned=3', a1.status === 200 && a1.data.minutes === 1 && a1.data.learned === 3, JSON.stringify(a1.data));
+  check('首次心跳 → 200 且不 skipped（原子 UPSERT 不再返回 minutes/learned）', a1.status === 200 && a1.data.ok === true && a1.data.skipped !== true, JSON.stringify(a1.data));
   const a2 = await hb({ deviceId: hbId, learned: 3 });
-  check('紧接第二次 → skipped 不计数', a2.status === 200 && a2.data.skipped === true && !a2.data.minutes, JSON.stringify(a2.data));
+  check('紧接第二次 → skipped 不计数', a2.status === 200 && a2.data.skipped === true, JSON.stringify(a2.data));
   let ip429 = 0;
   for (let i = 0; i < 21; i++) {
     const r = await hb({ deviceId: hex64(), learned: 0 }, '203.0.113.9');

@@ -640,6 +640,25 @@ test('分享深链：?task=ID 打开页面自动进入任务详情', async ({ pa
   await expect(page.locator('#detail-body')).toContainText('深链任务');
 });
 
+test('申诉：进行中（doing）任务也有申诉入口（2026-08-23 审查⑧）', async ({ page }) => {
+  const store = newStore();
+  store.users.push({ id: 'u0', email: 'pub@test.com', password: 'secret123', nickname: '发布者' });
+  store.users.push({ id: 'u1', email: 'taker@test.com', password: 'secret123', nickname: '跑腿小王' });
+  store.tasks.push({
+    id: 1, publisherId: 'u0', title: '送文件', reward: 8, pickup: 'A', dropoff: 'B', contact: '13800000000', deadline: null,
+    status: 'doing', takerId: 'u1', createdAt: Date.now(), updatedAt: Date.now(),
+    completedAt: null, confirmedAt: null, cancelledAt: null, cancelReason: '', publisherName: '发布者', takerName: '跑腿小王',
+  });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE);
+  await uiRegisterAndLogin(page, store, 'pub@test.com', '发布者', 'secret123');
+  await page.locator('#tabs .tab[data-tab=doing]').click();
+  await page.locator('.task-card').first().click();
+  await expect(page.locator('[data-act=dispute]')).toBeVisible();
+  await page.locator('[data-act=dispute]').click();
+  await expect(page.locator('#dispute-modal')).toBeVisible();
+});
 test('添加到主屏幕：iOS 专用（iOS UA 显示徽标与引导文案）', async ({ browser }) => {
   const ctx = await browser.newContext({ userAgent: IOS_UA });
   const page2 = await ctx.newPage();

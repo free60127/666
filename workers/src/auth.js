@@ -108,19 +108,22 @@ async function loginIpCheck(env, request) {
   if (!env || !env.DB) return { ok: true };
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
   const r = await rateWindow(env.DB, 'rate:login:ip:' + ip, 600000, LOGIN_IP_MAX);
-  if (r.failed) return { ok: true }; // 限流器故障不阻断登录（登录可用性优先）
-  if (r.count > LOGIN_IP_MAX) return { ok: false, error: '尝试过于频繁，请稍后再试' };
-  return { ok: true };
+  if (r.failed) return { ok: false, failed: true, error: '服务繁忙，请稍后再试' }; // 2026-08-23 审查：限流器故障保守拒绝
+  if (r.count > LOGIN_IP_MAX) return { ok: false, failed: false, error: '尝试过于频繁，请稍后再试' };
+  return { ok: true, failed: false };
 }
 
 async function loginEmailCheck(db, email) {
   try {
     const row = await db.prepare('SELECT locked_until FROM login_fails WHERE email = ?').bind(email).first();
     if (row && row.locked_until > Date.now()) {
-      return { ok: false, error: '登录尝试过多，请 15 分钟后再试' };
+      return { ok: false, failed: false, error: '登录尝试过多，请 15 分钟后再试' };
     }
-  } catch (_) { /* 表不存在等故障不阻断 */ }
-  return { ok: true };
+  } catch (error) {
+    console.error('loginEmailCheck error:', error);
+    return { ok: false, failed: true, error: '服务繁忙，请稍后再试' };
+  }
+  return { ok: true, failed: false };
 }
 
 async function recordLoginFail(db, email) {
@@ -211,9 +214,9 @@ async function login(db, env, request) {
   const v = validate(body);
   if (v.error) return json({ error: v.error }, 400);
   const ipCheck = await loginIpCheck(env, request);
-  if (!ipCheck.ok) return json({ error: ipCheck.error }, 429);
+  if (!ipCheck.ok) return json({ error: ipCheck.error }, ipCheck.failed ? 503 : 429);
   const emailCheck = await loginEmailCheck(db, v.email);
-  if (!emailCheck.ok) return json({ error: emailCheck.error }, 429);
+  if (!emailCheck.ok) return json({ error: emailCheck.error }, emailCheck.failed ? 503 : 429);
   const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(v.email).first();
   if (!user || !(await verifyPassword(v.password, user.password_hash))) {
     await recordLoginFail(db, v.email);
@@ -312,10 +315,11 @@ async function bumpResetAttempts(db, key, now) {
       'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
       'RETURNING count'
     ).bind(key, winEnd, winStart, winEnd).first();
-    return Number(row && row.count) || 0;
-  } catch (_) {
-    // 限流表故障时不阻断密码重置，但仍保留验证码本身的单次消费保护。
-    return 0;
+    return { count: Number(row && row.count) || 0, failed: false };
+  } catch (error) {
+    console.error('bumpResetAttempts error:', error);
+    // 2026-08-23 审查：限流表故障 → failed，调用方拒绝（防滥用绕过）
+    return { count: 0, failed: true };
   }
 }
 
@@ -324,12 +328,13 @@ async function resetAttemptCheck(db, request, email) {
     .split(',')[0].trim().slice(0, 128) || 'unknown';
   const now = Date.now();
   // D1 写入串行化，避免同一请求同时更新两个 rate 行时产生不必要的锁竞争。
-  const emailCount = await bumpResetAttempts(db, 'auth:reset:email:' + email, now);
-  const ipCount = await bumpResetAttempts(db, 'auth:reset:ip:' + ip, now);
+  const emailR = await bumpResetAttempts(db, 'auth:reset:email:' + email, now);
+  const ipR = await bumpResetAttempts(db, 'auth:reset:ip:' + ip, now);
   return {
-    emailCount,
-    ipCount,
-    blocked: emailCount > RESET_EMAIL_ATTEMPT_MAX || ipCount > RESET_IP_ATTEMPT_MAX,
+    emailCount: emailR.count,
+    ipCount: ipR.count,
+    failed: emailR.failed || ipR.failed,
+    blocked: emailR.count > RESET_EMAIL_ATTEMPT_MAX || ipR.count > RESET_IP_ATTEMPT_MAX,
   };
 }
 
@@ -403,9 +408,11 @@ async function deleteAccount(db, env, request) {
       db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id),
       db.prepare('DELETE FROM reset_tokens WHERE email = ?').bind(user.email),
       db.prepare('DELETE FROM login_fails WHERE email = ?').bind(user.email),
-      db.prepare('DELETE FROM rate WHERE key IN (?, ?)')
-        .bind('auth:forgot:' + user.email, 'auth:reset:email:' + user.email),
+      db.prepare('DELETE FROM rate WHERE key IN (?, ?, ?)')
+        .bind('auth:forgot:' + user.email, 'auth:reset:email:' + user.email, 'auth:reg:email:' + user.email),
       db.prepare('DELETE FROM activity WHERE act_key = ?').bind('user:' + user.id),
+      // 2026-08-23 云同步迁 D1：同步数据主存 D1（KV 旧残留由 cleanup_jobs 兜底删）
+      db.prepare('DELETE FROM sync_data WHERE user_id = ?').bind(kvKey),
       // 活跃数据删除后，聚合排行榜缓存必须失效，避免继续展示已注销账号。
       db.prepare('DELETE FROM rank_cache'),
     ];
@@ -487,6 +494,7 @@ async function resetPassword(db, request) {
   if (err) return json({ error: err }, 400);
   if (!EMAIL_RE.test(email)) return json({ error: '邮箱格式不正确' }, 400);
   const attempt = await resetAttemptCheck(db, request, email);
+  if (attempt.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
   if (attempt.blocked) return json({ error: '验证码尝试次数过多，请重新申请验证码' }, 429);
   if (!/^[0-9]{8}$/.test(code)) {
     if (attempt.emailCount >= RESET_EMAIL_ATTEMPT_MAX || attempt.ipCount >= RESET_IP_ATTEMPT_MAX) {

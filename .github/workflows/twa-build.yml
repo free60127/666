@@ -12,6 +12,10 @@ on:
           - both
           - share
           - paotui
+      version:
+        description: '版本号 versionName（如 1.1.0；留空自动生成 1.YYMM.提交数）'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -34,6 +38,20 @@ jobs:
       - name: Install bubblewrap CLI
         run: npm i -g @bubblewrap/cli
 
+      - name: Resolve APK version (2026-08-23 审查: versionCode 递增, Android 覆盖更新)
+        id: ver
+        run: |
+          VER="${{ inputs.version }}"
+          CODE=$(git rev-list --count HEAD)
+          if [ -z "$VER" ]; then VER="1.$(date +%y%m).$CODE"; fi
+          # versionName 必须是数字点分段（Android 校验）
+          if ! echo "$VER" | grep -qE '^[0-9]+(\.[0-9]+)+$'; then
+            echo "invalid version: $VER"; exit 1
+          fi
+          echo "VERSION=$VER" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$CODE" >> "$GITHUB_ENV"
+          echo "APK_VERSION=$VER (code=$CODE)"
+
       - name: Restore keystore from secret
         run: |
           mkdir -p keys
@@ -54,6 +72,8 @@ jobs:
           TWA_KEYSTORE_PASS: ${{ secrets.APK_KEYSTORE_PASS }}
           TWA_KEY_PASS: ${{ secrets.APK_KEY_PASS }}
           TWA_KEY_ALIAS: ${{ secrets.APK_KEY_ALIAS }}
+          TWA_VERSION: ${{ env.VERSION }}
+          TWA_VERSION_CODE: ${{ env.VERSION_CODE }}
 
       - name: Generate and build paotui APK
         if: inputs.app == 'both' || inputs.app == 'paotui'
@@ -69,21 +89,62 @@ jobs:
           TWA_KEYSTORE_PASS: ${{ secrets.APK_KEYSTORE_PASS }}
           TWA_KEY_PASS: ${{ secrets.APK_KEY_PASS }}
           TWA_KEY_ALIAS: ${{ secrets.APK_KEY_ALIAS }}
+          TWA_VERSION: ${{ env.VERSION }}
+          TWA_VERSION_CODE: ${{ env.VERSION_CODE }}
 
       - name: Upload APKs to Cloudflare KV (主域直连下载，无需 VPN)
         run: |
+          set -euo pipefail
           API="https://api.cloudflare.com/client/v4/accounts/${{ secrets.CF_ACCOUNT_ID }}/storage/kv/namespaces/${{ secrets.CF_KV_NS }}/values"
           AUTH="Authorization: Bearer ${{ secrets.CF_API_TOKEN }}"
-          if [ -f waiyuan-share.apk ]; then
-            curl -sS -X PUT "$API/apk%3Awaiyuan-share.apk" -H "$AUTH" --data-binary @waiyuan-share.apk
-          fi
-          if [ -f waiyuan-paotui.apk ]; then
-            curl -sS -X PUT "$API/apk%3Awaiyuan-paotui.apk" -H "$AUTH" --data-binary @waiyuan-paotui.apk
-          fi
+          upload() {
+            local file="$1" key="$2" meta="$3" resp code body size
+            size=$(stat -c%s "$file")
+            echo "upload $file -> $key (${size} bytes)"
+            resp=$(curl -sS --fail-with-body -X PUT "$API/$(printf '%s' "$key" | jq -sRr @uri)?metadata=$(printf '%s' "$meta" | jq -sRr @uri)" -H "$AUTH" --data-binary @"$file" -w $'\n%{http_code}')
+            code=$(printf '%s' "$resp" | tail -n1)
+            body=$(printf '%s' "$resp" | sed '$d')
+            if [ "$code" != "200" ] || ! printf '%s' "$body" | grep -q '"success":true'; then
+              echo "KV PUT FAILED key=$key http=$code body=$body"; exit 1
+            fi
+            echo "KV PUT ok key=$key (${size} bytes)"
+          }
+          put_latest() {
+            local name="$1" ver="$2"
+            local enc
+            enc=$(printf '%s' "apk:latest:$name" | jq -sRr @uri)
+            curl -sS --fail-with-body -X PUT "$API/$enc" -H "$AUTH" --data-binary "$ver" -o /dev/null -w "latest $name -> http=%{http_code}\n"
+          }
+          for name in waiyuan-share waiyuan-paotui; do
+            if [ -f "$name.apk" ]; then
+              sha=$(sha256sum "$name.apk" | cut -d' ' -f1)
+              echo "sha256 $name.apk = $sha"
+              upload "$name.apk" "apk:${name}-v${VERSION}.apk" "{\"sha\":\"${sha}\"}"
+              upload "$name.apk" "apk:${name}.apk" "{\"sha\":\"${sha}\"}"
+              put_latest "$name.apk" "$VERSION"
+            fi
+          done
+          # 上传后验证：稳定地址应 302 到版本化地址，版本化地址 200 且大小与本地一致
+          for name in waiyuan-share waiyuan-paotui; do
+            if [ -f "$name.apk" ]; then
+              loc=$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' "https://free60127.top/apk/$name.apk")
+              echo "verify stable $name: $loc"
+              http=${loc%% *}; url=${loc#* }
+              if [ "$http" != "302" ]; then echo "STABLE REDIRECT FAIL: $loc"; exit 1; fi
+              info=$(curl -sS -o /dev/null -w '%{http_code} %{size_download}' "$url")
+              echo "verify versioned $name: $info"
+              vhttp=${info%% *}; vsize=${info#* }
+              local_size=$(stat -c%s "$name.apk")
+              if [ "$vhttp" != "200" ] || [ "$vsize" != "$local_size" ]; then
+                echo "VERSIONED DOWNLOAD FAIL: $info vs local $local_size"; exit 1
+              fi
+            fi
+          done
+
       - name: Upload APKs to GitHub Release
         run: |
-          TAG=apk-v1
-          gh release view $TAG --repo ${{ github.repository }} >/dev/null 2>&1 || gh release create $TAG --repo ${{ github.repository }} --title '外院知识分享站 / 外院跑腿 APK' --notes 'TWA 壳 APK：加载线上网页，站点更新即自动同步。'
+          TAG=apk-v$VERSION
+          gh release view $TAG --repo ${{ github.repository }} >/dev/null 2>&1 || gh release create $TAG --repo ${{ github.repository }} --title '外院知识分享站 / 外院跑腿 APK v'$VERSION --notes 'TWA 壳 APK：加载线上网页，站点内容更新即自动同步。'
           if [ -f waiyuan-share.apk ]; then gh release upload $TAG waiyuan-share.apk --repo ${{ github.repository }} --clobber; fi
           if [ -f waiyuan-paotui.apk ]; then gh release upload $TAG waiyuan-paotui.apk --repo ${{ github.repository }} --clobber; fi
         env:

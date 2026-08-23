@@ -3,6 +3,7 @@
   const auth = window.WaiyuanAuth;
   const API = (window.WAIYUAN_API_BASE || 'https://api.free60127.top');
   let me = null;            // {token, id, nickname}
+  let detailSeq = 0;         // 详情请求序号（2026-08-23 审查：防快速开 A/B 时慢响应覆盖）
   let tab = 'open';
   let page = 1;
   let total = 0;
@@ -154,17 +155,21 @@
 
   /* ---------- 详情 ---------- */
   async function openDetail(id) {
+    const seq = ++detailSeq;
     const bodyEl = $('detail-body');
     bodyEl.innerHTML = '<div class="loading">加载中…</div>';
     openModal('detail-modal');
     try {
       const data = await api('/api/errand/tasks/' + id);
-      renderDetail(data.task);
+      if (seq !== detailSeq) return; // 已被更新的详情请求取代
+      renderDetail(data.task, seq);
     } catch (e) {
+      if (seq !== detailSeq) return;
       bodyEl.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
     }
   }
-  function renderDetail(t) {
+  function renderDetail(t, seq) {
+    seq = seq || detailSeq;
     currentShareTask = t;
     const bodyEl = $('detail-body');
     const st = STATUS[t.status] || ['未知', ''];
@@ -185,9 +190,13 @@
       if (isPublisher && !t.confirmedAt) actions += '<button class="btn primary" data-act="confirm">确认完成（结算）</button>';
       else actions += '<span class="muted">' + (t.confirmedAt ? (t.confirmedBy === 'system' ? '✅ 系统超时自动确认（48 小时未确认）' : '✅ 双方确认完成') : '已完成，等待发布者确认（48 小时后系统自动确认）') + '</span>';
       if (t.confirmedAt && (isPublisher || isTaker)) actions += '<button class="btn ghost" data-act="review">⭐ 评价对方</button>';
-      if ((t.status === 'doing' || t.status === 'done') && (isPublisher || isTaker)) actions += '<button class="btn ghost" data-act="dispute">⚠️ 申诉</button>';
     } else {
       actions += '<span class="muted">' + esc(t.cancelReason || '已取消') + '</span>';
+    }
+    // 申诉入口：进行中/已完成均可（后端同样允许 doing/done 申诉）
+    // 2026-08-23 审查修复：原写在 done 分支内，doing 状态永远看不到按钮
+    if ((t.status === 'doing' || t.status === 'done') && (isPublisher || isTaker)) {
+      actions += '<button class="btn ghost" data-act="dispute">⚠️ 申诉</button>';
     }
     bodyEl.innerHTML =
       '<div class="detail-head"><span class="badge ' + st[1] + '">' + st[0] + '</span><span class="reward big">¥' + esc(t.reward) + '</span></div>' +
@@ -210,14 +219,15 @@
     bodyEl.querySelectorAll('button[data-act]').forEach(btn => {
       btn.addEventListener('click', () => handleDetailAction(btn.dataset.act, t));
     });
-    loadReviews(t.id);
-    loadDisputes(t.id);
+    loadReviews(t.id, seq);
+    loadDisputes(t.id, seq);
   }
-  async function loadReviews(taskId) {
+  async function loadReviews(taskId, seq) {
     const box = $('review-box');
     if (!box) return;
     try {
       const data = await api('/api/errand/reviews?taskId=' + taskId);
+      if (seq !== detailSeq) return; // 详情已切换，丢弃过期响应
       const list = data.reviews || [];
       if (!list.length) return;
       box.innerHTML = '<div class="review-head">💬 评价（' + list.length + '）</div>' +
@@ -353,11 +363,12 @@
       btn.disabled = false;
     }
   }
-  async function loadDisputes(taskId) {
+  async function loadDisputes(taskId, seq) {
     const box = $('dispute-box');
     if (!box) return;
     try {
       const data = await api('/api/errand/disputes?taskId=' + taskId);
+      if (seq !== detailSeq) return; // 详情已切换，丢弃过期响应
       const list = data.disputes || [];
       if (!list.length) return;
       const stMap = { open: ['待处理', 'st-open'], resolved: ['已解决', 'st-done'], rejected: ['已驳回', 'st-cancelled'] };
@@ -406,7 +417,7 @@
     try {
       const data = await api('/api/errand/tasks/' + t.id + '/' + act, { method: 'POST', body: JSON.stringify({}) });
       toast({ take: '接单成功！', complete: '已标记完成，等发布者确认', confirm: '已确认完成，感谢使用！', cancel: '任务已取消' }[act] || '操作成功');
-      renderDetail(data.task);
+      renderDetail(data.task, detailSeq);
       loadList(false);
     } catch (e) {
       toast(e.message, true);

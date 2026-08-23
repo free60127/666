@@ -187,7 +187,7 @@ async function takeTask(db, request, id) {
       'WHERE id = ? AND status = \'open\' AND publisher_id != ? AND (deadline IS NULL OR deadline > ?)'
     ).bind(user.id, now, id, user.id, now).run();
     if (!result || !result.meta || Number(result.meta.changes) !== 1) {
-      const row = await db.prepare('SELECT status, publisher_id, deadline FROM errand_tasks WHERE id = ?').bind(id).first().catch(() => null);
+      const row = await db.prepare('SELECT status, publisher_id, deadline FROM errand_tasks WHERE id = ?').bind(id).first();
       if (!row) return json({ error: '任务不存在' }, 404);
       if (row.publisher_id === user.id) return json({ error: '不能接自己发布的任务' }, 400);
       if (row.status === 'open' && row.deadline && Number(row.deadline) <= now) {
@@ -284,7 +284,7 @@ async function cancelTask(db, request, id) {
       'WHERE id = ? AND status IN (\'open\', \'doing\') AND (publisher_id = ? OR (status = \'doing\' AND taker_id = ?))'
     ).bind(now, reason || defaultReason, now, id, user.id, user.id).run();
     if (!result || !result.meta || Number(result.meta.changes) !== 1) {
-      const cur = await db.prepare('SELECT status FROM errand_tasks WHERE id = ?').bind(id).first().catch(() => null);
+      const cur = await db.prepare('SELECT status FROM errand_tasks WHERE id = ?').bind(id).first();
       if (!cur) return json({ error: '任务不存在' }, 404);
       if (cur.status === 'cancelled') return json({ error: '任务已取消' }, 400);
       return json({ error: '取消失败，任务状态已变化', status: cur.status }, 409);
@@ -293,7 +293,7 @@ async function cancelTask(db, request, id) {
     return json({ ok: true, task: mapTask(fresh) });
   } catch (error) {
     console.error('errand cancel error:', error);
-    return json({ error: 'internal error' }, 500);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
   }
 }
 
@@ -411,13 +411,20 @@ async function createDispute(db, request, env) {
       "INSERT INTO errand_disputes (task_id, user_id, role, reason, detail, status, admin_note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'open', '', ?, ?)"
     ).bind(taskId, user.id, role, reason, detail, now, now).run();
     disputeId = result.meta.last_row_id;
-    // 证据入库：失败即回滚（删申诉，级联删证据），避免半成品申诉
+        // 证据入库（2026-08-23 审查）：过滤非法项后整体 batch 原子提交；
+    // 任一失败由外层 catch 回滚删除申诉（级联删证据），不留半成品
+    const validEvidence = [];
     for (const ev of evidence) {
-      const s = String(ev || '');
-      if (!/^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(s) || s.length > 300000) continue;
-      await db.prepare('INSERT INTO errand_evidence (dispute_id, data, created_at) VALUES (?, ?, ?)').bind(disputeId, s, now).run();
+      const es = String(ev || '');
+      const evRe = new RegExp('^data:image\\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$');
+      if (!evRe.test(es) || es.length > 300000) continue;
+      validEvidence.push(es);
     }
-    const row = await db.prepare(DISPUTE_SELECT + 'WHERE d.id = ?').bind(disputeId).first();
+    if (validEvidence.length) {
+      const evStmts = validEvidence.map(ev => db.prepare('INSERT INTO errand_evidence (dispute_id, data, created_at) VALUES (?, ?, ?)').bind(disputeId, ev, now));
+      await db.batch(evStmts);
+    }
+const row = await db.prepare(DISPUTE_SELECT + 'WHERE d.id = ?').bind(disputeId).first();
     return json({ ok: true, dispute: mapDispute(row) }, 201);
   } catch (error) {
     // 并发重复 open 申诉：唯一部分索引兜底
@@ -428,7 +435,7 @@ async function createDispute(db, request, env) {
       await db.prepare('DELETE FROM errand_disputes WHERE id = ?').bind(disputeId).run().catch(() => {});
     }
     console.error('errand dispute error:', error);
-    return json({ error: 'internal error' }, 500);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
   }
 }
 
@@ -488,10 +495,18 @@ async function resolveDispute(db, request, env, id) {
   if (!['resolved', 'rejected'].includes(body.status)) return json({ error: 'invalid status' }, 400);
   const note = String(body.note || '').trim().slice(0, 300);
   const now = Date.now();
-  const result = await db.prepare("UPDATE errand_disputes SET status = ?, admin_note = ?, updated_at = ? WHERE id = ? AND status = 'open'").bind(body.status, note, now, id).run().catch(e => { console.error('errand resolve:', e); return null; });
+  let result;
+  try {
+    result = await db.prepare("UPDATE errand_disputes SET status = ?, admin_note = ?, updated_at = ? WHERE id = ? AND status = 'open'").bind(body.status, note, now, id).run();
+  } catch (e) {
+    console.error('errand resolve:', e);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
   if (!result || !result.meta || Number(result.meta.changes) !== 1) return json({ error: '申诉不存在或已处理' }, 400);
   await auditLog(db, env, 'errand.dispute.resolve', 'dispute ' + id + ' -> ' + body.status + (note ? ' (' + note + ')' : ''));
-  const row = await db.prepare(DISPUTE_SELECT + 'WHERE d.id = ?').bind(id).first();
+  let row;
+  try { row = await db.prepare(DISPUTE_SELECT + 'WHERE d.id = ?').bind(id).first(); }
+  catch (e) { console.error('errand resolve fetch error:', e); return json({ error: '服务繁忙，请稍后再试' }, 503); }
   return json({ ok: true, dispute: mapDispute(row) });
 }
 
@@ -500,10 +515,14 @@ async function listEvidence(db, request, env, disputeId) {
   const isAdmin = requireAdmin(request, env);
   const user = await sessionUser(db, request).catch(() => null);
   if (!isAdmin && !user) return json({ error: 'unauthorized' }, 401);
-  const d = await db.prepare('SELECT task_id FROM errand_disputes WHERE id = ?').bind(disputeId).first().catch(() => null);
+  let d;
+  try { d = await db.prepare('SELECT task_id FROM errand_disputes WHERE id = ?').bind(disputeId).first(); }
+  catch (e) { console.error('errand evidence dispute query error:', e); return json({ error: '服务繁忙，请稍后再试' }, 503); }
   if (!d) return json({ error: '申诉不存在' }, 404);
   if (!isAdmin) {
-    const task = await db.prepare('SELECT publisher_id, taker_id FROM errand_tasks WHERE id = ?').bind(d.task_id).first().catch(() => null);
+    let task;
+    try { task = await db.prepare('SELECT publisher_id, taker_id FROM errand_tasks WHERE id = ?').bind(d.task_id).first(); }
+    catch (e) { console.error('errand evidence task query error:', e); return json({ error: '服务繁忙，请稍后再试' }, 503); }
     if (!task || (user.id !== task.publisher_id && user.id !== task.taker_id)) return json({ error: '无权查看' }, 403);
   }
   const rows = await db.prepare('SELECT id, data, created_at FROM errand_evidence WHERE dispute_id = ? ORDER BY id ASC').bind(disputeId).all();

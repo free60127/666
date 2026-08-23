@@ -12,6 +12,14 @@
 - **跑腿发布**强制 pickup/dropoff/contact 必填 + deadline 安全整数（前后端一致）；/api/visit 路径白名单（拒绝 ../、//、反斜杠、控制字符）。
 - **任务分享二维码深链** ?task=ID，扫码直达任务详情；前端列表竞态修复（requestId 作废旧响应 + 加载更多锁）；注册免二次登录（原逻辑创建两个会话）；跑腿页新增「📱 添加到主屏幕」（与主页一致）。
 - **工具链**：ci.yml worker-test 增跑 test-errand.mjs；validate.js 增综英 data.js 校验（kind/kindLabel/重复题/HTML 实体）；check-online.js 失败计数 + 非 0 退出码。
+## 2026-08-23 第二轮审查整改（APK 链路 + 限流/并发 + 跑腿 + 测试）
+- **APK 版本化**：make-twa.cjs 的 versionName/versionCode 由 workflow 注入（输入 version 或自动 `1.YYMM.提交数`；versionCode=git 提交数单调递增），Android 可覆盖更新；Release tag 跟随版本（apk-v<版本>）。
+- **APK 下载链路**：稳定地址 `/apk/waiyuan-*.apk` 302 → 版本化地址 `/apk/waiyuan-*-v<版本>.apk`（KV 键 `apk:latest:<名>` 存最新版本）；版本化地址长缓存（7 天 immutable）+ ETag（SHA-256，实时计算兜底）+ 304；KV 无文件 404 / KV 故障 503 区分。workflow 上传：curl --fail-with-body + success 字段校验 + metadata.sha + 上传后稳定/版本化双地址验证大小一致。
+- **限流故障语义收紧**：登录 IP/邮箱检查、找回密码尝试计数故障 → 503（不再放行）；同步上传/删除、心跳、反馈提交故障 → 503（读路径 download/visit 仍放行）；反馈限流从实例内存 Map 迁 D1 rate 表（多节点一致）。
+- **云同步 CAS 原子化**：同步数据从 KV 迁 D1 `sync_data` 表（0011 迁移）；上传带 baseRev 时用 `INSERT ... ON CONFLICT DO UPDATE ... WHERE sync_data.rev = ?` 原子校验（changes=0 → 409 带云端最新），双设备并发不再互相覆盖；无 baseRev 旧客户端兼容覆盖。存量 KV 数据迁移工具 `scripts/migrate-kv-sync-to-d1.cjs`（当前仅测试残留键，已清）。注销/清理任务同步删 D1 数据。
+- **activity 心跳原子化**：先查后改 → 单条 UPSERT（minutes+1 / learned+增量 / last_ts）+ 40s 间隔条件（WHERE 只作用于 UPDATE 分支），并发不丢计数；响应不再返回 minutes/learned（验证脚本断言已同步更新）。
+- **跑腿**：doing 状态补申诉入口（原逻辑写在 done 分支内永远不显示）；详情/评价/申诉加载加请求序号守卫（快速切详情不串数据）；申诉证据过滤后整体 D1 batch 原子提交；takeTask/cancelTask/listEvidence/resolveDispute 区分 DB 故障（503）与业务错误（404/400/403）。
+- **测试**：playwright.config reuseExistingServer 改为 `!process.env.CI`（本地复用、CI 自管生命周期，测试结束进程不残留）；新增 doing 申诉按钮用例；新增 `scripts/verify-apk-live.mjs`（稳定 302 → 版本化 200 + 类型/大小/魔数/ETag/304 全链路 smoke test）。
 ## 安卓版 App（APK）
 - 两个 TWA 壳 APK：**外院知识分享站**（加载 https://free60127.top/）与 **外院跑腿**（加载 https://free60127.top/paotui/）；内容是线上网页，站点更新即自动同步，无需重装。
 - 下载：`https://free60127.top/apk/waiyuan-share.apk`、`https://free60127.top/apk/waiyuan-paotui.apk`（Worker 从 KV 直出，国内无需 VPN；GitHub Release `apk-v1` 为备份源）。
