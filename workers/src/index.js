@@ -14,6 +14,7 @@
 const UPSTREAM = 'https://free60127.github.io/666';
 import { handleAuth, hashToken } from './auth.js';
 import { handleErrand } from './errand.js';
+import { cleanupDb } from './maintenance.js';
 // CORS：只对站点白名单来源回显 Origin（其余不带 CORS 头，浏览器直接拦截；
 // 未携带 Origin 的同源/非浏览器请求不受影响）
 const ALLOWED_ORIGINS = new Set(['https://free60127.github.io', 'https://free60127.top']);
@@ -322,13 +323,14 @@ async function handleVisit(request, env) {
   let path = String(body.path || '/');
   if (!path.startsWith('/')) path = '/' + path;
   if (path.length > 200) path = path.slice(0, 200);
-  // 2026-08-23 审查：路径白名单——拒绝控制字符（-）/反斜杠/路径穿越/双斜杠
-  if (path.includes('..') || path.includes('//') || path.includes(String.fromCharCode(92)) || /[-]/.test(path)) return json({ error: 'invalid path' }, 400);
+  // 2026-08-23 审查：路径白名单——拒绝控制字符/反斜杠/路径穿越/双斜杠
+  if (path.includes('..') || path.includes('//') || path.includes(String.fromCharCode(92)) || /[\u0000-\u001F\u007F]/.test(path)) return json({ error: 'invalid path' }, 400);
   // IP 维度限流（防伪造 vid 刷量）；限流器故障保守拒绝
   const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
   if (!(await visitRateLimit(env, ip))) return json({ error: 'too many requests, try again later' }, 429);
   const rlVisit = await syncRateLimit(env, vid, 'visit');
-  if (!rlVisit.ok && !rlVisit.failed) return json({ error: 'too many requests, try again later' }, 429);
+  if (rlVisit.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (!rlVisit.ok) return json({ error: 'too many requests, try again later' }, 429);
   await countPvUv(env, path, vid);
   return json({ ok: true });
 }
@@ -632,7 +634,6 @@ async function handleDeleteFeedback(request, env) {
    DELETE /api/sync?deviceId=x   删除 */
 
 const MAX_SYNC_BYTES = 2_500_000;
-const SYNC_TTL_SECONDS = 730 * 24 * 3600;  // 2 年未备份自动过期
 const DEVICE_ID_RE = /^[0-9a-f]{64}$/;
 const SYNC_RATE = { upload: 10, download: 30, delete: 6, heartbeat: 6, heartbeatIp: 20, visit: 60 };  // 每分钟每键（heartbeat 排行榜活跃 / heartbeatIp 按 IP 限 / visit GitHub 直连统计）
 
@@ -829,67 +830,4 @@ function filterHeaders(headers) {
   }
   out.set('x-forwarded-host', 'free60127.github.io');
   return out;
-}
-
-/* ---------- D1 数据自动清理（2026-08-22 审查 P1）----------
- * Cron 每日执行：uv_seen 保留 2 天、activity 保留 8 天（周榜窗口 7 天）、
- * rate 删过期窗口、rank_cache 删 1 小时前的缓存、stats 日计数保留 30 天、
- * login_fails 保留 1 天、reset_tokens 删除过期记录、sync_data 保留 730 天。
- * KV 注销清理任务单独重试；全部静默容错，清理失败不影响任何请求。 */
-async function cleanupDb(env) {
-  const db = env.DB;
-  if (!db) return;
-  const now = Date.now();
-  try {
-    const dayMs = 86400 * 1000;
-    const todayCnTs = () => new Date(now + 8 * 3600 * 1000).toISOString().slice(0, 10);
-    const daysAgo = n => new Date(now + 8 * 3600 * 1000 - n * dayMs).toISOString().slice(0, 10);
-    await db.batch([
-      db.prepare('DELETE FROM uv_seen WHERE day < ?1').bind(daysAgo(2)),
-      db.prepare('DELETE FROM activity WHERE date < ?1').bind(daysAgo(8)),
-      db.prepare('DELETE FROM rate WHERE until < ?1').bind(now),
-      db.prepare('DELETE FROM rank_cache WHERE updated_at < ?1').bind(now - 3600 * 1000),
-      db.prepare("DELETE FROM stats WHERE key LIKE 'stats:pv:day:%' AND substr(key, 14) < ?1").bind(daysAgo(30)),
-      db.prepare("DELETE FROM stats WHERE key LIKE 'stats:uv:day:%' AND substr(key, 14) < ?1").bind(daysAgo(30)),
-      db.prepare('DELETE FROM login_fails WHERE updated_at < ?1').bind(now - dayMs),
-      db.prepare('DELETE FROM reset_tokens WHERE expires_at < ?1').bind(now),
-      db.prepare('DELETE FROM sync_data WHERE updated_at < ?1').bind(now - SYNC_TTL_SECONDS * 1000),
-      db.prepare("UPDATE errand_tasks SET status = 'cancelled', cancelled_at = ?1, cancel_reason = '任务已过期，自动取消', updated_at = ?1 WHERE status = 'open' AND deadline IS NOT NULL AND deadline < ?1").bind(now),
-      db.prepare("UPDATE errand_tasks SET confirmed_at = ?1, auto_confirmed_at = ?1, confirmed_by = 'system', updated_at = ?1 WHERE status = 'done' AND confirmed_at IS NULL AND completed_at IS NOT NULL AND completed_at < ?2").bind(now, now - 48 * 3600 * 1000),
-    ]);
-  } catch (e) {
-    console.error('cleanupDb error:', (e && e.message) || e);
-    try {
-      await db.prepare('INSERT INTO stats (key, value) VALUES (?1, 1) ON CONFLICT(key) DO UPDATE SET value = stats.value + 1').bind('stats:cleanup:fail').run();
-    } catch (_) { /* 计数失败也静默，避免清理任务自身再抛 */ }
-  }
-  await processCleanupJobs(env, now);
-}
-
-async function processCleanupJobs(env, now) {
-  if (!env.DB || !env.STUDY_KV) return;
-  let rows;
-  try {
-    const result = await env.DB.prepare(
-      'SELECT id, kv_key, attempts FROM cleanup_jobs WHERE next_attempt_at <= ? ORDER BY id LIMIT 20'
-    ).bind(now).all();
-    rows = result && result.results ? result.results : [];
-  } catch (_) {
-    return;
-  }
-  for (const row of rows) {
-    try {
-      // 2026-08-23 云同步迁 D1：同步数据主存 D1，KV 仅删旧残留
-      await env.DB.prepare('DELETE FROM sync_data WHERE user_id = ?').bind(row.kv_key).run();
-      await env.STUDY_KV.delete(row.kv_key);
-      await env.DB.prepare('DELETE FROM cleanup_jobs WHERE id = ?').bind(row.id).run();
-    } catch (error) {
-      const attempts = (Number(row.attempts) || 0) + 1;
-      const delay = Math.min(24 * 3600 * 1000, 60000 * (2 ** Math.min(attempts, 10)));
-      const message = String(error && error.message || error).slice(0, 500);
-      await env.DB.prepare(
-        'UPDATE cleanup_jobs SET attempts = ?, next_attempt_at = ?, last_error = ? WHERE id = ?'
-      ).bind(attempts, now + delay, message, row.id).run().catch(() => {});
-    }
-  }
 }

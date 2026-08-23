@@ -1,5 +1,5 @@
 // 云同步下载限流故障语义单测（审查 2026-08-23：故障必须 503，不再放行）
-import { handleSyncDownload } from '../workers/src/index.js';
+import worker, { handleSyncDownload } from '../workers/src/index.js';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) { pass++; console.log('PASS', name); } else { fail++; console.log('FAIL', name); } };
@@ -18,6 +18,27 @@ function makeDb(handler) {
         },
       };
     },
+  };
+}
+
+// /api/visit 专用 fake D1：分别模拟 IP 限流、访客限流和统计写入。
+function makeVisitDb({ failVisitRate = false } = {}) {
+  return {
+    prepare(sql) {
+      return {
+        bind(...args) {
+          const key = String(args[0] || '');
+          return {
+            first: async () => {
+              if (failVisitRate && key.startsWith('rate:sync:visit:')) throw new Error('visit rate db down');
+              return { count: 1 };
+            },
+            run: async () => ({ meta: { changes: 0 } }),
+          };
+        },
+      };
+    },
+    batch: async () => ({}),
   };
 }
 
@@ -60,6 +81,29 @@ function makeDb(handler) {
   const db = makeDb(() => null);
   const res = await handleSyncDownload(new Request('https://api.free60127.top/api/sync/download?deviceId=xyz'), { DB: db });
   check('非法 deviceId -> 400', res.status === 400);
+}
+
+// 5) /api/visit 限流 DB 故障 -> 503，不得继续写统计
+{
+  const db = makeVisitDb({ failVisitRate: true });
+  const res = await worker.fetch(new Request('https://api.free60127.top/api/visit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vid: 'b'.repeat(32), path: '/ok' }),
+  }), { DB: db });
+  const body = await res.json();
+  check('/api/visit 限流故障 -> 503', res.status === 503 && body.error === '服务繁忙，请稍后再试');
+}
+
+// 6) /api/visit 拒绝控制字符路径
+{
+  const db = makeVisitDb();
+  const res = await worker.fetch(new Request('https://api.free60127.top/api/visit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vid: 'c'.repeat(32), path: '/a\u0001b' }),
+  }), { DB: db });
+  check('/api/visit 控制字符路径 -> 400', res.status === 400);
 }
 
 console.log('');

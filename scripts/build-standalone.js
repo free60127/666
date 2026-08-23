@@ -44,6 +44,7 @@ const html = `<!doctype html>
 ${readRoot('reading-tools.css')}
 ${readRoot('tomato-timer.css')}
 ${readRoot('theme.css')}</style>
+<style data-unified-quiz-style>${readRoot('unified-quiz-engine.css')}</style>
 <script data-theme-boot>(function(){var t;try{t=localStorage.getItem('waiyuan-web-theme-v1')}catch(e){}if(t!=='dark'&&t!=='light'){try{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){t='light'}}document.documentElement.dataset.theme=t})();</script>
 </head>
 <body data-reading-tools="true">
