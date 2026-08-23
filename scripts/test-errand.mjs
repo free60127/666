@@ -21,6 +21,7 @@ class MemoryD1 {
     this.adminLogs = new Map(); this.nextAdminLogId = 1;
     this.failRates = false;   // 模拟限流存储故障
     this.enforceUniqueDispute = false; // 模拟唯一部分索引
+    this.failEvidenceInsert = false; // 模拟证据 D1 元数据写入故障（R2 闭环测试）
   }
   prepare(sql) {
     const db = this;
@@ -145,6 +146,10 @@ class MemoryD1 {
       const d = this.disputes.get(Number(args[0]));
       return d ? { task_id: d.task_id } : null;
     }
+    if (s.includes('FROM errand_evidence') && s.includes('WHERE id = ?')) {
+      const e = this.evidence.get(Number(args[0]));
+      return e ? { id: e.id, dispute_id: e.dispute_id, data: e.data, url: e.url, mime: e.mime } : null;
+    }
     return null;
   }
   _taskRow(id) {
@@ -155,6 +160,27 @@ class MemoryD1 {
     return { ...t, publisher_name: u ? u.nickname : null, taker_name: u2 ? u2.nickname : null };
   }
   async _all(s, args) {
+    // 证据 R2 键查询（evidence-store 的 JOIN 查询）——必须放在 FROM errand_tasks 分支之前，
+    // 否则 evidenceKeysForUser 的 SQL 会因包含 JOIN errand_tasks t 被误判为任务查询
+    if (s.includes('FROM errand_evidence e') && s.includes('JOIN errand_disputes d')) {
+      const urls = [];
+      if (s.includes('d.task_id = ?')) {
+        const taskId = Number(args[0]);
+        for (const d of this.disputes.values()) {
+          if (d.task_id !== taskId) continue;
+          for (const e of this.evidence.values()) if (e.dispute_id === d.id && e.url) urls.push(e.url);
+        }
+      } else {
+        const uid = String(args[0]);
+        for (const d of this.disputes.values()) {
+          const t = this.tasks.get(d.task_id);
+          const related = String(d.user_id) === uid || (t && (String(t.publisher_id) === uid || String(t.taker_id) === uid));
+          if (!related) continue;
+          for (const e of this.evidence.values()) if (e.dispute_id === d.id && e.url) urls.push(e.url);
+        }
+      }
+      return { results: urls.map(url => ({ url })) };
+    }
     if (s.includes('FROM errand_tasks')) {
       const results = [];
       const w = s.slice(s.indexOf('WHERE'));
@@ -187,7 +213,7 @@ class MemoryD1 {
     if (s.includes('FROM errand_evidence')) {
       const did = Number(args[0]);
       const arr = [...this.evidence.values()].filter(e => e.dispute_id === did).sort((a, b) => a.id - b.id);
-      return { results: arr.map(e => ({ id: e.id, data: e.data, created_at: e.created_at })) };
+      return { results: arr.map(e => ({ id: e.id, data: e.data, created_at: e.created_at, url: e.url, size: e.size, sha256: e.sha256, mime: e.mime })) };
     }
     if (s.includes('FROM errand_reviews')) {
       const taskId = Number(args[0]);
@@ -234,9 +260,13 @@ class MemoryD1 {
       return { meta: { changes: 1, last_row_id: id } };
     }
     if (s.startsWith('INSERT INTO errand_evidence')) {
+      if (this.failEvidenceInsert) throw new Error('evidence insert down');
       const [dispute_id, data, created_at] = args;
       const id = this.nextEvidenceId++;
-      this.evidence.set(id, { id, dispute_id, data, created_at });
+      let rec = { id, dispute_id, data, created_at };
+      // R2 分支 SQL：VALUES (?, NULL, ?, ?, ?, ?, ?) → bind 6 参 (dispute_id, url, size, sha256, mime, created_at)
+      if (s.includes(', NULL,') && args.length >= 6) rec = { id, dispute_id: args[0], data: null, url: args[1], size: args[2], sha256: args[3], mime: args[4], created_at: args[5] };
+      this.evidence.set(id, rec);
       return { meta: { changes: 1 } };
     }
     if (s.startsWith('UPDATE errand_disputes')) {
@@ -329,6 +359,22 @@ class MemoryD1 {
 /* ---------- 请求封装 ---------- */
 const db = new MemoryD1();
 const env = { DB: db, STUDY_KV: { delete: async () => undefined }, ADMIN_TOKEN: 'admin-token', SMTP_TEST_MODE: true, SMTP_SENT: [] };
+
+/* fake R2（2026-08-23 审查第 6 项闭环）：不依赖真实 bucket 的本地测试替身 */
+const fakeR2 = {
+  store: new Map(),
+  puts: 0,
+  deletes: 0,
+  failPut: false,
+  failAtPut: 0, // 第 N 次 put 抛错（模拟部分成功后的写入故障）
+  async put(key, value, opts) {
+    this.puts++;
+    if (this.failPut || (this.failAtPut && this.puts >= this.failAtPut)) throw new Error('fake R2 put down');
+    this.store.set(key, value);
+  },
+  async delete(key) { this.deletes++; this.store.delete(key); },
+  async get(key) { const v = this.store.get(key); return v === undefined ? null : { body: v }; },
+};
 async function api(path, { method = 'GET', token, body } = {}) {
   const headers = {};
   if (token) headers['Authorization'] = 'Bearer ' + token;
@@ -567,7 +613,9 @@ check('证据无 token 401', evNoAuth.status === 401);
 const evOther = await api('/api/errand/disputes/' + disputeId + '/evidence', { token: tokenC });
 check('证据路人 403', evOther.status === 403);
 const evPub = await data(await api('/api/errand/disputes/' + disputeId + '/evidence', { token: tokenA }));
-check('证据发布者可见 2 张', evPub.evidence.length === 2 && evPub.evidence[0].data.startsWith('data:image/'));
+check('证据发布者可见 2 张（列表仅元数据）', evPub.evidence.length === 2 && evPub.evidence[0].data === undefined && evPub.evidence[0].stored === 'd1');
+const evDlPub = await api('/api/errand/evidence/' + evPub.evidence[0].id, { token: tokenA });
+check('发布者经保护端点下载 base64 证据 200', evDlPub.status === 200 && evDlPub.headers.get('content-type') === 'image/png');
 const evTaker = await data(await api('/api/errand/disputes/' + disputeId + '/evidence', { token: tokenB }));
 check('证据接单者可见 2 张', evTaker.evidence.length === 2);
 const evAdmin = await data(await api('/api/errand/disputes/' + disputeId + '/evidence', { token: 'admin-token' }));
@@ -647,6 +695,77 @@ check('审计 admin 为令牌前缀', logs.logs.every(l => l.admin === 'admin-to
 console.log('21) 确认来源字段');
 const detConfirm = await data(await api('/api/errand/tasks/1'));
 check('手动确认 confirmedBy=publisher', detConfirm.task.confirmedBy === 'publisher' && detConfirm.task.autoConfirmedAt === null);
+
+/* ---------- 22) R2 证据闭环（2026-08-23 审查第 6 项） ---------- */
+console.log('22) R2 证据闭环（fake R2 + MemoryD1）');
+const resetR2 = () => { fakeR2.store.clear(); fakeR2.puts = 0; fakeR2.deletes = 0; fakeR2.failPut = false; fakeR2.failAtPut = 0; db.failEvidenceInsert = false; for (const k of [...db.rates.keys()]) if (k.startsWith('errand:dp') || k.startsWith('errand:take')) db.rates.delete(k); };
+const pngA = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const pngB = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const b64len = (s) => { const b = Uint8Array.from(atob(s.split(',')[1]), ch => ch.charCodeAt(0)); return b; };
+const mkTask = async () => { const t = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: 'R2证据单' + Date.now(), reward: 1, pickup: 'A', dropoff: 'B', contact: '13900000000' } })); await api('/api/errand/tasks/' + t.task.id + '/take', { method: 'POST', token: tokenB }); return t.task.id; };
+const disputeIdsFor = async (tid, tok) => { const r = await data(await api('/api/errand/disputes?taskId=' + tid, { token: tok })); return (r.disputes || []).length; };
+
+resetR2();
+env.EVIDENCE_BUCKET = fakeR2;
+const tR2 = await mkTask();
+const dR2 = await data(await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: tR2, reason: '证据闭环', evidence: [pngA, pngB] } }));
+check('R2 模式申诉 201 且返回 dispute', dR2.dispute && dR2.dispute.id > 0, String((dR2.dispute || {}).id));
+check('R2 put 2 次且存储 2 个对象', fakeR2.puts === 2 && fakeR2.store.size === 2);
+const dR2id = dR2.dispute.id;
+const metaR2 = await data(await api('/api/errand/disputes/' + dR2id + '/evidence', { token: tokenA }));
+check('证据列表只含元数据（无 base64/对象键泄露）', metaR2.evidence.length === 2 && metaR2.evidence.every(v => v.stored === 'r2' && v.data === undefined && v.url === undefined && v.size > 0));
+const ev1 = metaR2.evidence[0].id;
+check('证据下载无 token 401', (await api('/api/errand/evidence/' + ev1)).status === 401);
+check('路人下载证据 403', (await api('/api/errand/evidence/' + ev1, { token: tokenC })).status === 403);
+const dlA = await api('/api/errand/evidence/' + ev1, { token: tokenA });
+{ const exp = b64len(pngA); const got = new Uint8Array(await dlA.arrayBuffer()); check('发布者下载 200 且二进制一致', dlA.status === 200 && got.length === exp.length && got.every((b, i) => b === exp[i]) && dlA.headers.get('content-type') === 'image/png'); }
+const dlB = await api('/api/errand/evidence/' + ev1, { token: tokenB });
+check('接单者下载 200', dlB.status === 200);
+const dlAdm = await api('/api/errand/evidence/' + ev1, { token: 'admin-token' });
+check('管理员下载 200', dlAdm.status === 200);
+check('证据 id 不存在 404', (await api('/api/errand/evidence/999999', { token: tokenA })).status === 404);
+
+// R2 部分写入失败（第 2 张失败）：已写对象 + 申诉行都必须回滚
+resetR2();
+fakeR2.failAtPut = 2;
+env.EVIDENCE_BUCKET = fakeR2;
+const tR2b = await mkTask();
+const dR2Fail = await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: tR2b, reason: '部分失败回滚', evidence: [pngA, pngB] } });
+check('R2 第二张写入失败 503', dR2Fail.status === 503, String(dR2Fail.status));
+check('R2 已写对象被回滚清理', fakeR2.store.size === 0 && fakeR2.puts === 2, 'store=' + fakeR2.store.size + ' puts=' + fakeR2.puts);
+check('申诉行已回滚', (await disputeIdsFor(tR2b, tokenA)) === 0);
+
+// D1 元数据 batch 失败：已写 R2 对象必须删除
+resetR2();
+db.failEvidenceInsert = true;
+env.EVIDENCE_BUCKET = fakeR2;
+const tR2c = await mkTask();
+const dD1Fail = await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: tR2c, reason: 'D1失败回滚', evidence: [pngA] } });
+check('D1 元数据失败 503', dD1Fail.status === 503, String(dD1Fail.status));
+check('R2 对象随 D1 失败已清理', fakeR2.store.size === 0 && fakeR2.puts === 1, 'store=' + fakeR2.store.size);
+check('申诉行已回滚', (await disputeIdsFor(tR2c, tokenA)) === 0);
+db.failEvidenceInsert = false;
+
+// R2 binding 缺失（真实配置未启用）：下载必须显式 503 阻断，不回退泄露
+env.EVIDENCE_BUCKET = undefined;
+const dlNoR2 = await api('/api/errand/evidence/' + ev1, { token: tokenA });
+check('R2 未配置时下载显式 503（阻断说明）', dlNoR2.status === 503 && (await data(dlNoR2)).error.includes('EVIDENCE_BUCKET'));
+
+// 管理删除带 R2 证据的任务：R2 对象必须一并清理
+resetR2();
+env.EVIDENCE_BUCKET = fakeR2;
+const tR2d = await mkTask();
+const dR2d = await data(await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: tR2d, reason: '删除清理', evidence: [pngA] } }));
+check('管理删除前置就绪', dR2d.dispute && dR2d.dispute.id > 0 && fakeR2.store.size === 1);
+const delR2 = await api('/api/errand/admin/tasks/' + tR2d, { method: 'DELETE', token: 'admin-token' });
+check('管理删除带证据任务 200', delR2.status === 200, String(delR2.status));
+check('R2 对象随任务删除清理', fakeR2.store.size === 0 && fakeR2.deletes >= 1, 'store=' + fakeR2.store.size);
+
+// byteLength 边界：40 万汉字（字符数 < 110 万、UTF-8 字节 > 110 万）必须 413
+const bigEvByte = '中'.repeat(400001);
+const tByte = await api('/api/errand/disputes', { method: 'POST', token: tokenA, body: { taskId: tR2, reason: '字节边界', detail: '', evidence: [bigEvByte] } });
+check('申诉体按 UTF-8 字节限制 413（中文 40 万字符）', tByte.status === 413 && (await data(tByte)).error.includes('请求体过大'), String(tByte.status));
+env.EVIDENCE_BUCKET = undefined;
 
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
 process.exit(failed ? 1 : 0);

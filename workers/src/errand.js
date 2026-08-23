@@ -7,6 +7,8 @@
    ============================================================ */
 import { sessionUser } from './auth.js';
 import { json, isAdmin } from './http.js';
+import { corsFor } from './config.js';
+import { deleteR2Objects, evidenceKeysForTask } from './evidence-store.js';
 
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -365,9 +367,10 @@ const mapDisputePublic = (r) => r ? ({ id: r.id, taskId: r.task_id, role: r.role
 async function createDispute(db, request, env) {
   const user = await sessionUser(db, request);
   if (!user) return json({ error: 'unauthorized' }, 401);
-  // 请求体大小限制：证据 3×300000 + 正文，约 1MB 上限
+  // 请求体大小限制：证据 3×300000 + 正文，约 1MB 上限（按 UTF-8 字节计，中文 1 字=3 字节，不能用 raw.length）
   const raw = await request.text();
-  if (!raw || raw.length > 1100000) return json({ error: '请求体过大（最大约 1MB）' }, 413);
+  const rawBytes = new TextEncoder().encode(raw).byteLength;
+  if (!raw || rawBytes > 1100000) return json({ error: '请求体过大（最大约 1MB）' }, 413);
   let body = null;
   try { body = JSON.parse(raw); } catch (_) { return json({ error: 'invalid json' }, 400); }
   const taskId = Math.floor(num(body.taskId));
@@ -387,6 +390,7 @@ async function createDispute(db, request, env) {
   }
   const evidence = Array.isArray(body.evidence) ? body.evidence.slice(0, 3) : [];
   let disputeId = null;
+  let uploadedR2 = [];
   try {
     const task = await db.prepare('SELECT id, publisher_id, taker_id, status FROM errand_tasks WHERE id = ?').bind(taskId).first();
     if (!task) return json({ error: '任务不存在' }, 404);
@@ -425,9 +429,16 @@ async function createDispute(db, request, env) {
           const sha = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
           const url = 'evidence/' + disputeId + '/' + i + '-' + sha + '.bin';
           await env.EVIDENCE_BUCKET.put(url, bin, { httpMetadata: { contentType: mime } });
+          uploadedR2.push(url);
           evStmts.push(db.prepare('INSERT INTO errand_evidence (dispute_id, data, url, size, sha256, mime, created_at) VALUES (?, NULL, ?, ?, ?, ?, ?)').bind(disputeId, url, bin.length, sha, mime, now));
         }
-        await db.batch(evStmts);
+        try {
+          await db.batch(evStmts);
+        } catch (e) {
+          // D1 元数据提交失败：清理已写入的 R2 对象，避免孤儿对象（审查第 6 项闭环）
+          await deleteR2Objects(env, uploadedR2);
+          throw e;
+        }
       } else {
         const evStmts = validEvidence.map(ev => db.prepare('INSERT INTO errand_evidence (dispute_id, data, created_at) VALUES (?, ?, ?)').bind(disputeId, ev, now));
         await db.batch(evStmts);
@@ -440,6 +451,7 @@ const row = await db.prepare(DISPUTE_SELECT + 'WHERE d.id = ?').bind(disputeId).
     if (String(error && error.message || '').includes('UNIQUE constraint failed')) {
       return json({ error: '已有进行中的申诉，请等待处理' }, 400);
     }
+    if (uploadedR2.length) await deleteR2Objects(env, uploadedR2);  // R2 写入/后续任一步失败：回滚已写对象（审查第 6 项闭环）
     if (disputeId !== null) {
       await db.prepare('DELETE FROM errand_disputes WHERE id = ?').bind(disputeId).run().catch(() => {});
     }
@@ -492,8 +504,16 @@ async function auditLog(db, env, action, detail) {
 
 async function adminDeleteTask(db, request, env, id) {
   if (!isAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+  // R2 证据对象先收集后删除（2026-08-23 审查第 6 项闭环；D1 级联删 evidence 行，R2 对象需单独清理）
+  let evKeys = [];
+  try { evKeys = await evidenceKeysForTask(db, id); }
+  catch (e) { console.error('adminDeleteTask evidence keys error:', e); }
   const result = await db.prepare('DELETE FROM errand_tasks WHERE id = ?').bind(id).run().catch(e => { console.error('errand admin delete:', e); return null; });
   if (!result || !result.meta || Number(result.meta.changes) < 1) return json({ error: '任务不存在' }, 404);
+  if (evKeys.length) {
+    const r = await deleteR2Objects(env, evKeys);
+    if (r.failed) console.warn('adminDeleteTask R2 cleanup incomplete: failed=' + r.failed + '/' + evKeys.length);
+  }
   await auditLog(db, env, 'errand.task.delete', 'task ' + id);
   return json({ ok: true });
 }
@@ -520,23 +540,72 @@ async function resolveDispute(db, request, env, id) {
 }
 
 /* ---------- 证据读取（管理端或任务双方可见） ---------- */
-async function listEvidence(db, request, env, disputeId) {
+/** 统一授权：管理端或任务双方（发布者/接单者）才可读取该申诉的证据 */
+async function authorizeEvidence(db, request, env, disputeId) {
   const adminView = isAdmin(request, env);
   const user = await sessionUser(db, request).catch(() => null);
-  if (!adminView && !user) return json({ error: 'unauthorized' }, 401);
+  if (!adminView && !user) return { status: 401, error: 'unauthorized' };
   let d;
   try { d = await db.prepare('SELECT task_id FROM errand_disputes WHERE id = ?').bind(disputeId).first(); }
-  catch (e) { console.error('errand evidence dispute query error:', e); return json({ error: '服务繁忙，请稍后再试' }, 503); }
-  if (!d) return json({ error: '申诉不存在' }, 404);
+  catch (e) { console.error('errand evidence dispute query error:', e); return { status: 503, error: '服务繁忙，请稍后再试' }; }
+  if (!d) return { status: 404, error: '申诉不存在' };
   if (!adminView) {
     let task;
     try { task = await db.prepare('SELECT publisher_id, taker_id FROM errand_tasks WHERE id = ?').bind(d.task_id).first(); }
-    catch (e) { console.error('errand evidence task query error:', e); return json({ error: '服务繁忙，请稍后再试' }, 503); }
-    if (!task || (user.id !== task.publisher_id && user.id !== task.taker_id)) return json({ error: '无权查看' }, 403);
+    catch (e) { console.error('errand evidence task query error:', e); return { status: 503, error: '服务繁忙，请稍后再试' }; }
+    if (!task || (user.id !== task.publisher_id && user.id !== task.taker_id)) return { status: 403, error: '无权查看' };
   }
-  const rows = await db.prepare('SELECT id, data, url, created_at FROM errand_evidence WHERE dispute_id = ? ORDER BY id ASC').bind(disputeId).all();
-  // 2026-08-23 审查第 6 项：R2 对象返回可访问 URL，旧 base64 记录返回 data：前端 img.src 两者通用
-  return json({ evidence: (rows && rows.results ? rows.results : []).map(r => ({ id: r.id, data: r.url || r.data, createdAt: r.created_at })) });
+  return { ok: true };
+}
+
+async function listEvidence(db, request, env, disputeId) {
+  const auth = await authorizeEvidence(db, request, env, disputeId);
+  if (!auth.ok) return json({ error: auth.error }, auth.status);
+  let rows;
+  try { rows = await db.prepare('SELECT id, data, url, size, mime, created_at FROM errand_evidence WHERE dispute_id = ? ORDER BY id ASC').bind(disputeId).all(); }
+  catch (e) { console.error('errand evidence list query error:', e); return json({ error: '服务繁忙，请稍后再试' }, 503); }
+  // 内容不随列表返回（2026-08-23 审查第 6 项闭环）：统一走受权限保护的 GET /api/errand/evidence/:id，
+  // 前端 fetch + blob 展示；此处只给元数据，避免把 base64 / R2 对象键直接暴露给客户端。
+  return json({ evidence: (rows && rows.results ? rows.results : []).map(r => ({
+    id: r.id, mime: r.mime || 'image/png', size: r.size || null,
+    createdAt: r.created_at, stored: r.url ? 'r2' : (r.data ? 'd1' : 'none'),
+  })) });
+}
+
+/* 受权限保护的证据二进制下载：R2 对象或 D1 base64 都经鉴权后返回二进制。
+   R2 未启用/读取失败时显式报错，不把桶内对象名泄露给客户端。 */
+async function serveEvidenceBinary(db, request, env, evidenceId) {
+  let row;
+  try { row = await db.prepare('SELECT id, dispute_id, data, url, mime FROM errand_evidence WHERE id = ?').bind(evidenceId).first(); }
+  catch (e) { console.error('errand evidence get error:', e); return json({ error: '服务繁忙，请稍后再试' }, 503); }
+  if (!row) return json({ error: '证据不存在' }, 404);
+  const auth = await authorizeEvidence(db, request, env, row.dispute_id);
+  if (!auth.ok) return json({ error: auth.error }, auth.status);
+  // mime：优先表列；老 base64 记录（0014 前无 mime 列）按 dataURL 前缀推导
+  const rawData = String(row.data || '');
+  const mime = row.mime || (rawData.startsWith('data:image/png') ? 'image/png' : rawData.startsWith('data:image/jpeg') ? 'image/jpeg' : 'application/octet-stream');
+  const headers = { 'Content-Type': mime, 'Cache-Control': 'private, max-age=3600', ...corsFor(request) };
+  if (row.url) {
+    if (!env.EVIDENCE_BUCKET) {
+      return json({ error: '证据已迁 R2 但当前未配置 EVIDENCE_BUCKET（r2_buckets binding），请联系管理员启用 R2 后重试' }, 503);
+    }
+    let obj;
+    try { obj = await env.EVIDENCE_BUCKET.get(row.url); }
+    catch (e) { console.error('errand evidence R2 get error:', e); return json({ error: '服务繁忙，请稍后再试' }, 503); }
+    if (!obj) return json({ error: '证据对象不存在' }, 404);
+    return new Response(obj.body, { headers });
+  }
+  if (row.data) {
+    try {
+      const b64 = String(row.data).split(',')[1] || String(row.data);
+      const bin = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+      return new Response(bin, { headers });
+    } catch (e) {
+      console.error('errand evidence data decode error:', e);
+      return json({ error: '证据数据损坏' }, 500);
+    }
+  }
+  return json({ error: '证据内容缺失' }, 404);
 }
 
 /* ---------- 管理端：审计日志 ---------- */
@@ -570,6 +639,8 @@ export async function handleErrand(request, env, path) {
   if (path === '/api/errand/admin/logs' && request.method === 'GET') return listAdminLogs(db, request, env);
   const ev = path.match(/^\/api\/errand\/disputes\/(\d+)\/evidence$/);
   if (ev && request.method === 'GET') return listEvidence(db, request, env, Number(ev[1]));
+  const evx = path.match(/^\/api\/errand\/evidence\/(\d+)$/);
+  if (evx && request.method === 'GET') return serveEvidenceBinary(db, request, env, Number(evx[1]));
   const m = path.match(/^\/api\/errand\/tasks\/(\d+)(?:\/(take|complete|confirm|cancel))?$/);
   if (m) {
     const id = Number(m[1]);
@@ -584,6 +655,6 @@ export async function handleErrand(request, env, path) {
   if (adm && request.method === 'DELETE') return adminDeleteTask(db, request, env, Number(adm[1]));
   const adm2 = path.match(/^\/api\/errand\/admin\/disputes\/(\d+)$/);
   if (adm2 && request.method === 'PATCH') return resolveDispute(db, request, env, Number(adm2[1]));
-  if (ev || m || adm || adm2) return json({ error: 'method not allowed' }, 405);
+  if (ev || evx || m || adm || adm2) return json({ error: 'method not allowed' }, 405);
   return json({ error: 'not found' }, 404);
 }

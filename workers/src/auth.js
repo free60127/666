@@ -1,6 +1,7 @@
 import { sendEmail, generateResetCode } from './smtp.js';
 import { json, bearerToken, safeParseJson, readJsonBody, MAX_AUTH_BODY } from './http.js';  // 统一请求体限制（2026-08-23 审查第 1 项：字节数统一实现）
 import { rateWindow } from './rate-limit.js';  // 统一限流（2026-08-23 审查第 4 项）
+import { evidenceKeysForUser, deleteR2Objects } from './evidence-store.js';  // 证据 R2 对象清理（2026-08-23 审查第 6 项闭环）
 
 /* ============================================================
    账号认证模块（D1 版）：注册 / 登录 / 登出 / 会话 / 恢复码保险箱
@@ -392,6 +393,12 @@ async function deleteAccount(db, env, request) {
   // 2026-08-23 审查修复：同步数据键为 'user:'+user_id（D1 sync_data.user_id / 旧 KV 同键），
   // 原 'sync:user:' 前缀键导致注销后云端同步数据残留
   const kvKey = 'user:' + user.id;
+  // 2026-08-23 审查第 6 项闭环：注销前收集本人相关证据的 R2 对象键，账号删除后由 D1 级联删 evidence 行，R2 对象单独清理
+  let evKeys = [];
+  if (env.EVIDENCE_BUCKET) {
+    try { evKeys = await evidenceKeysForUser(db, user.id); }
+    catch (e) { console.error('delete-account evidence keys error:', e); }
+  }
   try {
     const cleanupStatements = [
       db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id),
@@ -428,6 +435,10 @@ async function deleteAccount(db, env, request) {
     } catch (error) {
       console.error('delete-account KV cleanup pending:', error);
     }
+  }
+  if (evKeys.length) {
+    const evR = await deleteR2Objects(env, evKeys);
+    if (evR.failed) console.warn('delete-account R2 cleanup incomplete: failed=' + evR.failed + '/' + evKeys.length);
   }
   return json({ ok: true, cleanupPending });
 }

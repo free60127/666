@@ -98,6 +98,18 @@
     return body;
   }
 
+  /* 受保护二进制端点（证据图片）：带 Bearer 拉 blob，供 img.src objectURL 展示（2026-08-23 审查第 6 项闭环） */
+  async function apiBlob(path) {
+    const headers = {};
+    if (me && me.token) headers['Authorization'] = 'Bearer ' + me.token;
+    const res = await fetch(API + path, { headers });
+    if (!res.ok) {
+      if (res.status === 401) { auth.clearSession(); me = null; renderAuthBar(); }
+      throw new Error('HTTP ' + res.status);
+    }
+    return res.blob();
+  }
+
   /* ---------- 列表渲染 ---------- */
   function taskParams() {
     if (tab === 'open' || tab === 'doing' || tab === 'done') return 'status=' + tab;
@@ -396,7 +408,14 @@
             const evs = data.evidence || [];
             wrap.textContent = '';
             if (!evs.length) { const sp = document.createElement('span'); sp.className = 'muted'; sp.textContent = '该申诉没有上传证据。'; wrap.append(sp); }
-            else evs.forEach(v => { const img = document.createElement('img'); img.className = 'dp-ev-img'; img.src = v.data; img.alt = '证据'; img.loading = 'lazy'; wrap.append(img); });
+            else for (const v of evs) {
+              try {
+                const blob = await apiBlob('/api/errand/evidence/' + v.id);
+                const img = document.createElement('img'); img.className = 'dp-ev-img'; img.src = URL.createObjectURL(blob); img.alt = '证据'; img.loading = 'lazy'; wrap.append(img);
+              } catch (er2) {
+                const sp = document.createElement('span'); sp.className = 'muted'; sp.textContent = '证据 ' + v.id + ' 加载失败。'; wrap.append(sp);
+              }
+            }
           } catch (e) { wrap.innerHTML = '<span class="muted">证据加载失败。</span>'; }
         });
       });

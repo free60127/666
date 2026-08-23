@@ -75,7 +75,7 @@ node $W secret put SMTP_PASS   # QQ 邮箱 SMTP 授权码（QQ 邮箱设置 → 
 - 保护措施：deviceId 必须 64 位 hex；每键每分钟限流（上传 10 / 下载 30 / 删除 6，D1 rate 表滚动窗口，2026-08-22 自 KV 迁出）；`Content-Length` 预检 + 字符串化二次校验（payload ≤ 2.5MB）；写入带 2 年 TTL（730 天未备份自动过期）；响应 `Cache-Control: no-store`；CORS 回显 `Vary: Origin`。
 - **版本号 + 冲突检测（2026-08-22）**：云端每条记录带 `rev`（写入时间戳毫秒）。客户端上传带 `baseRev`（下载得到的 rev），服务端校验 `baseRev === 当前 rev` 才写入；不一致返回 `409 {error:'conflict', rev, payload, updatedAt}`，前端（cloud-sync.js）自动拉最新数据合并后重试一次——多设备并发写不再互相覆盖。旧客户端不带 baseRev 仍可写（向后兼容）；旧记录无 rev 视为 0。
 - payload 全程端到端加密（PBKDF2 派生 AES-GCM-256），服务端/管理员读不到学习内容。
-- 反馈限频（进程内 `Map`）仅限单实例；`/api/feedback` 列表已支持 cursor 分页 + 类型/时间/已处理筛选。
+- 反馈（2026-08-23 迁 D1）：`feedbacks` 表（id TEXT PK，page/question/answer/type/note/contact/ts/handled/created_at，索引 handled/type/ts）；列表支持 cursor 分页 + 类型/时间/已处理筛选；限流 D1 rate 表（`rate:fb:*` 30 秒 5 次）。
 - 反代仅允许 `GET/HEAD`，并主动删除 `Authorization`、`Cookie` 等敏感请求头。
 
 ## 站点统计（2026-08-22）
@@ -94,13 +94,41 @@ node $W secret put SMTP_PASS   # QQ 邮箱 SMTP 授权码（QQ 邮箱设置 → 
 
 ```powershell
 $W = 'C:\Users\23674\.ai-manager\runtimes\node\24.19.0\node_modules\wrangler\bin\wrangler.js'
-node $W d1 migrations apply waiyuan-study-db --remote  # 应用 migrations/ 下全部待执行迁移（当前至 0011）
+node $W d1 migrations apply waiyuan-study-db --remote  # 应用 migrations/ 下全部待执行迁移（当前至 0014；同步最新列表见 migrations/ 目录）
 node $W deploy          # 再部署 Worker
 node $W dev --port 8787 # 本地调试（miniflare 模拟 KV）
 node $W kv namespace create NAME   # 新建 KV
 node $W secret put ADMIN_TOKEN     # 更新管理令牌（stdin 管道输入）
 node $W tail            # 实时日志
 ```
+
+## 测试命令（本地 / CI 同款）
+
+```bash
+node scripts/test-auth.mjs        # 认证全链路（注册/登录/改密/注销/找回/限流/请求体限制）
+node scripts/test-errand.mjs      # 跑腿全链路（任务/接单/申诉/证据/评价/管理端；含 fake R2 证据闭环）
+node scripts/test-sync-guard.mjs  # 同步下载/限流/故障语义（mock D1）
+node scripts/test-router.mjs      # 路由层（首页反代/www 301/APK/API 分发，mock 上游）
+node scripts/test-feedback.mjs    # 反馈（D1 版本：提交/列表/标记/删除）
+node scripts/verify-sync-local.mjs # wrangler dev --local 集成（需先 d1 migrations apply --local）
+```
+
+CI（.github/workflows/ci.yml）的 `worker-test` job 会依次运行以上单测（失败即整站失败），`browser-test` 跑 Playwright 全量；Playwright 本地在 `tests/` 目录执行 `npx playwright test`。
+
+## 反馈迁移（KV → D1，两阶段安全流程）
+
+1. `node scripts/migrate-kv-feedback-to-d1.mjs`（只读 KV，生成 `scripts/_tmp-feedback-migrate.sql`，**不删除任何键**）
+2. `node $W d1 execute waiyuan-study-db --remote --file=scripts/_tmp-feedback-migrate.sql`（导入 D1，INSERT OR IGNORE 幂等）
+3. `node scripts/migrate-kv-feedback-to-d1.mjs --verify`（核对：全部 KV 键 id 必须已存在于 D1；不通过 exit 1，绝不删除）
+4. 核对通过后 `node scripts/migrate-kv-feedback-to-d1.mjs --delete-after`（此时才删 KV；任一删除失败 exit 1，保留剩余键）
+
+失败保护：任何一步失败都不会删除 KV 键。旧版脚本的 `--delete-after` 会在导入核对前删除键，已移除该行为。
+
+## 跑腿证据存储（R2 优先 + D1 base64 回退）
+
+- 申诉证据默认存 D1 `errand_evidence.data`（base64，每申诉最多 3 张 × 约 300KB）。
+- **启用 R2 后**：wrangler.jsonc 添加 `"r2_buckets": [ { "binding": "EVIDENCE_BUCKET", "bucket_name": "waiyuan-evidence" } ]`（bucket 名自定），部署后新证据自动存 R2（D1 只存 `url/size/sha256/mime` 元数据）；未配置时自动回退 base64（行为不变）。启用步骤：Cloudflare Dashboard → R2 → 创建 bucket → 添加 binding → `node $W deploy`。
+- 版本说明：migrations `0008`（索引/自动确认/审计）、`0009` 已随 `0010` 回滚删除（payjs 停用）、`0011`（同步迁 D1）、`0012`（清理索引）、`0013`（反馈迁 D1）、`0014`（证据 R2 元数据列）均已应用；当前 migrations 最新为 **0014**。
 
 ## 管理令牌
 

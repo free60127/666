@@ -10,6 +10,9 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "waiyuan-study-db", "database_id": "c73a1670-5b73-4b85-9801-8e25b5f3aa1a" }
   ],
+  // 证据 R2 存储（2026-08-23 审查第 6 项）：R2 尚未在此账号启用（CF API 10042 "Please enable R2"），
+  // 未配置 = errand.js 自动回退 D1 base64（行为不变）。Cloudflare Dashboard 启用 R2 并创建 bucket 后，取消注释：
+  // "r2_buckets": [ { "binding": "EVIDENCE_BUCKET", "bucket_name": "waiyuan-evidence" } ],
   "triggers": {
     "crons": ["30 2 * * *", "0 */6 * * *"]
   }

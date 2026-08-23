@@ -62,10 +62,12 @@ jobs:
           node-version: 22  # wrangler 4.124+ 要求 Node >=22
       - name: Worker 单元测试（内存 D1）
         run: |
+          set -euo pipefail  # 显式：任一条失败立即让 CI 失败，不吞错
           node scripts/test-auth.mjs
           node scripts/test-errand.mjs
           node scripts/test-sync-guard.mjs
           node scripts/test-router.mjs
+          node scripts/test-feedback.mjs
       - name: Worker + D1 本地集成测试（wrangler dev --local）
         run: |
           cd workers

@@ -173,7 +173,21 @@ function mockErrandApi(page, store) {
       const isAdmin = auth() === 'admin-token';
       const isParty = u && t && (u.id === t.publisherId || u.id === t.takerId);
       if (!isAdmin && !isParty) return fail(403, '无权查看');
-      return ok({ evidence: store.evidence.filter(e => e.disputeId === d.id).map(e => ({ id: e.id, data: e.data, createdAt: e.createdAt })) });
+      // 2026-08-23 审查第 6 项闭环：列表只返回元数据（内容全部走 /api/errand/evidence/:id 受保护二进制端点）
+      return ok({ evidence: store.evidence.filter(e => e.disputeId === d.id).map(e => ({ id: e.id, mime: 'image/png', size: 68, createdAt: e.createdAt, stored: 'd1' })) });
+    }
+    em = path.match(/^\/api\/errand\/evidence\/(\d+)$/);
+    if (em && method === 'GET') {
+      const ev = store.evidence.find(x => x.id === Number(em[1]));
+      if (!ev) return fail(404, '证据不存在');
+      const d = store.disputes.find(x => x.id === ev.disputeId);
+      const t = d && tasks.find(x => x.id === d.taskId);
+      const u = me();
+      const isAdmin = auth() === 'admin-token';
+      const isParty = u && t && (u.id === t.publisherId || u.id === t.takerId);
+      if (!isAdmin && !isParty) return fail(403, '无权查看');
+      const b64 = String(ev.data).split(',')[1] || String(ev.data);
+      return route.fulfill({ status: 200, headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=3600' }, body: Buffer.from(b64, 'base64') });
     }
     if (path === '/api/errand/admin/logs' && method === 'GET') {
       if (auth() !== 'admin-token') return fail(401, 'unauthorized');
