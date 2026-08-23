@@ -645,7 +645,9 @@ test('添加到主屏幕：beforeinstallprompt 触发后显示安装区块', asy
   mockErrandApi(page, store);
   await page.goto(BASE);
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', 'manifest.webmanifest');
-  await expect(page.locator('#install-site')).toBeHidden();
+  // 2026-08-23：非 iOS/微信浏览器默认显示菜单引导，不再依赖 beforeinstallprompt
+  await expect(page.locator('#install-site')).toBeVisible();
+  await expect(page.locator('#install-hint')).toHaveText('点浏览器右上角「⋮」→「添加到主屏幕 / 桌面」即可从桌面直接打开');
   await page.evaluate(() => {
     const ev = new Event('beforeinstallprompt', { cancelable: true });
     ev.prompt = () => Promise.resolve();

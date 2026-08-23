@@ -121,6 +121,10 @@ if (installSite && installBtn) {
       // 微信内置浏览器无法安装，引导到系统浏览器
       installSite.hidden = false;
       installHint.textContent = '点右上角「···」→「在浏览器打开」，再从浏览器菜单添加到桌面';
+    } else {
+      // 安卓 Chrome/Edge、国产浏览器等：先显示菜单引导，beforeinstallprompt 触发后升级为「立即安装」
+      installSite.hidden = false;
+      installHint.textContent = '点浏览器右上角「⋮」→「添加到主屏幕 / 桌面」即可从桌面直接打开';
     }
     window.addEventListener('beforeinstallprompt', event => {
       event.preventDefault();
