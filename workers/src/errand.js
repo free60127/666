@@ -6,12 +6,8 @@
    接单并发：UPDATE ... WHERE status='open' 原子抢占（D1 事务）。
    ============================================================ */
 import { sessionUser } from './auth.js';
+import { json, isAdmin } from './http.js';
 
-const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-  });
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
@@ -355,11 +351,6 @@ async function listReviews(db, request) {
     return json({ error: 'internal error' }, 500);
   }
 }
-/* ---------- 管理端鉴权 ---------- */
-function requireAdmin(request, env) {
-  const a = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
-  return !!env.ADMIN_TOKEN && a === env.ADMIN_TOKEN;
-}
 
 /* ---------- 申诉（任务双方；doing/done/confirmed 可申诉） ---------- */
 const DISPUTE_SELECT =
@@ -442,24 +433,24 @@ const row = await db.prepare(DISPUTE_SELECT + 'WHERE d.id = ?').bind(disputeId).
 async function listDisputes(db, request, env) {
   const url = new URL(request.url);
   const taskId = Math.floor(num(url.searchParams.get('taskId')));
-  const isAdmin = requireAdmin(request, env);
+  const adminView = isAdmin(request, env);
   const user = await sessionUser(db, request).catch(() => null);
   if (Number.isInteger(taskId) && taskId > 0) {
     const task = await db.prepare('SELECT publisher_id, taker_id FROM errand_tasks WHERE id = ?').bind(taskId).first();
     if (!task) return json({ error: '任务不存在' }, 404);
-    const ok2 = isAdmin || (user && (user.id === task.publisher_id || user.id === task.taker_id));
+    const ok2 = adminView || (user && (user.id === task.publisher_id || user.id === task.taker_id));
     if (!ok2) return json({ error: '无权查看' }, 403);
     const rows = await db.prepare(DISPUTE_SELECT + 'WHERE d.task_id = ? ORDER BY d.created_at DESC').bind(taskId).all();
-    return json({ disputes: (rows && rows.results ? rows.results : []).map(isAdmin ? mapDispute : mapDisputePublic) });
+    return json({ disputes: (rows && rows.results ? rows.results : []).map(adminView ? mapDispute : mapDisputePublic) });
   }
-  if (!isAdmin) return json({ error: 'unauthorized' }, 401);
+  if (!adminView) return json({ error: 'unauthorized' }, 401);
   const rows = await db.prepare(DISPUTE_SELECT + 'ORDER BY d.created_at DESC LIMIT 100').all();
   return json({ disputes: (rows && rows.results ? rows.results : []).map(mapDispute) });
 }
 
 /* ---------- 管理端：任务列表 / 物理删除 / 申诉处理 ---------- */
 async function adminTasks(db, request, env) {
-  if (!requireAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+  if (!isAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
   const url = new URL(request.url);
   const status = String(url.searchParams.get('status') || 'all');
   if (!['all', 'open', 'doing', 'done', 'cancelled'].includes(status)) return json({ error: 'invalid status' }, 400);
@@ -482,7 +473,7 @@ async function auditLog(db, env, action, detail) {
 }
 
 async function adminDeleteTask(db, request, env, id) {
-  if (!requireAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+  if (!isAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
   const result = await db.prepare('DELETE FROM errand_tasks WHERE id = ?').bind(id).run().catch(e => { console.error('errand admin delete:', e); return null; });
   if (!result || !result.meta || Number(result.meta.changes) < 1) return json({ error: '任务不存在' }, 404);
   await auditLog(db, env, 'errand.task.delete', 'task ' + id);
@@ -490,7 +481,7 @@ async function adminDeleteTask(db, request, env, id) {
 }
 
 async function resolveDispute(db, request, env, id) {
-  if (!requireAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+  if (!isAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
   const body = await request.json().catch(() => ({}));
   if (!['resolved', 'rejected'].includes(body.status)) return json({ error: 'invalid status' }, 400);
   const note = String(body.note || '').trim().slice(0, 300);
@@ -512,14 +503,14 @@ async function resolveDispute(db, request, env, id) {
 
 /* ---------- 证据读取（管理端或任务双方可见） ---------- */
 async function listEvidence(db, request, env, disputeId) {
-  const isAdmin = requireAdmin(request, env);
+  const adminView = isAdmin(request, env);
   const user = await sessionUser(db, request).catch(() => null);
-  if (!isAdmin && !user) return json({ error: 'unauthorized' }, 401);
+  if (!adminView && !user) return json({ error: 'unauthorized' }, 401);
   let d;
   try { d = await db.prepare('SELECT task_id FROM errand_disputes WHERE id = ?').bind(disputeId).first(); }
   catch (e) { console.error('errand evidence dispute query error:', e); return json({ error: '服务繁忙，请稍后再试' }, 503); }
   if (!d) return json({ error: '申诉不存在' }, 404);
-  if (!isAdmin) {
+  if (!adminView) {
     let task;
     try { task = await db.prepare('SELECT publisher_id, taker_id FROM errand_tasks WHERE id = ?').bind(d.task_id).first(); }
     catch (e) { console.error('errand evidence task query error:', e); return json({ error: '服务繁忙，请稍后再试' }, 503); }
@@ -531,7 +522,7 @@ async function listEvidence(db, request, env, disputeId) {
 
 /* ---------- 管理端：审计日志 ---------- */
 async function listAdminLogs(db, request, env) {
-  if (!requireAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+  if (!isAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
   const url = new URL(request.url);
   const page = clamp(Math.floor(num(url.searchParams.get('page')) || 1), 1, 1000);
   const pageSize = clamp(Math.floor(num(url.searchParams.get('pageSize')) || 30), 1, 100);

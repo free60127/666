@@ -15,6 +15,7 @@ const UPSTREAM = 'https://free60127.github.io/666';
 import { handleAuth, hashToken } from './auth.js';
 import { handleErrand } from './errand.js';
 import { cleanupDb } from './maintenance.js';
+import { json, methodNotAllowed, safeParseJson, readJsonBody, requireAdmin } from './http.js';
 // CORS：只对站点白名单来源回显 Origin（其余不带 CORS 头，浏览器直接拦截；
 // 未携带 Origin 的同源/非浏览器请求不受影响）
 const ALLOWED_ORIGINS = new Set(['https://free60127.github.io', 'https://free60127.top']);
@@ -117,22 +118,6 @@ async function serveApk(request, env, path) {
   return new Response(data, { headers });
 }
 
-// 2026-08-23 复审：JSON 损坏兜底解析（KV/D1 中存的 JSON 损坏时不直接 500）
-const safeParseJson = (text, fallback = null) => {
-  if (text == null) return fallback;
-  try { return JSON.parse(text); } catch (_) { return fallback; }
-};
-// 2026-08-23 复审：非上传类接口统一请求体上限（反馈/公告/访问/活跃；同步上传另有 2.5MB 专用校验）
-const MAX_JSON_BODY = 256 * 1024;
-async function readJsonBody(request) {
-  const cl = Number(request.headers.get('content-length') || 0);
-  if (cl > MAX_JSON_BODY) throw new Error('payload too large');
-  let text;
-  try { text = await request.text(); } catch { return null; }
-  if (text.length > MAX_JSON_BODY) throw new Error('payload too large');
-  try { return JSON.parse(text); } catch { return null; }
-}
-
 async function route(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -225,15 +210,6 @@ async function route(request, env, ctx) {
     }
 }
 
-/* ---------- 工具 ---------- */
-
-const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-  });
-
-const methodNotAllowed = () => json({ error: 'method not allowed' }, 405);
 
 /* ---------- 站点统计（2026-08-22 → 08-22 迁 D1）：反代 HTML 页面时计数 PV/UV ----------
  * 覆盖：free60127.top 主域直连 + /proxy/ 兼容路径（即所有经本 Worker 的页面访问）；
@@ -504,15 +480,6 @@ async function handleStats(env) {
   });
 }
 
-/** 管理操作鉴权：Authorization: Bearer <token>，token 由 env.ADMIN_TOKEN 提供 */
-function requireAdmin(request, env, next) {
-  const auth = request.headers.get('Authorization') || '';
-  const token = auth.replace(/^Bearer\s+/i, '');
-  if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
-    return json({ error: 'unauthorized' }, 401);
-  }
-  return next();
-}
 
 /** 反馈限流（2026-08-23 审查：实例内存 Map 迁 D1 rate 表，多节点一致）：同一 IP 30 秒内最多 5 次 POST；故障保守拒绝 */
 async function feedbackRateLimit(env, ip) {

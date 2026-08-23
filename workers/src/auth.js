@@ -1,4 +1,5 @@
 import { sendEmail, generateResetCode } from './smtp.js';
+import { json, bearerToken, safeParseJson } from './http.js';
 
 /* ============================================================
    账号认证模块（D1 版）：注册 / 登录 / 登出 / 会话 / 恢复码保险箱
@@ -12,11 +13,6 @@ import { sendEmail, generateResetCode } from './smtp.js';
 // 10k 足够防在线暴力破解（离线破解可加盐防彩虹表）。前端恢复码保险箱不受此限制。
 const PBKDF2_ITERATIONS = 10000;
 
-const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-  });
 
 /* ---------- 密码哈希 ---------- */
 const b64 = bytes => btoa(String.fromCharCode(...bytes));
@@ -73,10 +69,6 @@ async function hashToken(token) {
   return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
 }
 
-function bearerToken(request) {
-  const auth = request.headers.get('Authorization') || '';
-  return auth.replace(/^Bearer\s+/i, '');
-}
 
 /* ---------- 登录限流（2026-08-22 加固 → 08-22 IP 限流迁 D1） ----------
  * IP：D1 rate 表滚动窗口（10 分钟 30 次；2026-08-22 自 KV 迁出，与 syncRateLimit 同表）
@@ -151,11 +143,6 @@ async function recordLoginSuccess(db, email) {
 
 // 2026-08-23 复审：统一 JSON body 上限（认证请求体远小于 64KB，宽松覆盖恢复码密文 c<=8192）
 const MAX_AUTH_BODY = 64 * 1024;
-// 2026-08-23 复审：损坏 JSON 兜底解析（recovery_encrypted 异常时不崩接口，返回 null 视作未绑定）
-const safeParseJson = (text, fallback = null) => {
-  if (text == null) return fallback;
-  try { return JSON.parse(text); } catch (_) { return fallback; }
-};
 
 /* ---------- 认证处理（env.DB = D1） ---------- */
 async function handleAuth(request, env, path) {
