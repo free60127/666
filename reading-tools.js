@@ -512,6 +512,11 @@
 
   function openPdf(options) {
     if (window.A4QuestionPrint?.open) return window.A4QuestionPrint.open(options);
+    const nd = window.WaiyuanNativeDownload;
+    if (nd && nd.isNative && nd.isNative()) {
+      alert('App 内不支持系统打印，请使用题库页的「PDF 下载 / 导出」功能保存文件。');
+      return;
+    }
     window.print();
   }
 

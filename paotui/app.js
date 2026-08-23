@@ -663,9 +663,15 @@
   function saveShareCard() {
     const img = $('share-preview').querySelector('img');
     if (!img) return;
+    const name = shareType === 'task' ? '外院跑腿任务卡.png' : '外院跑腿平台卡.png';
+    const nd = window.WaiyuanNativeDownload;
+    if (nd && nd.isNative && nd.isNative() && nd.saveDataUrl(name, img.src)) {
+      toast('已保存到手机「下载」目录');
+      return;
+    }
     const a = document.createElement('a');
     a.href = img.src;
-    a.download = shareType === 'task' ? '外院跑腿任务卡.png' : '外院跑腿平台卡.png';
+    a.download = name;
     document.body.append(a); a.click(); a.remove();
     toast('已保存到相册 / 下载目录（未生效可长按图片保存）');
   }

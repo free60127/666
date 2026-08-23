@@ -169,9 +169,23 @@
 
     // 生成下载文件
     const blob = new Blob([JSON.stringify(questions, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    download.href = url;
-    download.style.display = 'inline-block';
+    const nd = window.WaiyuanNativeDownload;
+    if (nd && nd.isNative && nd.isNative()) {
+      // Capacitor App：直接经原生桥保存到「下载」目录（命令照常生成）
+      nd.saveBlob('import.json', blob).then(ok => {
+        if (ok) {
+          report.textContent = out + '\n✓ 已保存到手机「下载」目录：import.json';
+          report.classList.add('ok');
+        } else {
+          download.href = URL.createObjectURL(blob);
+          download.style.display = 'inline-block';
+        }
+      });
+    } else {
+      const url = URL.createObjectURL(blob);
+      download.href = url;
+      download.style.display = 'inline-block';
+    }
 
     // 生成命令
     const target = targetSel.value;

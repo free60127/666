@@ -70,6 +70,41 @@
     } catch (_) { /* 统计失败静默 */ }
   })();
 
+  /* ---------- 原生 App 下载通道（Capacitor WebView） ----------
+     WebView 默认不处理 <a download>：http(s) 由 MainActivity 的
+     DownloadListener（DownloadManager）接管；blob:/data: 内容由
+     NativeSave 桥（MainActivity @JavascriptInterface）保存到手机「下载」目录。 */
+  window.WaiyuanNativeDownload = {
+    isNative() {
+      return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    },
+    saveBlob(name, blob) {
+      if (!this.isNative() || !window.NativeSave || !blob) return Promise.resolve(false);
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const base64 = String(reader.result).split(',')[1] || '';
+            if (!base64) return resolve(false);
+            window.NativeSave.saveBase64(name || 'file', base64);
+            resolve(true);
+          } catch (e) { reject(e); }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+    },
+    saveDataUrl(name, dataUrl) {
+      if (!this.isNative() || !window.NativeSave) return false;
+      try {
+        const base64 = String(dataUrl || '').split(',')[1] || '';
+        if (!base64) return false;
+        window.NativeSave.saveBase64(name || 'file', base64);
+        return true;
+      } catch (e) { return false; }
+    },
+  };
+
   /* ---------- Service Worker (PWA 离线缓存) ---------- */
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     const tag = document.querySelector('script[data-common-injected]');

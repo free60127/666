@@ -367,10 +367,21 @@
 
   async function downloadMobilePdf(options) {
     try {
-      const url = URL.createObjectURL(new Blob([portablePdfBytes(options)], {type: 'application/pdf'}));
+      const blob = new Blob([portablePdfBytes(options)], {type: 'application/pdf'});
+      const name = fileName(options.title);
+      const nd = window.WaiyuanNativeDownload;
+      if (nd && nd.isNative && nd.isNative()) {
+        // Capacitor App：WebView 无法下载 blob，走原生保存桥（保存到手机「下载」目录）
+        const ok = await nd.saveBlob(name, blob).catch(() => false);
+        if (ok) {
+          showNativeSavedTip('PDF 已保存到手机「下载」目录', name);
+          return;
+        }
+        // 原生保存失败时回退旧逻辑（桌面浏览器等）
+      }
+      const url = URL.createObjectURL(blob);
       removeMobileDownloadPanel();
       activeMobilePdfUrl = url;
-      const name = fileName(options.title);
       showMobileDownloadPanel(url, name);
       if (!isAppleMobile()) triggerDownload(url, name);
       setTimeout(() => { if (activeMobilePdfUrl === url) removeMobileDownloadPanel(); }, 10 * 60 * 1000);
@@ -378,6 +389,17 @@
       alert('PDF 生成失败，请稍后重试。');
       console.error(error);
     }
+  }
+
+  function showNativeSavedTip(message, name) {
+    removeMobileDownloadPanel();
+    const tip = document.createElement('div');
+    tip.id = 'a4-native-saved-tip';
+    tip.setAttribute('role', 'status');
+    tip.style.cssText = 'position:fixed;left:50%;bottom:42px;transform:translateX(-50%);z-index:99999;max-width:86vw;padding:13px 18px;border-radius:14px;background:rgba(23,50,41,.94);color:#fff;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.25);';
+    tip.textContent = message + (name ? '：' + name : '');
+    document.body.appendChild(tip);
+    setTimeout(() => tip.remove(), 3600);
   }
 
   function openDesktopPrint({title, subtitle = '', questions = [], mode = 'standard'}) {
