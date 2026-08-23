@@ -23,6 +23,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TWA_KEYSTORE_PASS: ${{ secrets.APK_KEYSTORE_PASS }}
+      TWA_KEY_ALIAS: ${{ secrets.APK_KEY_ALIAS }}
+      TWA_KEY_PASS: ${{ secrets.APK_KEY_PASS }}
     steps:
       - uses: actions/checkout@v4
 
