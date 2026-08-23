@@ -644,6 +644,7 @@ test('添加到主屏幕：beforeinstallprompt 触发后显示安装区块', asy
   mockAuthApi(page, store);
   mockErrandApi(page, store);
   await page.goto(BASE);
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', 'manifest.webmanifest');
   await expect(page.locator('#install-site')).toBeHidden();
   await page.evaluate(() => {
     const ev = new Event('beforeinstallprompt', { cancelable: true });

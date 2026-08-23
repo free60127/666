@@ -741,6 +741,11 @@
     }
   }
 
+  // 2026-08-23：注册根站点 Service Worker（scope=/ 覆盖 /paotui/），满足 Chrome PWA 安装条件
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('/sw.js').catch(err => console.warn('Service Worker 注册失败（不影响使用）：', err));
+  }
+
   /* ---------- init ---------- */
   initTheme();
   bindCardClicks();
