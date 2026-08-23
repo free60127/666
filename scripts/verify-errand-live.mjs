@@ -121,7 +121,7 @@ const regD = await api('/auth/register', { method: 'POST', body: { email: emailD
 check('注册D', regD.status === 201 || regD.status === 200, 's=' + regD.status);
 const tokD = regD.data.token;
 if (tokD) {
-  const taskD = await api('/errand/tasks', { method: 'POST', token: tokD, body: { title: '注销拦截任务', reward: 1, pickup: 'A', dropoff: 'B', contact: '', deadline: null } });
+  const taskD = await api('/errand/tasks', { method: 'POST', token: tokD, body: { title: '注销拦截任务', reward: 1, pickup: 'A', dropoff: 'B', contact: '13800000000', deadline: null } });
   const tidD = taskD.data.task && taskD.data.task.id;
   check('D发布任务', taskD.status === 201 && tidD, 's=' + taskD.status);
   const delBlocked = await api('/auth/delete-account', { method: 'POST', token: tokD, body: { password: passwd } });
