@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 覆盖 @capacitor/android 的同名布局：fitsSystemWindows=true
+     系统 insets（状态栏/导航栏）自动作为 CoordinatorLayout 的 padding，
+     WebView 内容始终避开状态栏（Android 15+ edge-to-edge 下也有效）。
+     注：SystemBars 插件已配置 insetsHandling=disable，不会注册 listener 覆盖此行为。 -->
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    tools:context="com.waiyuan.share.MainActivity">
+
+    <com.getcapacitor.CapacitorWebView
+        android:id="@+id/webview"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

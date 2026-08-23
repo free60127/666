@@ -47,19 +47,28 @@ public class MainActivity extends BridgeActivity {
         // 顶部按钮（返回等）被系统时间区遮挡。用 WindowInsets 给 WebView 加系统栏 padding。
         // Capacitor SystemBars 插件会消费/改写 insets（默认 css 模式），WebView 收不到系统栏 insets，
         // 因此不依赖 insets 分派：直接同步读取系统状态栏高度设置 padding，绝对生效。
-        int statusBarHeight = getStatusBarHeight();
-        View parentView = (View) webView.getParent();
-        int parentPadTop = parentView != null ? parentView.getPaddingTop() : 0;
-        if (statusBarHeight > 0 && parentPadTop == 0) {
-            webView.setPadding(0, statusBarHeight, 0, 0);
-        }
+        // 双保险：post 到主线程（WebView attach 后）读 dimen + rootWindowInsets 取最大；
+        // 父容器 fitsSystemWindows 已处理则不重复设置（避免双倍空隙）。
+        webView.post(() -> {
+            int padTop = getStatusBarHeight();
+            WindowInsetsCompat root = ViewCompat.getRootWindowInsets(getWindow().getDecorView());
+            if (root != null) {
+                padTop = Math.max(padTop, root.getInsets(WindowInsetsCompat.Type.systemBars()).top);
+            }
+            View pv = (View) webView.getParent();
+            int pTop = pv != null ? pv.getPaddingTop() : 0;
+            if (padTop > 0 && pTop == 0) {
+                webView.setPadding(0, padTop, 0, 0);
+            }
+        });
         // 兜底：横竖屏切换/insets 变化时保持顶部避让（navigationBar 高度同时处理）
         ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             View pv = (View) v.getParent();
             int pTop = pv != null ? pv.getPaddingTop() : 0;
-            if (bars.top > 0 && pTop == 0) {
-                v.setPadding(0, bars.top, 0, bars.bottom);
+            int padTop = Math.max(bars.top, getStatusBarHeight());
+            if (padTop > 0 && pTop == 0) {
+                v.setPadding(0, padTop, 0, bars.bottom);
             }
             return insets;
         });
