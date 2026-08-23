@@ -85,11 +85,17 @@ jobs:
       - name: 构建 share APK
         if: inputs.app == 'both' || inputs.app == 'share'
         working-directory: cap-share/android
+        env:
+          TWA_VERSION: ${{ env.VERSION }}
+          TWA_VERSION_CODE: ${{ env.VERSION_CODE }}
         run: ./gradlew --no-daemon assembleRelease
 
       - name: 构建 paotui APK
         if: inputs.app == 'both' || inputs.app == 'paotui'
         working-directory: cap-paotui/android
+        env:
+          TWA_VERSION: ${{ env.VERSION }}
+          TWA_VERSION_CODE: ${{ env.VERSION_CODE }}
         run: ./gradlew --no-daemon assembleRelease
 
       - name: 收集 APK
