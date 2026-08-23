@@ -1,0 +1,26 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.waiyuan.share",
+      "sha256_cert_fingerprints": [
+        "FE:DE:94:7D:56:16:0E:99:90:FF:A3:00:5F:AB:42:82:5B:0F:A2:18:BC:E8:E6:55:15:5C:83:BA:B1:8E:3D:85"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.waiyuan.paotui",
+      "sha256_cert_fingerprints": [
+        "FE:DE:94:7D:56:16:0E:99:90:FF:A3:00:5F:AB:42:82:5B:0F:A2:18:BC:E8:E6:55:15:5C:83:BA:B1:8E:3D:85"
+      ]
+    }
+  }
+]
