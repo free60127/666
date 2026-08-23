@@ -13,7 +13,7 @@ const cfg = {
     packageId: 'com.waiyuan.share',
     name: '外院知识分享站',
     launcherName: '外院知识分享站',
-    startUrl: 'https://free60127.top/',
+    startUrl: '/', // 相对路径：模板拼接 https:// + hostName + launchUrl
     iconUrl: 'https://free60127.top/icons/icon-512.png',
     maskableIconUrl: 'https://free60127.top/icons/icon-512-maskable.png',
     webManifestUrl: 'https://free60127.top/manifest.webmanifest',
@@ -22,7 +22,7 @@ const cfg = {
     packageId: 'com.waiyuan.paotui',
     name: '外院跑腿',
     launcherName: '外院跑腿',
-    startUrl: 'https://free60127.top/paotui/',
+    startUrl: '/paotui/', // 相对路径：模板拼接 https:// + hostName + launchUrl
     iconUrl: 'https://free60127.top/paotui/icon-512.png',
     maskableIconUrl: 'https://free60127.top/paotui/icon-512-maskable.png',
     webManifestUrl: 'https://free60127.top/paotui/manifest.webmanifest',
