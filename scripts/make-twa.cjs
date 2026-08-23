@@ -81,7 +81,7 @@ fs.mkdirSync(outdir, { recursive: true });
   const signBlock = [
     '    signingConfigs {',
     '        release {',
-    "            storeFile file('android.keystore')",
+    "            storeFile rootProject.file('android.keystore')",
     "            storePassword '" + (process.env.TWA_KEYSTORE_PASS || '') + "'",
     "            keyAlias '" + (process.env.TWA_KEY_ALIAS || 'waiyuan') + "'",
     "            keyPassword '" + (process.env.TWA_KEY_PASS || '') + "'",
