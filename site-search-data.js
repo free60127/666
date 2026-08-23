@@ -5,7 +5,7 @@ window.WAIYUAN_SITE_SEARCH = [
   {title:'德语课文翻译', category:'专业课 · 二外 · 德语', path:'专业课/二外/德语/课文翻译/index.html', keywords:'德语 课文翻译 新编大学德语 原文 译文 逐句对照', description:'《新编大学德语》第一册课文原文与中文译文逐句对照。'},
   {title:'德语模拟试卷', category:'专业课 · 二外 · 德语', path:'专业课/二外/德语/模拟试卷/index.html', keywords:'德语 模拟试卷 期末 选择 填空 改写 阅读 翻译 自动判题', description:'《新编大学德语》第一册模拟试卷，参考期末题型在线作答自动判题。'},
   {title:'法语资料', category:'专业课 · 二外', path:'专业课/二外/法语/index.html', keywords:'法语 二外', description:'法语资料入口。'},
-  {title:'商英系资料', category:'专业课', path:'专业课/商英系/index.html', keywords:'商英 商务英语', description:'商英系资料入口。'},
+  {title:'商英系题库', category:'专业课', path:'专业课/商英系/index.html', keywords:'商英 商务英语 选词填空 介词填空 完形填空 汉译英 英译汉 题库', description:'商英教程 1—3 课程题库，按单元组织，支持判题、查词与收藏。'},
   {title:'翻译系资料', category:'专业课', path:'专业课/翻译系/index.html', keywords:'翻译 翻译系', description:'翻译系资料入口。'},
   {title:'英语系课程资料', category:'专业课', path:'专业课/英语系/index.html', keywords:'英语 基英 泛读 课程', description:'英语系课程资料与题库。'},
   {title:'基英系列课程题库', category:'专业课 · 英语系', path:'专业课/英语系/基英系列/index.html', keywords:'基英 基础英语 选词填空 汉译英 题库', description:'基英 1—4 课程题库。'},

@@ -162,8 +162,8 @@ function validateExercises(file, data) {
 // ---- content-book format (reading / basic-english) ----
 // {version, title, books:[{key, name, units:[{key, kind, name, questions:[{index,q,options?,answer,type}]}]}]}
 // type: choice（有选项 + 字母答案）/ text
-// ---- 综英系列（商翻）：data.js 为 JS 格式（window.CONTENT_BOOKS），单独校验（2026-08-23 审查补入）----
-function validateZongying(file, code) {
+// ---- content-book 型 data.js（JS 格式 window.CONTENT_BOOKS）：综英/商英统一校验 ----
+function validateContentBookJs(file, code) {
   let data;
   try {
     const fn = new Function('window', code + '\n;return window.CONTENT_BOOKS;');
@@ -180,7 +180,7 @@ function validateZongying(file, code) {
       const k = String(unit.kind || '');
       if (!KIND_OK.has(k)) fail(file, book.key + '/' + unit.key + ': 未知 kind "' + k + '"（应为 wordFill/translation）');
       const label = String(unit.kindLabel || '');
-      const labelOk = k === 'wordFill' ? ['选词填空', '短语填空', '介词填空'] : ['英译汉', '汉译英'];
+      const labelOk = k === 'wordFill' ? ['选词填空', '短语填空', '介词填空', '完形填空'] : ['英译汉', '汉译英'];
       if (!labelOk.includes(label)) fail(file, book.key + '/' + unit.key + ': kindLabel "' + label + '" 与 kind "' + k + '" 不匹配');
       for (const q of (unit.questions || [])) {
         const qq = String(q && q.q || '').trim();
@@ -286,12 +286,15 @@ for (const file of targets) {
   else validateExercises(path.relative(root, file), data);
 }
 
-// 综英系列（商翻）data.js：JS 格式，单独读取校验
-const zyFile = path.join(root, '专业课', '通用', '综英系列（商翻）', 'data.js');
-if (fs.existsSync(zyFile)) {
-  validateZongying(path.relative(root, zyFile), fs.readFileSync(zyFile, 'utf8'));
-} else {
-  warn('专业课/通用/综英系列（商翻）/data.js', '未找到，跳过综英校验');
+// 综英系列（商翻）、商英系 data.js：JS 格式，单独读取校验
+const jsContentBookFiles = [
+  ['专业课', '通用', '综英系列（商翻）', 'data.js'],
+  ['专业课', '商英系', 'data.js'],
+];
+for (const parts of jsContentBookFiles) {
+  const f = path.join(root, ...parts);
+  if (fs.existsSync(f)) validateContentBookJs(path.relative(root, f), fs.readFileSync(f, 'utf8'));
+  else warn(parts.join('/'), '未找到，跳过校验');
 }
 
 if (warnings.length) {
