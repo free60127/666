@@ -72,12 +72,13 @@ jobs:
 
       - name: Upload APKs to Cloudflare KV (主域直连下载，无需 VPN)
         run: |
-          npm i -g wrangler
+          API="https://api.cloudflare.com/client/v4/accounts/${{ secrets.CF_ACCOUNT_ID }}/storage/kv/namespaces/${{ secrets.CF_KV_NS }}/values"
+          AUTH="Authorization: Bearer ${{ secrets.CF_API_TOKEN }}"
           if [ -f waiyuan-share.apk ]; then
-            CLOUDFLARE_API_TOKEN="${{ secrets.CF_API_TOKEN }}" CLOUDFLARE_ACCOUNT_ID="${{ secrets.CF_ACCOUNT_ID }}" wrangler kv key put 'apk:waiyuan-share.apk' --namespace-id "${{ secrets.CF_KV_NS }}" --path waiyuan-share.apk
+            curl -sS -X PUT "$API/apk%3Awaiyuan-share.apk" -H "$AUTH" --data-binary @waiyuan-share.apk
           fi
           if [ -f waiyuan-paotui.apk ]; then
-            CLOUDFLARE_API_TOKEN="${{ secrets.CF_API_TOKEN }}" CLOUDFLARE_ACCOUNT_ID="${{ secrets.CF_ACCOUNT_ID }}" wrangler kv key put 'apk:waiyuan-paotui.apk' --namespace-id "${{ secrets.CF_KV_NS }}" --path waiyuan-paotui.apk
+            curl -sS -X PUT "$API/apk%3Awaiyuan-paotui.apk" -H "$AUTH" --data-binary @waiyuan-paotui.apk
           fi
       - name: Upload APKs to GitHub Release
         run: |

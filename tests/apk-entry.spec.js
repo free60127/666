@@ -7,7 +7,7 @@ test('主页：install-apk 链接指向 share APK Release 下载', async ({ page
   await page.goto('/');
   const link = page.locator('a.install-apk');
   await expect(link).toBeVisible();
-  await expect(link).toHaveAttribute('href', 'https://github.com/free60127/666/releases/latest/download/waiyuan-share.apk');
+  await expect(link).toHaveAttribute('href', 'https://free60127.top/apk/waiyuan-share.apk');
   await expect(link).toHaveAttribute('download', '外院知识分享站.apk');
   await expect(link.locator('.install-apk-text b')).toContainText('下载安卓版 App');
   await expect(link.locator('.install-apk-btn')).toContainText('下载 APK');
@@ -23,6 +23,6 @@ test('跑腿页：install-apk 链接指向 paotui APK Release 下载', async ({ 
   await page.goto('/' + encodeURI('paotui/index.html'));
   const link = page.locator('a.install-apk');
   await expect(link).toBeVisible();
-  await expect(link).toHaveAttribute('href', 'https://github.com/free60127/666/releases/latest/download/waiyuan-paotui.apk');
+  await expect(link).toHaveAttribute('href', 'https://free60127.top/apk/waiyuan-paotui.apk');
   await expect(link).toHaveAttribute('download', '外院跑腿.apk');
 });
