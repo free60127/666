@@ -16,6 +16,20 @@ const keystoreDst = path.join(root, appDir, 'android/app/android.keystore');
 if (!fs.existsSync(appGradle)) { console.error('build.gradle not found:', appGradle); process.exit(1); }
 if (!fs.existsSync(keystoreSrc)) { console.error('keystore not found:', keystoreSrc); process.exit(1); }
 fs.copyFileSync(keystoreSrc, keystoreDst);
+
+// 同步 capacitor.config.json 到 assets（Capacitor Android 启动时从 assets 读配置；
+// 缺失会回退默认 hostname=localhost → https://localhost/ ERR_CONNECTION_REFUSED）
+const configSrc = path.join(root, appDir, 'capacitor.config.json');
+const assetsDir = path.join(root, appDir, 'android/app/src/main/assets');
+if (fs.existsSync(configSrc)) {
+  fs.mkdirSync(assetsDir, { recursive: true });
+  fs.copyFileSync(configSrc, path.join(assetsDir, 'capacitor.config.json'));
+  console.log('cap-sign: capacitor.config.json synced to assets');
+} else {
+  console.error('capacitor.config.json not found:', configSrc);
+  process.exit(1);
+}
+
 let g = fs.readFileSync(appGradle, 'utf8');
 
 // versionCode/versionName 从 env 注入（gradle 构建时求值）；检查用完整表达式避免 TWA_VERSION 子串误匹配
