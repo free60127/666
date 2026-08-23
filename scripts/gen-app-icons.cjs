@@ -52,18 +52,27 @@ function removeBg(data, info) {
   return { data: out, info };
 }
 
-async function genLegacy(src, outFile, size) {
-  // 原图四角是黑底（白底圆角设计）→ 先去背景（黑/透明→透明），再垫白底，四角必为白（不透明）
-  const srcRaw = await loadRaw(src);
-  const bg = removeBg(srcRaw.data, srcRaw.info);
-  const icon = await sharp(bg.data, { raw: { width: bg.info.width, height: bg.info.height, channels: bg.info.channels } })
-    .resize(size, size, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } }).png().toBuffer();
-  const white = await sharp({ create: { width: size, height: size, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } } }).png().toBuffer();
-  await sharp(white).composite([{ input: icon }]).png().toFile(outFile);
+// 提取 buf 中内容 bbox（alpha>40 且非纯白），返回 {buf, bw, bh, minX, minY}
+async function extractContent(buf) {
+  const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const W = info.width, H = info.height;
+  let minX = W, minY = H, maxX = -1, maxY = -1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = (y * W + x) * 4;
+    if (data[i + 3] > 40 && !(data[i] > 245 && data[i + 1] > 245 && data[i + 2] > 245)) {
+      if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < 0) return null;
+  const bw = maxX - minX + 1, bh = maxY - minY + 1;
+  const out = await sharp(buf).extract({ left: minX, top: minY, width: bw, height: bh }).png().toBuffer();
+  return { buf: out, bw, bh };
 }
 
-async function genForeground(src, outFile, size) {
-  // 1) 去背景 → 2) trim 内容 bbox → 3) 缩放至安全区直径(66%) → 4) 居中到透明画布
+// 通用生成：去背景 → 内容 bbox 裁剪 → 等比缩放（短边不超过 target）
+// → 提取缩放后实际内容 → 对称居中到 canvas（sharp 缩放对透明边缘不对称，
+// 直接 composite 会偏左上；必须按内容 bbox 重新定位）
+async function makeCentered(src, size, targetRatio, canvasColor) {
   const srcRaw = await loadRaw(src);
   const bg = removeBg(srcRaw.data, srcRaw.info);
   const W = bg.info.width, H = bg.info.height;
@@ -74,15 +83,32 @@ async function genForeground(src, outFile, size) {
   }
   if (maxX < 0) throw new Error('no content in ' + src);
   const bw = maxX - minX + 1, bh = maxY - minY + 1;
-  // 内容裁出
   const crop = await sharp(bg.data, { raw: { width: W, height: H, channels: bg.info.channels } })
     .extract({ left: minX, top: minY, width: bw, height: bh }).png().toBuffer();
-  // 缩放到安全区（66% 直径），再居中
-  const target = Math.floor(size * 0.66);
-  const resized = await sharp(crop).resize(target, target, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
-  const canvas = await sharp({ create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
-  const off = Math.floor((size - target) / 2);
-  await sharp(canvas).composite([{ input: resized, left: off, top: off }]).png().toFile(outFile);
+  const target = Math.floor(size * targetRatio);
+  const scale = Math.min(target / bw, target / bh);
+  const w = Math.max(1, Math.round(bw * scale));
+  const h = Math.max(1, Math.round(bh * scale));
+  const resized = await sharp(crop).resize(w, h, { background: canvasColor }).png().toBuffer();
+  const content = await extractContent(resized);
+  if (!content) throw new Error('no content after resize: ' + src);
+  const canvas = await sharp({ create: { width: size, height: size, channels: 4, background: canvasColor } }).png().toBuffer();
+  const offX = Math.floor((size - content.bw) / 2);
+  const offY = Math.floor((size - content.bh) / 2);
+  if (process.env.ICON_DEBUG) console.log('makeCentered', src.split('/').pop(), 'bbox', bw + 'x' + bh, 'scaled', w + 'x' + h, 'content', content.bw + 'x' + content.bh, 'off', offX + ',' + offY, 'canvas', size);
+  return sharp(canvas).composite([{ input: content.buf, left: offX, top: offY }]).png().toBuffer();
+}
+
+async function genLegacy(src, outFile, size) {
+  // 原图四角是黑底（白底圆角设计）→ 去背景 + 内容居中到白底画布 72%
+  const buf = await makeCentered(src, size, 0.72, { r: 255, g: 255, b: 255, alpha: 1 });
+  await sharp(buf).png().toFile(outFile);
+}
+
+async function genForeground(src, outFile, size) {
+  // 自适应图标前景：内容缩放至安全区 58%（不裁切），居中到透明画布
+  const buf = await makeCentered(src, size, 0.58, { r: 0, g: 0, b: 0, alpha: 0 });
+  await sharp(buf).png().toFile(outFile);
 }
 
 (async () => {
@@ -109,12 +135,7 @@ async function genForeground(src, outFile, size) {
   ];
   for (const app of site) {
     for (const size of [192, 512]) {
-      const srcRaw = await loadRaw(app.src);
-      const bg = removeBg(srcRaw.data, srcRaw.info);
-      const icon = await sharp(bg.data, { raw: { width: bg.info.width, height: bg.info.height, channels: bg.info.channels } })
-        .resize(size, size, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } }).png().toBuffer();
-      const white = await sharp({ create: { width: size, height: size, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } } }).png().toBuffer();
-      await sharp(white).composite([{ input: icon }]).png().toFile(path.join(app.out, 'icon-' + size + '.png'));
+      await genLegacy(app.src, path.join(app.out, 'icon-' + size + '.png'), size);
     }
   }
   console.log('site icons done');
