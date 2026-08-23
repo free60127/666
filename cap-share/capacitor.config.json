@@ -1,0 +1,10 @@
+{
+  "appId": "com.waiyuan.share",
+  "appName": "外院知识分享站",
+  "webDir": "www",
+  "server": {
+    "url": "https://free60127.top/",
+    "cleartext": false
+  },
+  "backgroundColor": "#fdfaf3"
+}

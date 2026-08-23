@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">外院跑腿</string>
+    <string name="title_activity_main">外院跑腿</string>
+    <string name="package_name">com.waiyuan.paotui</string>
+    <string name="custom_url_scheme">com.waiyuan.paotui</string>
+</resources>
