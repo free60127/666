@@ -37,3 +37,5 @@ keys/
 # capacitor local tooling
 scripts/_tmp-cap/
 scripts/_tmp-apk/
+
+scripts/_tmp-iconwork/
