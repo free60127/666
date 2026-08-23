@@ -38,7 +38,7 @@ jobs:
       - name: Install bubblewrap CLI
         run: npm i -g @bubblewrap/cli
 
-      - name: Resolve APK version (2026-08-23 审查: versionCode 递增, Android 覆盖更新)
+      - name: Resolve APK version (2026-08-23 审查：versionCode 递增，Android 覆盖更新)
         id: ver
         run: |
           VER="${{ inputs.version }}"
