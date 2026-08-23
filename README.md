@@ -12,6 +12,11 @@
 - **跑腿发布**强制 pickup/dropoff/contact 必填 + deadline 安全整数（前后端一致）；/api/visit 路径白名单（拒绝 ../、//、反斜杠、控制字符）。
 - **任务分享二维码深链** ?task=ID，扫码直达任务详情；前端列表竞态修复（requestId 作废旧响应 + 加载更多锁）；注册免二次登录（原逻辑创建两个会话）；跑腿页新增「📱 添加到主屏幕」（与主页一致）。
 - **工具链**：ci.yml worker-test 增跑 test-errand.mjs；validate.js 增综英 data.js 校验（kind/kindLabel/重复题/HTML 实体）；check-online.js 失败计数 + 非 0 退出码。
+## 安卓版 App（APK）
+- 两个 TWA 壳 APK：**外院知识分享站**（加载 https://free60127.top/）与 **外院跑腿**（加载 https://free60127.top/paotui/）；内容是线上网页，站点更新即自动同步，无需重装。
+- 下载：`https://free60127.top/apk/waiyuan-share.apk`、`https://free60127.top/apk/waiyuan-paotui.apk`（Worker 从 KV 直出，国内无需 VPN；GitHub Release `apk-v1` 为备份源）。
+- 构建：GitHub Actions `twa-build.yml`（手动触发 workflow_dispatch，`app=both/share/paotui`）→ bubblewrap 生成项目 → gradle 构建签名 APK → CF API 直传 KV + 上传 Release。签名 keystore 存 GitHub secrets（APK_KEYSTORE_B64/APK_KEYSTORE_PASS/APK_KEY_PASS/APK_KEY_ALIAS=waiyuan，PKCS12，指纹 FE:DE:94:7D:56:16:0E:99:90:FF:A3:00:5F:AB:42:82:5B:0F:A2:18:BC:E8:E6:55:15:5C:83:BA:B1:8E:3D:85）；数字资产关联 `.well-known/assetlinks.json`（com.waiyuan.share + com.waiyuan.paotui）已上线。
+- 生成器：`scripts/make-twa.cjs <share|paotui>`（startUrl 必须传相对路径，模板会拼 `https://` + hostName + launchUrl）。
 ## 数据治理记录
 
 - 2026-08：思修 318→214、近代史 331→215（去重 + 答案冲突修正）、毛概 244→243、计算机数据库基础清 1 组重复；马原、习概无重复。
