@@ -17,6 +17,7 @@ import android.view.View;
 import android.webkit.WebView;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -61,6 +62,22 @@ public class MainActivity extends BridgeActivity {
                 v.setPadding(0, bars.top, 0, bars.bottom);
             }
             return insets;
+        });
+        // 系统返回（实体按键 + Android 13+ 左右边缘滑动手势）：站内后退优先，站内无历史时才退出 App。
+        // 注：Capacitor 8 核心不含 back 处理（back 逻辑在 @capacitor/app 插件中，本工程未安装），
+        // 不处理时系统返回/边缘手势会直接 finish 退出整个 App。
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                WebView wv = getBridge().getWebView();
+                if (wv != null && wv.canGoBack()) {
+                    wv.goBack();
+                } else {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                    setEnabled(true);
+                }
+            }
         });
         webView.addJavascriptInterface(new NativeSaveBridge(), "NativeSave");
         webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
