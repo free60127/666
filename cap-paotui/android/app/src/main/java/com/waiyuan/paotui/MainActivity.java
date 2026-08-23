@@ -13,6 +13,7 @@ import android.util.Base64;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
+import android.view.View;
 import android.webkit.WebView;
 import android.widget.Toast;
 
@@ -43,9 +44,22 @@ public class MainActivity extends BridgeActivity {
         WebView webView = getBridge().getWebView();
         // Android 15+（targetSdk 36）强制 edge-to-edge：内容会画到状态栏/导航栏底下，
         // 顶部按钮（返回等）被系统时间区遮挡。用 WindowInsets 给 WebView 加系统栏 padding。
+        // Capacitor SystemBars 插件会消费/改写 insets（默认 css 模式），WebView 收不到系统栏 insets，
+        // 因此不依赖 insets 分派：直接同步读取系统状态栏高度设置 padding，绝对生效。
+        int statusBarHeight = getStatusBarHeight();
+        View parentView = (View) webView.getParent();
+        int parentPadTop = parentView != null ? parentView.getPaddingTop() : 0;
+        if (statusBarHeight > 0 && parentPadTop == 0) {
+            webView.setPadding(0, statusBarHeight, 0, 0);
+        }
+        // 兜底：横竖屏切换/insets 变化时保持顶部避让（navigationBar 高度同时处理）
         ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(0, bars.top, 0, bars.bottom);
+            View pv = (View) v.getParent();
+            int pTop = pv != null ? pv.getPaddingTop() : 0;
+            if (bars.top > 0 && pTop == 0) {
+                v.setPadding(0, bars.top, 0, bars.bottom);
+            }
             return insets;
         });
         webView.addJavascriptInterface(new NativeSaveBridge(), "NativeSave");
@@ -69,6 +83,16 @@ public class MainActivity extends BridgeActivity {
                 runOnUiThread(() -> Toast.makeText(this, "下载失败：" + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         });
+    }
+
+    /** 读取系统状态栏高度（含刘海屏安全高度） */
+    private int getStatusBarHeight() {
+        int result = 0;
+        int resourceId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (resourceId > 0) {
+            result = getResources().getDimensionPixelSize(resourceId);
+        }
+        return result;
     }
 
     /** 前端 window.NativeSave.saveBase64(name, base64) 保存内容文件到「下载」目录 */
