@@ -119,14 +119,27 @@
       page.y -= 18;
     }
 
+    function addBank(text) {
+      wrapText(text, 47).forEach(line => {
+        if (!page) startPage();
+        if (page.y - 14 < 54) startPage();
+        page.lines.push({kind: 'bank', text: line, size: 9.5, y: page.y});
+        page.y -= 13;
+      });
+      addLine('', 10.5, 8);
+    }
+
     section = mode === 'memorize' ? '题目与答案' : '题目';
     continuation = false;
     startPage();
     let previousType = '';
+    let lastBank = '';
     questions.forEach((item, index) => {
       const currentType = String(item.type || '').trim();
       if (currentType && currentType !== previousType) addModuleHeading(currentType);
       previousType = currentType;
+      const bank = String(item.bank || '').trim();
+      if (bank && bank !== lastBank) { addBank(bank); lastBank = bank; }
       addText(`${index + 1}. ${item.question || ''}`, 10.5, 16);
       if (item.optionGroups) item.optionGroups.forEach(group => { addOptionGroupLabel(group.label); addOptions(group.options); });
       else addOptions(item.options);
@@ -219,7 +232,7 @@
   function concatBytes(chunks) { const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0); const out = new Uint8Array(length); let offset = 0; chunks.forEach(chunk => { out.set(chunk, offset); offset += chunk.length; }); return out; }
   function jpegSize(bytes) { let offset = 2; while (offset < bytes.length) { if (bytes[offset] !== 255) { offset++; continue; } while (bytes[offset] === 255) offset++; const marker = bytes[offset++]; const length = bytes[offset] * 256 + bytes[offset + 1]; if ((marker >= 192 && marker <= 195) || (marker >= 197 && marker <= 199) || (marker >= 201 && marker <= 203) || (marker >= 205 && marker <= 207)) return {height: bytes[offset + 3] * 256 + bytes[offset + 4], width: bytes[offset + 5] * 256 + bytes[offset + 6]}; offset += length; } throw new Error('页面图片生成失败。'); }
   function imagePdf(images) { const objects = []; const pageIds = images.map((_, index) => 5 + index * 3); objects[1] = [asciiBytes('<< /Type /Catalog /Pages 2 0 R >>')]; objects[2] = [asciiBytes(`<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${images.length} >>`)]; images.forEach((image, index) => { const imageId = 3 + index * 3; const contentId = imageId + 1; const pageId = imageId + 2; const size = jpegSize(image); const content = asciiBytes('q\n595 0 0 842 0 0 cm\n/Im0 Do\nQ\n'); objects[imageId] = [asciiBytes(`<< /Type /XObject /Subtype /Image /Width ${size.width} /Height ${size.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.length} >>\nstream\n`), image, asciiBytes('\nendstream')]; objects[contentId] = [asciiBytes(`<< /Length ${content.length} >>\nstream\n`), content, asciiBytes('endstream')]; objects[pageId] = [asciiBytes(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im0 ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`)]; }); const chunks = [asciiBytes('%PDF-1.4\n% portable A4 image PDF\n')]; const offsets = [0]; let length = chunks[0].length; const maxId = objects.length - 1; for (let id = 1; id <= maxId; id++) { offsets[id] = length; [asciiBytes(`${id} 0 obj\n`), ...objects[id], asciiBytes('\nendobj\n')].forEach(chunk => { chunks.push(chunk); length += chunk.length; }); } const xrefOffset = length; chunks.push(asciiBytes(`xref\n0 ${maxId + 1}\n0000000000 65535 f \n`)); for (let id = 1; id <= maxId; id++) chunks.push(asciiBytes(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`)); chunks.push(asciiBytes(`trailer\n<< /Size ${maxId + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`)); return concatBytes(chunks); }
-  function drawPortablePage(context, page, index, total) { const scale = 2; const draw = (text, x, y, size, color = '#1d2924', weight = '400') => { context.fillStyle = color; context.font = `${weight} ${size * scale}px -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif`; context.fillText(String(text || ''), x * scale, (842 - y) * scale); }; context.fillStyle = '#fff'; context.fillRect(0, 0, 1190, 1684); context.textBaseline = 'alphabetic'; draw('外院 · 知识分享站', 42, 807, 8.5, '#6d8176', '600'); draw(page.title, 42, 786, 16, '#1d2924', '700'); if (page.subtitle) draw(page.subtitle, 42, 770, 8.5, '#6d8176'); draw(page.section, 42, 748, 14, '#1d5948', '700'); context.strokeStyle = '#cfdcd3'; context.lineWidth = 2; context.beginPath(); context.moveTo(84, 202); context.lineTo(1106, 202); context.stroke(); page.lines.forEach(line => { if (line.kind === 'module') { draw(line.text, 42, line.y, line.size, '#1d5948', '700'); return; } if (line.kind === 'option-label') { draw(line.text, 50, line.y, line.size, '#5c7569', '700'); return; } if (line.kind !== 'options') { draw(line.text, 42, line.y, line.size, '#26342d'); return; } const start = 58; const width = 495 / line.columns; line.entries.forEach((entry, column) => draw(entry, start + width * column, line.y, line.size, '#26342d')); }); draw(`A4 打印版 · 第 ${index + 1} / ${total} 页`, 42, 34, 8, '#718079'); }
+  function drawPortablePage(context, page, index, total) { const scale = 2; const draw = (text, x, y, size, color = '#1d2924', weight = '400') => { context.fillStyle = color; context.font = `${weight} ${size * scale}px -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif`; context.fillText(String(text || ''), x * scale, (842 - y) * scale); }; context.fillStyle = '#fff'; context.fillRect(0, 0, 1190, 1684); context.textBaseline = 'alphabetic'; draw('外院 · 知识分享站', 42, 807, 8.5, '#6d8176', '600'); draw(page.title, 42, 786, 16, '#1d2924', '700'); if (page.subtitle) draw(page.subtitle, 42, 770, 8.5, '#6d8176'); draw(page.section, 42, 748, 14, '#1d5948', '700'); context.strokeStyle = '#cfdcd3'; context.lineWidth = 2; context.beginPath(); context.moveTo(84, 202); context.lineTo(1106, 202); context.stroke(); page.lines.forEach(line => { if (line.kind === 'module') { draw(line.text, 42, line.y, line.size, '#1d5948', '700'); return; } if (line.kind === 'option-label') { draw(line.text, 50, line.y, line.size, '#5c7569', '700'); return; } if (line.kind === 'bank') { draw(line.text, 42, line.y, line.size, '#5c7569', '600'); return; } if (line.kind !== 'options') { draw(line.text, 42, line.y, line.size, '#26342d'); return; } const start = 58; const width = 495 / line.columns; line.entries.forEach((entry, column) => draw(entry, start + width * column, line.y, line.size, '#26342d')); }); draw(`A4 打印版 · 第 ${index + 1} / ${total} 页`, 42, 34, 8, '#718079'); }
   function portablePdfBytes(options) { const pages = buildPages(options); const canvas = document.createElement('canvas'); canvas.width = 1190; canvas.height = 1684; const context = canvas.getContext('2d'); const images = pages.map((page, index) => { drawPortablePage(context, page, index, pages.length); const raw = atob(canvas.toDataURL('image/jpeg', .92).split(',')[1]); const bytes = new Uint8Array(raw.length); for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i); return bytes; }); return imagePdf(images); }
 
   function removeMobileDownloadPanel() {
@@ -408,12 +421,19 @@
       alert('浏览器拦截了打印窗口，请允许弹出窗口后重试。');
       return;
     }
-    const questionRows = questions.map(item => `<li>${withLineBreaks(item.question)}${mode === 'memorize' ? `<div class="inline-answer"><b>答案：</b>${withLineBreaks(cleanAnswer(item.answer))}</div>` : ''}</li>`).join('');
+    const questionRows = [];
+    let lastBank = '';
+    questions.forEach(item => {
+      const bank = String(item.bank || '').trim();
+      if (bank && bank !== lastBank) { questionRows.push(`<li class="bank-row"><div class="bank">${withLineBreaks(bank)}</div></li>`); lastBank = bank; }
+      questionRows.push(`<li>${withLineBreaks(item.question)}${mode === 'memorize' ? `<div class="inline-answer"><b>答案：</b>${withLineBreaks(cleanAnswer(item.answer))}</div>` : ''}</li>`);
+    });
+    const questionRowsHtml = questionRows.join('');
     const answerRows = questions.map(item => `<li>${withLineBreaks(cleanAnswer(item.answer))}</li>`).join('');
     const documentTitle = `外院知识分享站 - ${title}`;
     printWindow.document.title = documentTitle;
     printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(documentTitle)}</title><style>
-      @page{size:A4;margin:15mm 14mm}*{box-sizing:border-box}body{margin:0;color:#1d2924;font:11pt/1.65 Georgia,"Times New Roman","Songti SC",serif}h1{margin:0 0 4mm;color:#1d5948;font:700 20pt/1.2 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}h2{margin:0 0 8mm;color:#d06f3d;font:700 9pt/1.2 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;letter-spacing:1px}.subtitle{margin:0 0 8mm;padding-bottom:5mm;border-bottom:1px solid #cfdcd3;font-weight:700}.questions,.answers{margin:0;padding-left:7mm}.questions li,.answers li{padding:0 0 4.5mm 2mm;break-inside:avoid}.inline-answer{margin-top:2mm;padding:2mm 3mm;border-left:2px solid #93b5a3;background:#f3f7f2;color:#385448}.answers{break-before:page}.answers-title{margin:0 0 7mm;padding-bottom:4mm;border-bottom:1px solid #cfdcd3;color:#1d5948;font:700 16pt/1.2 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}.foot{margin-top:9mm;color:#718079;font:8pt -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><h2>外院 · 知识分享站</h2><h1>${escapeHtml(title)}</h1>${subtitle ? `<p class="subtitle">${withLineBreaks(subtitle)}</p>` : ''}<ol class="questions">${questionRows}</ol>${mode === 'memorize' ? '' : `<section class="answers"><h2 class="answers-title">参考答案</h2><ol>${answerRows}</ol></section>`}<p class="foot">A4 打印版 · 可在系统打印窗口选择“另存为 PDF”或直接打印</p></body></html>`);
+      @page{size:A4;margin:15mm 14mm}*{box-sizing:border-box}body{margin:0;color:#1d2924;font:11pt/1.65 Georgia,"Times New Roman","Songti SC",serif}h1{margin:0 0 4mm;color:#1d5948;font:700 20pt/1.2 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}h2{margin:0 0 8mm;color:#d06f3d;font:700 9pt/1.2 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;letter-spacing:1px}.subtitle{margin:0 0 8mm;padding-bottom:5mm;border-bottom:1px solid #cfdcd3;font-weight:700}.questions,.answers{margin:0;padding-left:7mm}.questions li,.answers li{padding:0 0 4.5mm 2mm;break-inside:avoid}.bank-row{list-style:none}.bank{margin:0 0 3mm;padding:2mm 3mm;border-left:2px solid #93b5a3;background:#f3f7f2;color:#385448;white-space:normal}.inline-answer{margin-top:2mm;padding:2mm 3mm;border-left:2px solid #93b5a3;background:#f3f7f2;color:#385448}.answers{break-before:page}.answers-title{margin:0 0 7mm;padding-bottom:4mm;border-bottom:1px solid #cfdcd3;color:#1d5948;font:700 16pt/1.2 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}.foot{margin-top:9mm;color:#718079;font:8pt -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><h2>外院 · 知识分享站</h2><h1>${escapeHtml(title)}</h1>${subtitle ? `<p class="subtitle">${withLineBreaks(subtitle)}</p>` : ''}<ol class="questions">${questionRowsHtml}</ol>${mode === 'memorize' ? '' : `<section class="answers"><h2 class="answers-title">参考答案</h2><ol>${answerRows}</ol></section>`}<p class="foot">A4 打印版 · 可在系统打印窗口选择“另存为 PDF”或直接打印</p></body></html>`);
     printWindow.document.close();
     setTimeout(() => { printWindow.focus(); printWindow.print(); }, 250);
   }

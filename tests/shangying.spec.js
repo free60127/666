@@ -106,3 +106,31 @@ test('返回专业课：hub 按钮跳回 ../index.html', async ({ page }) => {
   await expect(page).toHaveTitle(/专业课资料/);
   await expect(page).toHaveURL(/index\.html/);
 });
+
+test('导出 PDF：题目携带单元词库提示，PDF 页面渲染词库行', async ({ page }) => {
+  await page.addInitScript(() => {
+    let captured = null;
+    Object.defineProperty(window, 'A4QuestionPrint', {
+      configurable: true,
+      get() { return { open(o) { window.__lastExport = o; }, buildPages(...args) { return window.__realA4 && window.__realA4.buildPages ? window.__realA4.buildPages(...args) : []; } }; },
+      set(v) { window.__realA4 = v; }
+    });
+  });
+  await page.goto(SHANGYING);
+  await page.click('[data-action="book"][data-book="shangying-1"]');
+  const exportBtn = page.locator('[data-action="export"]').first();
+  await exportBtn.click();
+  await expect.poll(async () => page.evaluate(() => !!(window.__lastExport && window.__lastExport.questions))).toBe(true);
+  const result = await page.evaluate(() => {
+    const questions = (window.__lastExport && window.__lastExport.questions) || [];
+    const withBank = questions.filter(q => String(q.bank || '').trim());
+    const bankSample = withBank.length ? withBank[0].bank : '';
+    const pages = window.__realA4 ? window.__realA4.buildPages({ title: '商英教程1', subtitle: String(questions.length) + ' 题', questions }) : [];
+    const rendered = pages.some(p => (p.lines || []).some(l => l.kind === 'bank'));
+    return { count: questions.length, withBank: withBank.length, bankSample, rendered };
+  });
+  expect(result.count).toBeGreaterThan(0);
+  expect(result.withBank).toBeGreaterThan(0);
+  expect(result.bankSample).toContain('词库');
+  expect(result.rendered).toBe(true);
+});

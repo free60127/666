@@ -165,6 +165,14 @@
     toggle.textContent = '收起答案';
   }
 
+  // 单元词库/说明 → PDF 顶部提示文本（单元级合并；无词库则空串）
+  function unitBankText(unit) {
+    const parts = [];
+    if (unit.instruction) parts.push('说明：' + unit.instruction);
+    const banks = unit.wordBanks || [];
+    if (banks.length) parts.push(banks.map(b => '词库（' + (b.module || '本模块') + '）：' + ((b.words || []).join('；'))).join('\n'));
+    return parts.join('\n');
+  }
   // 题目 → PDF 行映射（全部/已展开单元共用）
   function buildExportQuestions(units) {
     const questions = [];
@@ -173,7 +181,8 @@
         question: clean(q.q),
         options: (q.options || []).map(clean),
         answer: q.type === 'choice' ? (String(q.answer || '').match(/^[A-F]\s+or\s+[A-F]$/i) ? String(q.answer || '').toUpperCase() : [...String(q.answer || '').match(/[A-F]/g) || []].map(l => `${l}. ${q.options[l.charCodeAt(0) - 65] || ''}`).join('\n')) : (q.answer || ''),
-        type: q.type === 'choice' ? '选择' : '填空/翻译'
+        type: q.type === 'choice' ? '选择' : '填空/翻译',
+        bank: unitBankText(unit)
       });
     }
     return questions;
