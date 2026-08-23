@@ -1,6 +1,6 @@
 import { json, safeParseJson, readJsonBody } from "./http.js";  // 公共 HTTP 工具
-import { hashToken } from "./auth.js";  // 活动身份解析（Bearer→D1 sessions）
-import { syncRateLimit, DEVICE_ID_RE } from "./sync.js";  // 心跳/访客上报限流 + 匿名身份校验
+import { DEVICE_ID_RE, resolveSyncIdentity } from "./identity.js";  // 身份解析（统一模块，2026-08-23 审查第 4 项）
+import { syncRateLimit, rateWindow } from "./rate-limit.js";  // 统一限流（2026-08-23 审查第 4 项）
 
 /* ---------- 站点统计（2026-08-22 → 08-22 迁 D1）：反代 HTML 页面时计数 PV/UV ----------
  * 覆盖：free60127.top 主域直连 + /proxy/ 兼容路径（即所有经本 Worker 的页面访问）；
@@ -81,21 +81,9 @@ async function countVisit(env, request, path, ctx) {
 /** GitHub Pages 直连通道统计上报（common.js 只在 github.io 域名下调用，避免与主域双计） */
 /** /api/visit IP 维度限流：每 IP 每分钟 60 次；限流器故障保守拒绝（写操作防伪造 vid 刷量） */
 async function visitRateLimit(env, ip) {
-  try {
-    const now = Date.now();
-    const winEnd = now + 60000;
-    const row = await env.DB.prepare(
-      'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ' +
-      'ON CONFLICT(key) DO UPDATE SET ' +
-      'count = CASE WHEN rate.until <= ?3 THEN 1 ELSE rate.count + 1 END, ' +
-      'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
-      'RETURNING count'
-    ).bind('rate:visit:ip:' + ip, winEnd, now, winEnd).first();
-    return !(row && Number(row.count) > 60);
-  } catch (error) {
-    console.error('visitRateLimit error:', error);
-    return false;
-  }
+  const r = await rateWindow(env.DB, 'rate:visit:ip:' + ip, 60000, 60);
+  if (r.failed) { console.error('visitRateLimit error (rateWindow failed):'); return false; }
+  return !(r.count > 60);
 }
 
 async function handleVisit(request, env) {
@@ -132,14 +120,10 @@ async function handleActivity(request, env) {
   if (!body) return json({ error: 'invalid json' }, 400);
   const learned = Math.max(0, Math.min(Number(body.learned) || 0, 500));
   let key;
-  const auth = request.headers.get('Authorization') || '';
-  const token = auth.replace(/^Bearer\s+/i, '');
-  if (token) {
-    if (!env.DB) return json({ error: 'database not configured' }, 500);
-    const session = await env.DB.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?')
-      .bind(await hashToken(token), Date.now()).first();
-    if (!session) return json({ error: 'unauthorized' }, 401);
-    key = 'user:' + session.user_id;
+  const identity = await resolveSyncIdentity(request, env);
+  if (identity.error) return json({ error: identity.error }, 401);
+  if (identity.key) {
+    key = identity.key;
   } else {
     const deviceId = String(body.deviceId || '').trim();
     if (!DEVICE_ID_RE.test(deviceId)) return json({ error: 'deviceId must be 64 hex chars' }, 400);

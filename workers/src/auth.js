@@ -1,5 +1,6 @@
 import { sendEmail, generateResetCode } from './smtp.js';
-import { json, bearerToken, safeParseJson } from './http.js';
+import { json, bearerToken, safeParseJson, readJsonBody, MAX_AUTH_BODY } from './http.js';  // 统一请求体限制（2026-08-23 审查第 1 项：字节数统一实现）
+import { rateWindow } from './rate-limit.js';  // 统一限流（2026-08-23 审查第 4 项）
 
 /* ============================================================
    账号认证模块（D1 版）：注册 / 登录 / 登出 / 会话 / 恢复码保险箱
@@ -77,25 +78,6 @@ async function hashToken(token) {
  */
 const LOGIN_IP_MAX = 30, LOGIN_EMAIL_FAIL_MAX = 8, LOGIN_EMAIL_LOCK_MS = 15 * 60 * 1000;
 
-/** 通用滚动窗口限流（D1 rate 表）。返回 {count, failed}；failed=true 表示限流器故障 */
-async function rateWindow(db, key, windowMs, max) {
-  try {
-    const now = Date.now();
-    const end = now + windowMs;
-    const row = await db.prepare(
-      'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ' +
-      'ON CONFLICT(key) DO UPDATE SET ' +
-      'count = CASE WHEN rate.until <= ?3 THEN 1 ELSE rate.count + 1 END, ' +
-      'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
-      'RETURNING count'
-    ).bind(key, end, now, end).first();
-    return { count: row ? Number(row.count) : 0, failed: false };
-  } catch (error) {
-    console.error('rateWindow error:', error);
-    return { count: 0, failed: true };
-  }
-}
-
 async function loginIpCheck(env, request) {
   if (!env || !env.DB) return { ok: true };
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
@@ -141,18 +123,10 @@ async function recordLoginSuccess(db, email) {
   try { await db.prepare('DELETE FROM login_fails WHERE email = ?').bind(email).run(); } catch (_) {}
 }
 
-// 2026-08-23 复审：统一 JSON body 上限（认证请求体远小于 64KB，宽松覆盖恢复码密文 c<=8192）
-const MAX_AUTH_BODY = 64 * 1024;
-
 /* ---------- 认证处理（env.DB = D1） ---------- */
 async function handleAuth(request, env, path) {
   const db = env.DB;
   if (!db) return json({ error: 'database not configured' }, 500);
-  // 2026-08-23 复审：认证接口统一请求体预检（防超大 body 打满内存）
-  if (['POST', 'PATCH', 'PUT'].includes(request.method)) {
-    const cl = Number(request.headers.get('content-length') || 0);
-    if (cl > MAX_AUTH_BODY) return json({ error: '请求体过大（最大 64KB）' }, 413);
-  }
 
   if (path === '/api/auth/register' && request.method === 'POST') return register(db, env, request);
   if (path === '/api/auth/login' && request.method === 'POST') return login(db, env, request);
@@ -167,19 +141,17 @@ async function handleAuth(request, env, path) {
   return json({ error: 'method not allowed' }, 405);
 }
 
-async function readJson(request) {
-  // 2026-08-23 复审：content-length 预检 + 实际字节数兜底（chunked 请求无 content-length）
-  // 读取失败/超限均返回 null，由调用方按 invalid json（400）拒绝
-  const cl = Number(request.headers.get('content-length') || 0);
-  if (cl > MAX_AUTH_BODY) return null;
-  let text;
-  try { text = await request.text(); } catch { return null; }
-  if (text.length > MAX_AUTH_BODY) return null;
-  try { return JSON.parse(text); } catch { return null; }
+/** 认证请求体：直接复用 http.js readJsonBody（唯一字节数实现，2026-08-23 审查第 1 项）。
+ *  超限抛 'payload too large' → 本封装转 {tooLarge:true}（调用方返回 413）；非法 JSON → null（调用方 400） */
+async function readAuthJson(request) {
+  try { return { body: await readJsonBody(request, MAX_AUTH_BODY) }; }
+  catch { return { tooLarge: true }; }
 }
 
 async function register(db, env, request) {
-  const body = await readJson(request);
+  const rb = await readAuthJson(request);
+  if (rb.tooLarge) return json({ error: '请求体过大（最大 64KB）' }, 413);
+  const body = rb.body;
   if (!body) return json({ error: 'invalid json' }, 400);
   const v = validate(body);
   if (v.error) return json({ error: v.error }, 400);
@@ -216,7 +188,9 @@ async function register(db, env, request) {
 }
 
 async function login(db, env, request) {
-  const body = await readJson(request);
+  const rb = await readAuthJson(request);
+  if (rb.tooLarge) return json({ error: '请求体过大（最大 64KB）' }, 413);
+  const body = rb.body;
   if (!body) return json({ error: 'invalid json' }, 400);
   const v = validate(body);
   if (v.error) return json({ error: v.error }, 400);
@@ -269,7 +243,9 @@ async function me(db, request) {
 async function setRecovery(db, request) {
   const token = bearerToken(request);
   if (!token) return json({ error: 'unauthorized' }, 401);
-  const body = await readJson(request);
+  const rb = await readAuthJson(request);
+  if (rb.tooLarge) return json({ error: '请求体过大（最大 64KB）' }, 413);
+  const body = rb.body;
   if (!body) return json({ error: 'invalid json' }, 400);
   const recovery = sanitizeRecovery(body.recovery);
   if (!recovery) return json({ error: 'recovery invalid' }, 400);
@@ -357,7 +333,9 @@ async function sessionUser(db, request) {
 async function changePassword(db, request) {
   const user = await sessionUser(db, request);
   if (!user) return json({ error: 'unauthorized' }, 401);
-  const body = await readJson(request);
+  const rb = await readAuthJson(request);
+  if (rb.tooLarge) return json({ error: '请求体过大（最大 64KB）' }, 413);
+  const body = rb.body;
   if (!body) return json({ error: 'invalid json' }, 400);
   const err = passwordError(body.newPassword);
   if (err) return json({ error: err }, 400);
@@ -388,7 +366,9 @@ async function changePassword(db, request) {
 async function deleteAccount(db, env, request) {
   const user = await sessionUser(db, request);
   if (!user) return json({ error: 'unauthorized' }, 401);
-  const body = await readJson(request);
+  const rb = await readAuthJson(request);
+  if (rb.tooLarge) return json({ error: '请求体过大（最大 64KB）' }, 413);
+  const body = rb.body;
   if (!body) return json({ error: 'invalid json' }, 400);
   if (!(await verifyPassword(body.password, user.password_hash))) return json({ error: '密码不正确' }, 401);
   // 注销拦截：仍有进行中跑腿单（open/doing/done 未确认）时禁止注销，
@@ -454,7 +434,9 @@ async function deleteAccount(db, env, request) {
 
 /* 找回密码第 1 步：向注册邮箱发 8 位数字重置码（SMTP）。用户不存在也返回 ok（防邮箱枚举） */
 async function forgot(db, env, request) {
-  const body = await readJson(request);
+  const rb = await readAuthJson(request);
+  if (rb.tooLarge) return json({ error: '请求体过大（最大 64KB）' }, 413);
+  const body = rb.body;
   if (!body) return json({ error: 'invalid json' }, 400);
   const email = normalizeEmail(body);
   if (!EMAIL_RE.test(email)) return json({ error: '邮箱格式不正确' }, 400);
@@ -495,7 +477,9 @@ async function forgot(db, env, request) {
 
 /* 找回密码第 2 步：校验重置码 → 设置新密码；body.recovery 可选（新密码加密的旧恢复码保险箱），缺省清空保险箱 */
 async function resetPassword(db, request) {
-  const body = await readJson(request);
+  const rb = await readAuthJson(request);
+  if (rb.tooLarge) return json({ error: '请求体过大（最大 64KB）' }, 413);
+  const body = rb.body;
   if (!body) return json({ error: 'invalid json' }, 400);
   const email = normalizeEmail(body);
   const code = String(body.code || '').trim();
@@ -562,7 +546,9 @@ async function resetPassword(db, request) {
 async function adminResetCode(db, env, request) {
   const token = bearerToken(request);
   if (!token || token !== env.ADMIN_TOKEN) return json({ error: 'unauthorized' }, 401);
-  const body = await readJson(request);
+  const rb = await readAuthJson(request);
+  if (rb.tooLarge) return json({ error: '请求体过大（最大 64KB）' }, 413);
+  const body = rb.body;
   if (!body) return json({ error: 'invalid json' }, 400);
   const email = normalizeEmail(body);
   if (!EMAIL_RE.test(email)) return json({ error: '邮箱格式不正确' }, 400);

@@ -1,5 +1,6 @@
 import { json, safeParseJson } from "./http.js";  // 公共 HTTP 工具
-import { hashToken } from "./auth.js";  // 账号模式键解析
+import { DEVICE_ID_RE, resolveSyncIdentity } from "./identity.js";  // 身份解析（统一模块，2026-08-23 审查第 4 项）
+import { syncRateLimit } from "./rate-limit.js";  // 统一限流（2026-08-23 审查第 4 项）
 
 /* ---------- 进度同步（2026-08-22 加固）----------
    匿名模式（访客）：恢复码 → deviceId=sha256 hex(64)，deviceId 即钥匙
@@ -13,44 +14,6 @@ import { hashToken } from "./auth.js";  // 账号模式键解析
    DELETE /api/sync?deviceId=x   删除 */
 
 const MAX_SYNC_BYTES = 2_500_000;
-const DEVICE_ID_RE = /^[0-9a-f]{64}$/;
-const SYNC_RATE = { upload: 10, download: 30, delete: 6, heartbeat: 6, heartbeatIp: 20, visit: 60 };  // 每分钟每键（heartbeat 排行榜活跃 / heartbeatIp 按 IP 限 / visit GitHub 直连统计）
-
-/** D1 滚动窗口限流（2026-08-22 自 KV 迁出）：每身份×动作仅一行，窗口过期自动重置，键量恒定无需清理 */
-async function syncRateLimit(env, key, action) {
-  // 2026-08-23 审查：返回 {ok, failed}；写操作调用方对 failed 保守拒绝（503）
-  try {
-    const now = Date.now();
-    const windowMs = 60000;  // 1 分钟窗口
-    const winStart = Math.floor(now / windowMs) * windowMs;
-    const winEnd = winStart + windowMs;
-    const rk = 'rate:sync:' + action + ':' + key;
-    const row = await env.DB.prepare(
-      'INSERT INTO rate (key, count, until) VALUES (?1, 1, ?2) ' +
-      'ON CONFLICT(key) DO UPDATE SET ' +
-      'count = CASE WHEN rate.until <= ?3 THEN 1 ELSE rate.count + 1 END, ' +
-      'until = CASE WHEN rate.until <= ?3 THEN ?4 ELSE rate.until END ' +
-      'RETURNING count'
-    ).bind(rk, winEnd, winStart, winEnd).first();
-    if (row && row.count > SYNC_RATE[action]) return { ok: false, failed: false };
-    return { ok: true, failed: false };
-  } catch (error) {
-    console.error('syncRateLimit error:', error);
-    return { ok: false, failed: true };
-  }
-}
-
-/** 解析请求身份：带有效 Bearer → 账号模式 {key:'user:{id}'}；否则匿名（由调用方取 deviceId） */
-async function resolveSyncIdentity(request, env) {
-  const auth = request.headers.get('Authorization') || '';
-  const token = auth.replace(/^Bearer\s+/i, '');
-  if (!token) return { key: null };
-  if (!env.DB) return { error: 'database not configured' };
-  const session = await env.DB.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?')
-    .bind(await hashToken(token), Date.now()).first();
-  if (!session) return { error: 'unauthorized' };
-  return { key: 'user:' + session.user_id };
-}
 
 async function handleSyncUpload(request, env) {
   // 请求体大小预检（Content-Length 不可信时由字符串化二次校验兜底）
@@ -153,4 +116,4 @@ async function handleSyncDelete(request, env) {
   return json({ ok: true });
 }
 
-export { handleSyncUpload, handleSyncDownload, handleSyncDelete, syncRateLimit, DEVICE_ID_RE };
+export { handleSyncUpload, handleSyncDownload, handleSyncDelete };

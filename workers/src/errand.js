@@ -405,15 +405,33 @@ async function createDispute(db, request, env) {
         // 证据入库（2026-08-23 审查）：过滤非法项后整体 batch 原子提交；
     // 任一失败由外层 catch 回滚删除申诉（级联删证据），不留半成品
     const validEvidence = [];
+    const evRe = new RegExp('^data:image\\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$');
     for (const ev of evidence) {
       const es = String(ev || '');
-      const evRe = new RegExp('^data:image\\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$');
       if (!evRe.test(es) || es.length > 300000) continue;
       validEvidence.push(es);
     }
     if (validEvidence.length) {
-      const evStmts = validEvidence.map(ev => db.prepare('INSERT INTO errand_evidence (dispute_id, data, created_at) VALUES (?, ?, ?)').bind(disputeId, ev, now));
-      await db.batch(evStmts);
+      // 2026-08-23 审查第 6 项：R2 已启用（env.EVIDENCE_BUCKET）→ 图片入 R2，D1 只存元数据；
+      // 未启用（线上当前状态）→ 回退存 base64 data 列（行为不变，切换只需加 R2 binding）
+      if (env.EVIDENCE_BUCKET) {
+        const evStmts = [];
+        for (let i = 0; i < validEvidence.length; i++) {
+          const es = validEvidence[i];
+          const m = es.match(/^data:image\/(png|jpe?g|webp);base64,(.+)$/);
+          const mime = m[1] === 'jpeg' ? 'image/jpeg' : 'image/' + m[1];
+          const bin = Uint8Array.from(atob(m[2]), ch => ch.charCodeAt(0));
+          const digest = await crypto.subtle.digest('SHA-256', bin);
+          const sha = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+          const url = 'evidence/' + disputeId + '/' + i + '-' + sha + '.bin';
+          await env.EVIDENCE_BUCKET.put(url, bin, { httpMetadata: { contentType: mime } });
+          evStmts.push(db.prepare('INSERT INTO errand_evidence (dispute_id, data, url, size, sha256, mime, created_at) VALUES (?, NULL, ?, ?, ?, ?, ?)').bind(disputeId, url, bin.length, sha, mime, now));
+        }
+        await db.batch(evStmts);
+      } else {
+        const evStmts = validEvidence.map(ev => db.prepare('INSERT INTO errand_evidence (dispute_id, data, created_at) VALUES (?, ?, ?)').bind(disputeId, ev, now));
+        await db.batch(evStmts);
+      }
     }
 const row = await db.prepare(DISPUTE_SELECT + 'WHERE d.id = ?').bind(disputeId).first();
     return json({ ok: true, dispute: mapDispute(row) }, 201);
@@ -516,8 +534,9 @@ async function listEvidence(db, request, env, disputeId) {
     catch (e) { console.error('errand evidence task query error:', e); return json({ error: '服务繁忙，请稍后再试' }, 503); }
     if (!task || (user.id !== task.publisher_id && user.id !== task.taker_id)) return json({ error: '无权查看' }, 403);
   }
-  const rows = await db.prepare('SELECT id, data, created_at FROM errand_evidence WHERE dispute_id = ? ORDER BY id ASC').bind(disputeId).all();
-  return json({ evidence: (rows && rows.results ? rows.results : []).map(r => ({ id: r.id, data: r.data, createdAt: r.created_at })) });
+  const rows = await db.prepare('SELECT id, data, url, created_at FROM errand_evidence WHERE dispute_id = ? ORDER BY id ASC').bind(disputeId).all();
+  // 2026-08-23 审查第 6 项：R2 对象返回可访问 URL，旧 base64 记录返回 data：前端 img.src 两者通用
+  return json({ evidence: (rows && rows.results ? rows.results : []).map(r => ({ id: r.id, data: r.url || r.data, createdAt: r.created_at })) });
 }
 
 /* ---------- 管理端：审计日志 ---------- */

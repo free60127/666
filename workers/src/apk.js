@@ -1,4 +1,5 @@
 import { json } from "./http.js";  // 统一 JSON 响应
+import { APK_KEY_PREFIX } from "./config.js";  // APK KV 键前缀统一配置
 
 /** 托管 APK 下载（KV 存储，键 apk:<name>）：
  *  稳定地址 /apk/waiyuan-share.apk → 302 到版本化地址（KV 键 apk:latest:<稳定名> = 版本号）
@@ -11,7 +12,7 @@ async function serveApk(request, env, path) {
   let name = path.slice('/apk/'.length).replace(/^\/+/, '');
   if (!/^[A-Za-z0-9._-]{1,80}$/.test(name)) return json({ error: 'not found' }, 404);
   if (!env.STUDY_KV) return json({ error: 'not configured' }, 503);
-  let key = 'apk:' + name;
+  let key = APK_KEY_PREFIX + name;
   // 稳定地址：查最新版本号 → 302 到版本化地址（302 不缓存，客户端始终跟随最新）
   if (!/-v[0-9]/.test(name)) {
     try {

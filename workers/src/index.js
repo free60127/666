@@ -11,7 +11,7 @@
  *   GET  /proxy/*            站点反代加速（映射到 https://free60127.github.io/666/）
  */
 
-const UPSTREAM = 'https://free60127.github.io/666';
+import { corsFor, MAIN_HOST, API_HOST, WWW_HOST } from './config.js';  // 域名/源站/来源白名单统一配置（2026-08-23 审查第 2 项）
 import { handleAuth } from './auth.js';
 import { handleErrand } from './errand.js';
 import { cleanupDb } from './maintenance.js';
@@ -21,20 +21,6 @@ import { handleSetNotice, handleDeleteNotice, handleFeedback, handleListFeedback
 import { handleSyncUpload, handleSyncDownload, handleSyncDelete } from './sync.js';
 import { handleProxy } from './proxy.js';
 import { json, methodNotAllowed, safeParseJson, requireAdmin } from './http.js';
-// CORS：只对站点白名单来源回显 Origin（其余不带 CORS 头，浏览器直接拦截；
-// 未携带 Origin 的同源/非浏览器请求不受影响）
-const ALLOWED_ORIGINS = new Set(['https://free60127.github.io', 'https://free60127.top']);
-const corsFor = request => {
-  const origin = (request && request.headers.get('Origin')) || '';
-  if (!origin || !ALLOWED_ORIGINS.has(origin)) return {};
-  return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Max-Age': '86400',
-    'Vary': 'Origin',  // 白名单来源不同 → 缓存应区分（2026-08-22 审查）
-  };
-};
 
 // 导出供 Node 单测（scripts/test-sync-guard.mjs），wrangler 仅消费 default 导出
 export { handleSyncDownload } from "./sync.js";
@@ -62,8 +48,8 @@ async function route(request, env, ctx) {
     const path = url.pathname;
 
     // www 子域统一 301 跳转主域（保留路径与查询串，避免双域名内容/统计分裂）
-    if (url.hostname === 'www.free60127.top') {
-      const target = 'https://free60127.top' + url.pathname + url.search;
+    if (url.hostname === WWW_HOST) {  // 统一配置：www 301 目标（2026-08-23 审查第 2 项）
+      const target = 'https://' + MAIN_HOST + url.pathname + url.search;
       return new Response(null, { status: 301, headers: { Location: target, 'Cache-Control': 'no-store' } });
     }
 
@@ -138,7 +124,7 @@ async function route(request, env, ctx) {
       // APK 下载（KV 托管，国内可直连）：/apk/waiyuan-share.apk | /apk/waiyuan-paotui.apk（稳定地址 302 → 版本化地址）
       if (path.startsWith('/apk/')) return serveApk(request, env, path);
 
-      if (url.hostname !== 'api.free60127.top' && !path.startsWith('/api/')) {
+      if (url.hostname !== API_HOST && !path.startsWith('/api/')) {
         return handleProxy(request, env, path, path.startsWith('/proxy/') ? 'proxy' : 'root', ctx);
       }
 

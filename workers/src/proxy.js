@@ -1,6 +1,5 @@
 import { countVisit } from "./stats.js";  // 反代页面访问计数
-
-const UPSTREAM = "https://free60127.github.io/666";  // GitHub Pages 源站（与 index.js 同名常量，拆分时随 proxy 模块保留）
+import { UPSTREAM } from "./config.js";  // 源站统一配置（2026-08-23 审查第 2 项）
 
 /* ---------- 反代加速 ----------
    mode 'root'：主域直连（https://free60127.top/xxx -> UPSTREAM/xxx，HTML 去 /666/ 前缀）

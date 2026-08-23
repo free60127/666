@@ -20,7 +20,7 @@ module.exports = defineConfig({
   webServer: {
     command: 'node test-server.js',
     port: 8788,
-    reuseExistingServer: !process.env.CI, // 2026-08-23 审查：本地已有 server 时复用；CI 由 playwright 自管生命周期结束自动杀
+    reuseExistingServer: false, // 2026-08-23 审查第 5 项：单一服务器管理——由 Playwright 自启自停；本机 redis 8788 占位时明确报错而非静默复用
     timeout: 15000,
   },
   // 2026-08-23 复审：测试结束后幂等清除 8788 残留 test-server（防外部复用场景进程不退出）

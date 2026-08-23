@@ -34,7 +34,7 @@ export async function readJsonBody(request, max = MAX_JSON_BODY) {
   if (cl > max) throw new Error('payload too large');
   let text;
   try { text = await request.text(); } catch { return null; }
-  if (text.length > max) throw new Error('payload too large');
+  if (new TextEncoder().encode(text).byteLength > max) throw new Error('payload too large');  // UTF-8 字节数（中文 1 字=3 字节，不能用 text.length）
   try { return JSON.parse(text); } catch { return null; }
 }
 
