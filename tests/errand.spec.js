@@ -6,6 +6,7 @@ test.use({
 });
 
 const BASE = 'http://127.0.0.1:8788/' + encodeURI('paotui/index.html');
+const IOS_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
 
 // mock /api/auth/*：token → 用户会话
 function mockAuthApi(page, store) {
@@ -639,23 +640,16 @@ test('分享深链：?task=ID 打开页面自动进入任务详情', async ({ pa
   await expect(page.locator('#detail-body')).toContainText('深链任务');
 });
 
-test('添加到主屏幕：beforeinstallprompt 触发后显示安装区块', async ({ page }) => {
+test('添加到主屏幕：iOS 专用（iOS UA 显示徽标与引导文案）', async ({ browser }) => {
+  const ctx = await browser.newContext({ userAgent: IOS_UA });
+  const page2 = await ctx.newPage();
   const store = newStore();
-  mockAuthApi(page, store);
-  mockErrandApi(page, store);
-  await page.goto(BASE);
-  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', 'manifest.webmanifest');
-  // 2026-08-23：非 iOS/微信浏览器默认显示菜单引导，不再依赖 beforeinstallprompt
-  await expect(page.locator('#install-site')).toBeVisible();
-  await expect(page.locator('#install-hint')).toHaveText('点浏览器右上角「⋮」→「添加到主屏幕 / 桌面」即可从桌面直接打开');
-  await page.evaluate(() => {
-    const ev = new Event('beforeinstallprompt', { cancelable: true });
-    ev.prompt = () => Promise.resolve();
-    ev.userChoice = Promise.resolve({ outcome: 'accepted' });
-    window.dispatchEvent(ev);
-  });
-  await expect(page.locator('#install-site')).toBeVisible();
-  await expect(page.locator('#install-hint')).toHaveText('像 App 一样从桌面直接打开');
-  await page.locator('#install-btn').click();
-  await expect(page.locator('#install-site')).toBeHidden();
+  mockAuthApi(page2, store);
+  mockErrandApi(page2, store);
+  await page2.goto(BASE);
+  await expect(page2.locator('link[rel="manifest"]')).toHaveAttribute('href', 'manifest.webmanifest');
+  await expect(page2.locator('#install-site')).toBeVisible();
+  await expect(page2.locator('.ios-badge')).toHaveText('iOS 专用');
+  await expect(page2.locator('#install-hint')).toContainText('仅 iOS 可用');
+  await ctx.close();
 });

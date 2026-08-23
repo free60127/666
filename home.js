@@ -114,43 +114,18 @@ if (installSite && installBtn) {
 
   if (!isStandalone) {
     if (isIOS) {
-      // iOS Safari 无 beforeinstallprompt 事件，直接显示引导文案
+      // 2026-08-23：iOS 无 APK 方案，「添加到主屏幕」是唯一近似 App 的入口
       installSite.hidden = false;
-      installHint.textContent = '用 Safari 打开，点底部「分享」→「添加到主屏幕」';
-    } else if (isWeChat) {
-      // 微信内置浏览器无法安装，引导到系统浏览器
-      installSite.hidden = false;
-      installHint.textContent = '点右上角「···」→「在浏览器打开」，再从浏览器菜单添加到桌面';
+      installHint.textContent = isWeChat
+        ? '仅 iOS 可用：微信内请先点右上角「···」→「在浏览器打开」，再用 Safari 点底部「分享」→「添加到主屏幕」'
+        : '仅 iOS 可用：用 Safari 打开，点底部「分享」→「添加到主屏幕」，像 App 一样从桌面直接打开';
     } else {
-      // 安卓 Chrome/Edge、国产浏览器等：先显示菜单引导，beforeinstallprompt 触发后升级为「立即安装」
-      installSite.hidden = false;
-      installHint.textContent = '点浏览器右上角「⋮」→「添加到主屏幕 / 桌面」即可从桌面直接打开';
-    }
-    window.addEventListener('beforeinstallprompt', event => {
-      event.preventDefault();
-      deferredPrompt = event;
-      installSite.hidden = false;
-      installHint.textContent = '像 App 一样从桌面直接打开';
-    });
-    window.addEventListener('appinstalled', () => { installSite.hidden = true; });
-
-    installBtn.addEventListener('click', async () => {
-      if (isIOS && !deferredPrompt) {
-        alert('请打开 Safari 浏览器访问本站，点底部「分享」按钮，选择「添加到主屏幕」即可。');
-        return;
-      }
-      if (isWeChat && !deferredPrompt) {
-        alert('微信内置浏览器不支持添加到桌面：请点微信右上角「···」，选择「在浏览器打开」，再从浏览器菜单（右上角 ⋮）选择「添加到主屏幕/桌面」。');
-        return;
-      }
-      if (!deferredPrompt) {
-        alert('当前浏览器未显示安装按钮。请在浏览器菜单（右上角 ⋮ 或 ⌄）中找「添加到主屏幕」或「添加到桌面」；Chrome、Edge 通常会自动出现安装图标（首次访问可能需再次访问后出现）。');
-        return;
-      }
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice.catch(() => {});
-      deferredPrompt = null;
+      // 安卓/桌面：请用下方「下载安卓版 App」（APK 直装，体验更好）
       installSite.hidden = true;
+    }
+    window.addEventListener('appinstalled', () => { installSite.hidden = true; });
+    installBtn.addEventListener('click', () => {
+      alert('请打开 Safari 浏览器访问本站，点底部「分享」按钮，选择「添加到主屏幕」即可。');
     });
   }
 }

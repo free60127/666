@@ -13,10 +13,35 @@ test('主页：install-apk 链接指向 share APK Release 下载', async ({ page
   await expect(link.locator('.install-apk-btn')).toContainText('下载 APK');
 });
 
-test('主页：install-site 手动添加主屏幕入口仍保留', async ({ page }) => {
+const IOS_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
+
+test('主页：install-site iOS 专用（iOS UA 显示 + 徽标 + 引导文案）', async ({ browser }) => {
+  const ctx = await browser.newContext({ userAgent: IOS_UA });
+  const page = await ctx.newPage();
   await page.goto('/');
-  await expect(page.locator('#install-site')).toBeVisible(); // 桌面浏览器显示菜单引导（beforeinstallprompt 后升级为立即安装）
-  await expect(page.locator('#install-hint')).toContainText('添加到主屏幕');
+  await expect(page.locator('#install-site')).toBeVisible();
+  await expect(page.locator('.ios-badge')).toHaveText('iOS 专用');
+  await expect(page.locator('#install-hint')).toContainText('仅 iOS 可用');
+  await ctx.close();
+});
+
+test('主页：install-site 安卓 UA 下隐藏（走 APK 下载）', async ({ browser }) => {
+  const ctx = await browser.newContext({ userAgent: ANDROID_UA });
+  const page = await ctx.newPage();
+  await page.goto('/');
+  await expect(page.locator('#install-site')).toBeHidden();
+  await expect(page.locator('a.install-apk')).toBeVisible();
+  await ctx.close();
+});
+
+test('跑腿页：install-site iOS 专用入口', async ({ browser }) => {
+  const ctx = await browser.newContext({ userAgent: IOS_UA });
+  const page = await ctx.newPage();
+  await page.goto('/' + encodeURI('paotui/index.html'));
+  await expect(page.locator('#install-site')).toBeVisible();
+  await expect(page.locator('.ios-badge')).toHaveText('iOS 专用');
+  await ctx.close();
 });
 
 test('跑腿页：install-apk 链接指向 paotui APK Release 下载', async ({ page }) => {
