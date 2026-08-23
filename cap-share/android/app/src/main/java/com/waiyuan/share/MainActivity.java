@@ -16,6 +16,10 @@ import android.webkit.URLUtil;
 import android.webkit.WebView;
 import android.widget.Toast;
 
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
 import com.getcapacitor.BridgeActivity;
 
 import java.io.File;
@@ -37,6 +41,13 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         WebView webView = getBridge().getWebView();
+        // Android 15+（targetSdk 36）强制 edge-to-edge：内容会画到状态栏/导航栏底下，
+        // 顶部按钮（返回等）被系统时间区遮挡。用 WindowInsets 给 WebView 加系统栏 padding。
+        ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(0, bars.top, 0, bars.bottom);
+            return insets;
+        });
         webView.addJavascriptInterface(new NativeSaveBridge(), "NativeSave");
         webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
             if (url == null || url.startsWith("blob:") || url.startsWith("data:")) {
