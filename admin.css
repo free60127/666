@@ -26,6 +26,7 @@
     .fb .detail{color:#4a5a52;font-size:14px;margin:2px 0;word-break:break-word}
     .fb .note{background:#fff7ed;border-radius:8px;padding:6px 10px;font-size:13px;margin-top:6px}
     .fb .di-evidence{margin-top:8px;display:flex;flex-wrap:wrap;gap:8px}
+.fb .di-evidence[hidden]{display:none!important}
     .fb .ev-img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
     .fb .actions{margin-top:9px;display:flex;gap:8px}
     .fb .actions button{font-size:12px;padding:5px 12px}

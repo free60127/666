@@ -589,9 +589,12 @@ test('证据 objectURL：重开重新拉取时 revoke 旧 URL，隐藏不撤销�
   let revoked = await page.evaluate(() => window.__revoked);
   expect(revoked.some(u => u === firstUrl)).toBe(true);
   expect(secondUrl).not.toBe(firstUrl);
-  // 仅隐藏（再点一次收起）不撤销
+  // 仅隐藏（再点一次收起）不撤销：隐藏的是父级 .di-evidence 容器（[hidden] 属性），
+  // 不要对 img 直接 toBeHidden（容器 display:flex 会覆盖 UA 隐藏样式，需 .di-evidence[hidden] 规则兜底）
   await page.locator('button[data-dp-evidence]').click();
-  await expect(page.locator('img.dp-ev-img')).toBeHidden();
+  const paotuiEvBox = page.locator('#dispute-box .di-evidence');
+  await expect(paotuiEvBox).toHaveAttribute('hidden', '');
+  await expect(paotuiEvBox).toBeHidden();
   const revokedAfterHide = await page.evaluate(() => window.__revoked.length);
   expect(revokedAfterHide).toBe(revoked.length);
   // 管理面板：重复点击=显示/隐藏切换（不重载、不撤销仍显示的 URL、不重复追加 img）
@@ -608,9 +611,11 @@ test('证据 objectURL：重开重新拉取时 revoke 旧 URL，隐藏不撤销�
   const adminUrl = await page.locator('#dp-list img.ev-img').getAttribute('src');
   revoked = await page.evaluate(() => window.__revoked);
   expect(revoked.some(u => u === adminUrl)).toBe(false);
-  // 第二次点击：仅隐藏（URL 保留不撤销）
+  // 第二次点击：仅隐藏容器（URL 保留不撤销）
   await evBtn.click();
-  await expect(page.locator('#dp-list img.ev-img')).toBeHidden();
+  const adminEvBox = page.locator('#dp-list .di-evidence');
+  await expect(adminEvBox).toHaveAttribute('hidden', '');
+  await expect(adminEvBox).toBeHidden();
   revoked = await page.evaluate(() => window.__revoked);
   expect(revoked.some(u => u === adminUrl)).toBe(false);
   // 第三次点击：重新显示同一 URL（不重新加载、不重复追加）

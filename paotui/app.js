@@ -427,6 +427,8 @@
           const wrap = box.querySelector('.di-evidence[data-for="' + btn.dataset.dpEvidence + '"]');
           if (!wrap) return;
           if (!wrap.hidden) { wrap.hidden = true; return; }
+          // 已有已加载内容 → 仅恢复显示（不重新请求、不撤销仍显示的 URL、不重复追加，2026-08-23 第 3 轮）
+          if (wrap.dataset.loaded === '1') { wrap.hidden = false; return; }
           revokeContainerUrls(wrap); // 重新加载前撤销已渲染但即将被替换的证据 URL
           wrap.innerHTML = '<span class="muted">加载中…</span>'; wrap.hidden = false;
           try {
@@ -442,7 +444,8 @@
                 const sp = document.createElement('span'); sp.className = 'muted'; sp.textContent = '证据 ' + v.id + ' 加载失败。'; wrap.append(sp);
               }
             }
-          } catch (e) { wrap.innerHTML = '<span class="muted">证据加载失败。</span>'; }
+            wrap.dataset.loaded = '1'; // 加载完成：后续点击仅显示/隐藏（异常路径不置位，允许重试且不重复追加）
+          } catch (e) { delete wrap.dataset.loaded; wrap.innerHTML = '<span class="muted">证据加载失败。</span>'; }
         });
       });
     } catch (e) { /* 非双方或未登录：静默 */ }

@@ -136,6 +136,7 @@ html[data-theme="dark"] .modal { background: rgba(0,0,0,.6); }
 .di-note { margin-top: 6px; font-size: 13px; color: var(--green, #28634f); background: rgba(40,99,79,.1); border-radius: 6px; padding: 6px 8px; }
 .di-time { font-size: 11px; color: var(--muted, #888); margin-top: 4px; }
   .di-evidence{margin-top:8px;display:flex;flex-wrap:wrap;gap:8px}
+.di-evidence[hidden]{display:none!important}
   .dp-ev-img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line,#dfe6df)}
   button.small{padding:4px 10px;font-size:12px}
 .review-item { border-top: 1px solid var(--border); padding: 8px 0; font-size: 13px; }
