@@ -4,13 +4,15 @@ const { test, expect } = require('@playwright/test');
 test.use({ launchOptions: { args: ['--unsafely-treat-insecure-origin-as-secure=http://127.0.0.1:8788'] } });
 
 // 模拟 Capacitor 原生环境 + inject-common.js 注入的 WaiyuanNativeDownload（本地测试 server 不做注入）
-async function mockNative(page) {
-  await page.addInitScript(() => {
+// saveFails=true 时模拟原生桥写入失败（Java 返回 false）→ 前端必须回退，不得谎报成功
+async function mockNative(page, saveFails = false) {
+  await page.addInitScript(({ fails }) => {
     window.Capacitor = { isNativePlatform: () => true };
     window.__nativeSaves = [];
     window.NativeSave = {
       saveBase64(name, data) {
         window.__nativeSaves.push({ name: String(name), data: String(data) });
+        return !fails;
       },
     };
     window.WaiyuanNativeDownload = {
@@ -24,8 +26,8 @@ async function mockNative(page) {
           reader.onload = () => {
             const base64 = String(reader.result).split(',')[1] || '';
             if (!base64) return resolve(false);
-            window.NativeSave.saveBase64(name || 'file', base64);
-            resolve(true);
+            const ok = window.NativeSave.saveBase64(name || 'file', base64);
+            resolve(ok === true);
           };
           reader.onerror = () => resolve(false);
           reader.readAsDataURL(blob);
@@ -35,11 +37,10 @@ async function mockNative(page) {
         if (!this.isNative() || !window.NativeSave) return false;
         const base64 = String(dataUrl || '').split(',')[1] || '';
         if (!base64) return false;
-        window.NativeSave.saveBase64(name || 'file', base64);
-        return true;
+        return window.NativeSave.saveBase64(name || 'file', base64) === true;
       },
     };
-  });
+  }, { fails: saveFails });
 }
 
 test('跑腿：App 内分享卡保存走原生桥（NativeSave.saveBase64）', async ({ page }) => {
@@ -81,6 +82,17 @@ test('跑腿：App 内任务卡保存同样走原生桥', async ({ page }) => {
   expect(saves.length).toBe(1);
   expect(saves[0].name).toBe('外院跑腿任务卡.png');
   expect(saves[0].data.startsWith('iVBOR')).toBe(true);
+});
+
+test('跑腿：原生保存失败时回退提示（不谎报成功）', async ({ page }) => {
+  await mockNative(page, true);
+  await page.goto('/' + encodeURI('paotui/index.html'));
+  await page.click('#share-card-btn');
+  await expect(page.locator('#share-preview img')).toBeVisible();
+  await page.click('#share-save');
+  await expect(page.locator('#toast')).toContainText('已保存到相册 / 下载目录');
+  const saves = await page.evaluate(() => window.__nativeSaves);
+  expect(saves.length).toBe(1); // 桥被调用过，但返回 false
 });
 
 test('跑腿：非原生浏览器保持原保存提示', async ({ page }) => {

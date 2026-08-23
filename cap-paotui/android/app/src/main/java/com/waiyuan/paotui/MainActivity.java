@@ -24,8 +24,6 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.getcapacitor.BridgeActivity;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.OutputStream;
 
 /**
@@ -124,7 +122,7 @@ public class MainActivity extends BridgeActivity {
     /** 前端 window.NativeSave.saveBase64(name, base64) 保存内容文件到「下载」目录 */
     private class NativeSaveBridge {
         @JavascriptInterface
-        public void saveBase64(String fileName, String base64) {
+        public boolean saveBase64(String fileName, String base64) {
             try {
                 if (base64 == null || base64.isEmpty()) throw new Exception("empty data");
                 String safe = (fileName == null || fileName.trim().isEmpty() ? "file" : fileName)
@@ -140,17 +138,12 @@ public class MainActivity extends BridgeActivity {
                     try (OutputStream os = getContentResolver().openOutputStream(uri)) {
                         os.write(data);
                     }
-                } else {
-                    File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                    if (!dir.exists() && !dir.mkdirs()) throw new Exception("cannot create Downloads dir");
-                    File out = new File(dir, safe);
-                    try (FileOutputStream fos = new FileOutputStream(out)) {
-                        fos.write(data);
-                    }
-                }
+                // minSdk 29（Android 10+）：MediaStore 写入公共「下载」目录，无需存储权限
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "已保存：" + safe, Toast.LENGTH_SHORT).show());
+                return true;
             } catch (Exception e) {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "保存失败：" + e.getMessage(), Toast.LENGTH_SHORT).show());
+                return false;
             }
         }
     }

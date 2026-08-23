@@ -123,9 +123,15 @@ jobs:
           }
           put_latest() {
             local name="$1" ver="$2"
-            local enc
+            local enc resp code body
             enc=$(printf '%s' "apk:latest:$name" | jq -sRr @uri)
-            curl -sS --fail-with-body -X PUT "$API/$enc" -H "$AUTH" --data-binary "$ver" -o /dev/null -w "latest $name -> http=%{http_code}\n"
+            resp=$(curl -sS --fail-with-body -X PUT "$API/$enc" -H "$AUTH" --data-binary "$ver" -w $'\n%{http_code}')
+            code=$(printf '%s' "$resp" | tail -n1)
+            body=$(printf '%s' "$resp" | sed '$d')
+            if [ "$code" != "200" ] || ! printf '%s' "$body" | grep -q '"success":true'; then
+              echo "KV PUT latest FAILED name=$name http=$code body=$body"; exit 1
+            fi
+            echo "KV PUT latest ok name=$name ($ver)"
           }
           for name in waiyuan-share waiyuan-paotui; do
             if [ -f "dist/$name.apk" ]; then

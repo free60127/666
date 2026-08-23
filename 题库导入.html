@@ -177,6 +177,8 @@
           report.textContent = out + '\n✓ 已保存到手机「下载」目录：import.json';
           report.classList.add('ok');
         } else {
+          report.textContent = out + '\n⚠ 原生保存失败，请点击下方「下载 import.json」按钮手动保存';
+          report.classList.add('err');
           download.href = URL.createObjectURL(blob);
           download.style.display = 'inline-block';
         }

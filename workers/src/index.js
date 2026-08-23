@@ -72,7 +72,8 @@ async function serveApk(request, env, path) {
       }
     } catch (e) {
       console.error('serveApk latest error:', e);
-      // latest 读取失败：容错回落到稳定键本身（兼容仅写入稳定键的旧部署）
+      // 2026-08-23 审查：latest 指针读取失败说明存储异常，静默回退会误发旧版本 → 直接 503
+      return json({ error: 'storage unavailable' }, 503);
     }
   }
   let got;

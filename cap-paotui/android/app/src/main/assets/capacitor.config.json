@@ -6,5 +6,10 @@
     "url": "https://free60127.top/paotui/",
     "cleartext": false
   },
-  "backgroundColor": "#fdfaf3"
+  "backgroundColor": "#fdfaf3",
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "disable"
+    }
+  }
 }

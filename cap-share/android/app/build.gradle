@@ -7,8 +7,8 @@ android {
         applicationId "com.waiyuan.share"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode Integer.parseInt(System.getenv('TWA_VERSION_CODE') ?: '1')
-        versionName (System.getenv('TWA_VERSION') ?: '1.0')
+        versionCode Integer.parseInt(System.getenv('TWA_VERSION_CODE'))
+        versionName (System.getenv('TWA_VERSION'))
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -19,9 +19,9 @@ android {
     signingConfigs {
         release {
             storeFile file('android.keystore')
-            storePassword System.getenv('TWA_KEYSTORE_PASS') ?: 'waiyuan2026'
-            keyAlias System.getenv('TWA_KEY_ALIAS') ?: 'waiyuan'
-            keyPassword System.getenv('TWA_KEY_PASS') ?: 'waiyuan2026'
+            storePassword System.getenv('TWA_KEYSTORE_PASS')
+            keyAlias System.getenv('TWA_KEY_ALIAS')
+            keyPassword System.getenv('TWA_KEY_PASS')
         }
     }
     buildTypes {

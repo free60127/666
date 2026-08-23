@@ -12,6 +12,7 @@ class MemoryD1 {
     this.rates = new Map();
     this.resetTokens = new Map();
     this.cleanupJobs = new Map();
+    this.syncData = new Map();
     this.batchQueue = Promise.resolve();
   }
   prepare(sql) {
@@ -192,6 +193,9 @@ class MemoryD1 {
     } else if (s.startsWith('DELETE FROM cleanup_jobs')) {
       const [kvKey] = args;
       changes = this.cleanupJobs.delete(kvKey) ? 1 : 0;
+    } else if (s.startsWith('DELETE FROM sync_data')) {
+      const [key] = args;
+      changes = this.syncData.delete(key) ? 1 : 0;
     }
     return { meta: { changes } };
   }
@@ -344,6 +348,16 @@ console.log('6) 注销账号（delete-account）');
   check('注销后 me 401', me.status === 401);
   const login = await api('/api/auth/login', { method: 'POST', body: { email: 'del@test.com', password: 'secret123' } });
   check('注销后登录 401', login.status === 401);
+  // 2026-08-23 审查：注销必须删除 D1 云同步数据（键 'user:'+id），并登记 cleanup_jobs
+  const reg2 = await api('/api/auth/register', { method: 'POST', body: { email: 'del2@test.com', password: 'secret123' } });
+  const uid2 = reg2.data.user.id;
+  sharedDb.syncData.set('user:' + uid2, { payload: '{}', rev: 1, updated_at: Date.now() });
+  const kvDeleted = [];
+  const del2 = await api('/api/auth/delete-account', { method: 'POST', token: reg2.data.token, body: { password: 'secret123' }, extraEnv: { STUDY_KV: { delete: async (k) => { kvDeleted.push(k); } } } });
+  check('注销 200（带 STUDY_KV）', del2.status === 200);
+  check('注销删除 D1 云同步数据 sync_data', !sharedDb.syncData.has('user:' + uid2));
+  check('KV 清理键为 user:<id>（非 sync:user:<id>）', kvDeleted.length === 1 && kvDeleted[0] === 'user:' + uid2, JSON.stringify(kvDeleted));
+  check('KV 清理成功后 cleanup_jobs 不残留', !sharedDb.cleanupJobs.has('user:' + uid2));
 }
 
 console.log('7) 找回密码（forgot / reset-password / admin-reset-code）');

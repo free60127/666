@@ -86,8 +86,9 @@
           try {
             const base64 = String(reader.result).split(',')[1] || '';
             if (!base64) return resolve(false);
-            window.NativeSave.saveBase64(name || 'file', base64);
-            resolve(true);
+            // 2026-08-23 审查：原生桥返回 boolean（保存成功/失败），失败不再谎报成功
+            const ok = window.NativeSave.saveBase64(name || 'file', base64);
+            resolve(ok === true);
           } catch (e) { reject(e); }
         };
         reader.onerror = () => reject(reader.error);
@@ -99,8 +100,7 @@
       try {
         const base64 = String(dataUrl || '').split(',')[1] || '';
         if (!base64) return false;
-        window.NativeSave.saveBase64(name || 'file', base64);
-        return true;
+        return window.NativeSave.saveBase64(name || 'file', base64) === true;
       } catch (e) { return false; }
     },
   };

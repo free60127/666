@@ -402,7 +402,9 @@ async function deleteAccount(db, env, request) {
   const openCount = Number(openPub && openPub.c || 0) + Number(openTak && openTak.c || 0);
   if (openCount > 0) return json({ error: '仍有 ' + openCount + ' 个进行中的跑腿任务，请先完成或取消后再注销' }, 400);
   const now = Date.now();
-  const kvKey = 'sync:user:' + user.id;
+  // 2026-08-23 审查修复：同步数据键为 'user:'+user_id（D1 sync_data.user_id / 旧 KV 同键），
+  // 原 'sync:user:' 前缀键导致注销后云端同步数据残留
+  const kvKey = 'user:' + user.id;
   try {
     const cleanupStatements = [
       db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id),
@@ -412,7 +414,7 @@ async function deleteAccount(db, env, request) {
         .bind('auth:forgot:' + user.email, 'auth:reset:email:' + user.email, 'auth:reg:email:' + user.email),
       db.prepare('DELETE FROM activity WHERE act_key = ?').bind('user:' + user.id),
       // 2026-08-23 云同步迁 D1：同步数据主存 D1（KV 旧残留由 cleanup_jobs 兜底删）
-      db.prepare('DELETE FROM sync_data WHERE user_id = ?').bind(kvKey),
+      db.prepare('DELETE FROM sync_data WHERE user_id = ?').bind(kvKey), // kvKey='user:'+id 与 handleSyncUpload 一致
       // 活跃数据删除后，聚合排行榜缓存必须失效，避免继续展示已注销账号。
       db.prepare('DELETE FROM rank_cache'),
     ];
