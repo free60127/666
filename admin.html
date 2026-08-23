@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
   <title>站点管理面板 · 外院知识分享站</title>
-  <link rel="stylesheet" href="admin.css?v=20260823-2205">
+  <link rel="stylesheet" href="admin.css?v=20260823-2211">
 </head>
 <body data-theme="">
 <header><h1>外院知识分享站 · 管理面板</h1><small>反馈查看 / 公告管理 · 仅限站点管理员使用</small></header>
 <div class="wrap">
   <div class="card">
     <h2>连接设置</h2>
-    <div class="hint"><b>服务器地址</b>：已固定为 https://api.free60127.top（管理端不允许改指向，防令牌被引导到陌生站点）。</div>
+    <label>API 地址</label>
+    <input type="text" id="api-base" placeholder="https://api.free60127.top">
     <label>管理员令牌（仅保存在本浏览器，不会上传到站点）</label>
     <input type="password" id="token" placeholder="输入 ADMIN_TOKEN" autocomplete="off">
     <div class="row" style="margin-top:12px">
@@ -138,6 +139,6 @@
     <div class="hint">记录跑腿订单删除、申诉处理等管理操作（操作者仅记录令牌前缀，不落明文令牌）。</div>
   </div>
 </div>
-<script src="admin.js?v=20260823-2205"></script>
+<script src="admin.js?v=20260823-2211"></script>
 </body>
 </html>

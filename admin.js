@@ -1,11 +1,12 @@
 (() => {
   const $ = s => document.querySelector(s);
-  const token = $('#token');
-  const LS = { token: 'waiyuan-admin-token-v1' };
+  const apiBase = $('#api-base'), token = $('#token');
+  const LS = { base: 'waiyuan-admin-api-v1', token: 'waiyuan-admin-token-v1' };
   try {
+    apiBase.value = localStorage.getItem(LS.base) || 'https://api.free60127.top';
     token.value = sessionStorage.getItem(LS.token) || '';
   } catch (e) {}
-  const API_BASE = 'https://api.free60127.top';
+  const base = () => (apiBase.value.trim() || 'https://api.free60127.top').replace(/\/$/, '');
   const auth = () => 'Bearer ' + token.value.trim();
   const showMsg = (text, ok) => {
     const m = $('#msg');
@@ -18,6 +19,7 @@
 
   $('#save').addEventListener('click', () => {
     try {
+      localStorage.setItem(LS.base, apiBase.value.trim());
       sessionStorage.setItem(LS.token, token.value.trim());
       showMsg('设置已保存到本机浏览器（令牌仅存会话存储，关闭标签页后失效）。', true);
     } catch (e) { showMsg('保存失败：浏览器禁止本地存储。', false); }
@@ -29,7 +31,7 @@
   });
   $('#test').addEventListener('click', async () => {
     try {
-      const r = await fetch(API_BASE + '/api/health');
+      const r = await fetch(base() + '/api/health');
       const j = await r.json();
       if (r.ok && j.ok) { showMsg('连接正常：' + j.name + '（' + j.time + '）', true); }
       else showMsg('连接异常：HTTP ' + r.status, false);
@@ -80,7 +82,7 @@
       toggle.textContent = it.handled ? '重新打开' : '标记已处理';
       toggle.addEventListener('click', async () => {
         try {
-          const r = await fetch(API_BASE + '/api/feedback?key=' + encodeURIComponent(it.key) + '&handled=' + (it.handled ? '0' : '1'), { method: 'PATCH', headers: { Authorization: auth() } });
+          const r = await fetch(base() + '/api/feedback?key=' + encodeURIComponent(it.key) + '&handled=' + (it.handled ? '0' : '1'), { method: 'PATCH', headers: { Authorization: auth() } });
           const j = await r.json();
           if (r.ok && j.ok) { showMsg(it.handled ? '已重新打开。' : '已标记为处理。', true); loadFeedback(true); }
           else showMsg('操作失败：' + (j.error || r.status), false);
@@ -90,7 +92,7 @@
       del.addEventListener('click', async () => {
         if (!confirm('确定删除这条反馈？删除后不可恢复。')) return;
         try {
-          const r = await fetch(API_BASE + '/api/feedback?key=' + encodeURIComponent(it.key), { method: 'DELETE', headers: { Authorization: auth() } });
+          const r = await fetch(base() + '/api/feedback?key=' + encodeURIComponent(it.key), { method: 'DELETE', headers: { Authorization: auth() } });
           const j = await r.json();
           if (r.ok && j.ok) { showMsg('已删除。', true); loadFeedback(true); }
           else showMsg('删除失败：' + (j.error || r.status), false);
@@ -112,7 +114,7 @@
       if (type) params.set('type', type);
       const handled = $('#fb-handled').value;
       if (handled !== '') params.set('handled', handled);
-      const r = await fetch(API_BASE + '/api/feedback?' + params, { headers: { Authorization: auth() } });
+      const r = await fetch(base() + '/api/feedback?' + params, { headers: { Authorization: auth() } });
       const j = await r.json();
       if (r.ok && j.ok) {
         fbState.cursor = j.cursor || null;
@@ -138,7 +140,7 @@
       if (type) params.set('type', type);
       const handled = $('#fb-handled').value;
       if (handled !== '') params.set('handled', handled);
-      const r = await fetch(API_BASE + '/api/feedback?' + params, { headers: { Authorization: auth() } });
+      const r = await fetch(base() + '/api/feedback?' + params, { headers: { Authorization: auth() } });
       const j = await r.json();
       if (!r.ok || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
       all.push(...(j.items || []));
@@ -182,7 +184,7 @@
   // 公告
   const loadNotice = async () => {
     try {
-      const r = await fetch(API_BASE + '/api/notice');
+      const r = await fetch(base() + '/api/notice');
       const j = await r.json();
       if (r.ok) { $('#notice-text').value = j.text || ''; $('#notice-time').textContent = j.updatedAt ? '上次更新：' + fmt(j.updatedAt) : '（暂无公告）'; }
     } catch (e) { /* 静默，公告可稍后保存时再验证 */ }
@@ -190,7 +192,7 @@
   $('#clear-notice').addEventListener('click', async () => {
     if (!window.confirm('确定清除公告吗？清除后首页横幅不再显示。')) return;
     try {
-      const r = await fetch(API_BASE + '/api/notice', { method: 'DELETE', headers: { Authorization: auth() } });
+      const r = await fetch(base() + '/api/notice', { method: 'DELETE', headers: { Authorization: auth() } });
       const j = await r.json();
       if (r.ok && j.ok) { showMsg('公告已清除。', true); loadNotice(); }
       else if (r.status === 401) showMsg('令牌无效，无法清除。', false);
@@ -199,7 +201,7 @@
   });
   $('#save-notice').addEventListener('click', async () => {
     try {
-      const r = await fetch(API_BASE + '/api/notice', {
+      const r = await fetch(base() + '/api/notice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: auth() },
         body: JSON.stringify({ text: $('#notice-text').value.trim() }),
@@ -220,7 +222,7 @@
     const btn = $('#load-stats');
     btn.disabled = true; btn.textContent = '加载中…';
     try {
-      const r = await fetch(API_BASE + '/api/stats', { headers: { Authorization: auth() } });
+      const r = await fetch(base() + '/api/stats', { headers: { Authorization: auth() } });
       const j = await r.json();
       if (r.ok && j.ok) {
         $('#st-pv-total').textContent = (j.totals && j.totals.pv || 0).toLocaleString();
@@ -258,7 +260,7 @@
     document.querySelectorAll('#rank-day,#rank-week').forEach(b => b.style.background = b.dataset.period === rankPeriod ? 'var(--green)' : '');
     document.querySelectorAll('#rank-day,#rank-week').forEach(b => b.style.color = b.dataset.period === rankPeriod ? '#fff' : '');
     try {
-      const r = await fetch(API_BASE + '/api/rank?period=' + rankPeriod, { headers: { Authorization: auth() } });
+      const r = await fetch(base() + '/api/rank?period=' + rankPeriod, { headers: { Authorization: auth() } });
       const j = await r.json();
       if (r.ok && j.ok) {
         $('#rank-range').textContent = (rankPeriod === 'day' ? '今日（' : '本周（') + (j.range || '') + '）· Top ' + (j.items || []).length;
@@ -316,7 +318,7 @@
       del.addEventListener('click', async () => {
         if (!window.confirm('确定删除订单 #' + t.id + '「' + t.title + '」？将同时删除其评价与申诉记录，且不可恢复。')) return;
         try {
-          const r = await fetch(API_BASE + '/api/errand/admin/tasks/' + t.id, { method: 'DELETE', headers: { Authorization: auth() } });
+          const r = await fetch(base() + '/api/errand/admin/tasks/' + t.id, { method: 'DELETE', headers: { Authorization: auth() } });
           const j = await r.json();
           if (r.ok && j.ok) { showMsg('订单 #' + t.id + ' 已删除。', true); loadErrand(true); loadDisputesAdmin(); }
           else if (r.status === 401) showMsg('令牌无效，请重新填写。', false);
@@ -336,7 +338,7 @@
       const status = $('#er-status').value;
       const params = new URLSearchParams({ page: String(erState.page), pageSize: '50' });
       if (status !== 'all') params.set('status', status);
-      const r = await fetch(API_BASE + '/api/errand/admin/tasks?' + params, { headers: { Authorization: auth() } });
+      const r = await fetch(base() + '/api/errand/admin/tasks?' + params, { headers: { Authorization: auth() } });
       const j = await r.json();
       if (r.ok) {
         const items = j.items || [];
@@ -392,7 +394,7 @@
         box2.textContent = '加载中…';
         el.append(box2);
         try {
-          const r = await fetch(API_BASE + '/api/errand/disputes/' + d.id + '/evidence', { headers: { Authorization: auth() } });
+          const r = await fetch(base() + '/api/errand/disputes/' + d.id + '/evidence', { headers: { Authorization: auth() } });
           const j = await r.json();
           if (r.ok) {
             const evs = j.evidence || [];
@@ -420,7 +422,7 @@
       : (window.prompt('处理备注（选填，将展示给双方）', '') || '').trim();
     if (status === 'rejected' && !note) { showMsg('驳回必须填写原因。', false); return; }
     try {
-      const r = await fetch(API_BASE + '/api/errand/admin/disputes/' + d.id, {
+      const r = await fetch(base() + '/api/errand/admin/disputes/' + d.id, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: auth() },
         body: JSON.stringify({ status, note }),
@@ -433,7 +435,7 @@
   };
   const loadDisputesAdmin = async () => {
     try {
-      const r = await fetch(API_BASE + '/api/errand/disputes', { headers: { Authorization: auth() } });
+      const r = await fetch(base() + '/api/errand/disputes', { headers: { Authorization: auth() } });
       const j = await r.json();
       if (r.ok) renderDisputes(j.disputes || []);
       else if (r.status === 401) { /* 令牌无效，稍后重试 */ }
@@ -446,7 +448,7 @@
     const btn = $('#load-logs');
     btn.disabled = true; btn.textContent = '加载中…';
     try {
-      const r = await fetch(API_BASE + '/api/errand/admin/logs?pageSize=50', { headers: { Authorization: auth() } });
+      const r = await fetch(base() + '/api/errand/admin/logs?pageSize=50', { headers: { Authorization: auth() } });
       const j = await r.json();
       if (r.ok) {
         const logs = j.logs || [];
