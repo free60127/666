@@ -53,6 +53,9 @@ export default {
  *  版本化地址 /apk/waiyuan-share-v1.1.0.apk → 直接读 KV 键 apk:waiyuan-share-v1.1.0.apk（长缓存 + ETag）
  *  KV 无文件 → 404；KV 故障 → 503（2026-08-23 审查：区分存储故障与文件不存在） */
 async function serveApk(request, env, path) {
+  if (!['GET', 'HEAD'].includes(request.method)) {
+    return new Response('method not allowed', { status: 405, headers: { Allow: 'GET, HEAD' } });
+  }
   let name = path.slice('/apk/'.length).replace(/^\/+/, '');
   if (!/^[A-Za-z0-9._-]{1,80}$/.test(name)) return json({ error: 'not found' }, 404);
   if (!env.STUDY_KV) return json({ error: 'not configured' }, 503);
@@ -317,8 +320,8 @@ async function handleVisit(request, env) {
   let path = String(body.path || '/');
   if (!path.startsWith('/')) path = '/' + path;
   if (path.length > 200) path = path.slice(0, 200);
-  // 2026-08-23 审查：路径白名单——拒绝控制字符（ -）/反斜杠/路径穿越/双斜杠
-  if (path.includes('..') || path.includes('//') || path.includes(String.fromCharCode(92)) || /[ -]/.test(path)) return json({ error: 'invalid path' }, 400);
+  // 2026-08-23 审查：路径白名单——拒绝控制字符（-）/反斜杠/路径穿越/双斜杠
+  if (path.includes('..') || path.includes('//') || path.includes(String.fromCharCode(92)) || /[-]/.test(path)) return json({ error: 'invalid path' }, 400);
   // IP 维度限流（防伪造 vid 刷量）；限流器故障保守拒绝
   const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
   if (!(await visitRateLimit(env, ip))) return json({ error: 'too many requests, try again later' }, 429);
@@ -828,7 +831,7 @@ function filterHeaders(headers) {
 /* ---------- D1 数据自动清理（2026-08-22 审查 P1）----------
  * Cron 每日执行：uv_seen 保留 2 天、activity 保留 8 天（周榜窗口 7 天）、
  * rate 删过期窗口、rank_cache 删 1 小时前的缓存、stats 日计数保留 30 天、
- * login_fails 保留 1 天、reset_tokens 删除过期记录。
+ * login_fails 保留 1 天、reset_tokens 删除过期记录、sync_data 保留 730 天。
  * KV 注销清理任务单独重试；全部静默容错，清理失败不影响任何请求。 */
 async function cleanupDb(env) {
   const db = env.DB;
@@ -847,6 +850,7 @@ async function cleanupDb(env) {
       db.prepare("DELETE FROM stats WHERE key LIKE 'stats:uv:day:%' AND substr(key, 14) < ?1").bind(daysAgo(30)),
       db.prepare('DELETE FROM login_fails WHERE updated_at < ?1').bind(now - dayMs),
       db.prepare('DELETE FROM reset_tokens WHERE expires_at < ?1').bind(now),
+      db.prepare('DELETE FROM sync_data WHERE updated_at < ?1').bind(now - SYNC_TTL_SECONDS * 1000),
       db.prepare("UPDATE errand_tasks SET status = 'cancelled', cancelled_at = ?1, cancel_reason = '任务已过期，自动取消', updated_at = ?1 WHERE status = 'open' AND deadline IS NOT NULL AND deadline < ?1").bind(now),
       db.prepare("UPDATE errand_tasks SET confirmed_at = ?1, auto_confirmed_at = ?1, confirmed_by = 'system', updated_at = ?1 WHERE status = 'done' AND confirmed_at IS NULL AND completed_at IS NOT NULL AND completed_at < ?2").bind(now, now - 48 * 3600 * 1000),
     ]);

@@ -1,0 +1,13 @@
+{
+  "name": "study-platform-icon-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "外院知识分享站图标生成工具的独立依赖",
+  "type": "commonjs",
+  "scripts": {
+    "generate": "node ../gen-app-icons.cjs"
+  },
+  "dependencies": {
+    "sharp": "^0.35.3"
+  }
+}

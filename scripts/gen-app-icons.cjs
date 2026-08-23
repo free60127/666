@@ -1,6 +1,12 @@
 // 重新生成 App 图标：legacy 四角填白（修黑边）、adaptive foreground 安全区缩放
 const path = require('path');
-const sharp = require(path.join(__dirname, '_tmp-iconwork/node_modules/sharp'));
+let sharp;
+try {
+  sharp = require(require.resolve('sharp', { paths: [path.join(__dirname, 'icon-work')] }));
+} catch {
+  // 兼容旧目录（历史遗留）：仍找不到才报错
+  sharp = require(require.resolve('sharp', { paths: [path.join(__dirname, '_tmp-iconwork')] }));
+}
 const fs = require('fs');
 
 const ROOT = path.join(__dirname, '..');

@@ -41,7 +41,7 @@
 | GET | `/api/auth/me` | 当前用户 + 恢复码保险箱 | 会话 |
 | POST | `/api/auth/recovery` | 更新恢复码保险箱 `{recovery}` | 会话 |
 | POST | `/api/auth/change-password` | 改密码 `{oldPassword, newPassword, recovery?}`（recovery 可选：新密码加密的保险箱，随改密原子更新；其他设备会话全部失效） | 会话 |
-| POST | `/api/auth/delete-account` | 注销 `{password}`（D1 原子清理账号、会话、活跃记录和重置码；KV sync:user:{id} 删除失败会进入 Cron 重试队列，响应含 `cleanupPending`） | 会话 + 密码 |
+| POST | `/api/auth/delete-account` | 注销 `{password}`（D1 原子清理账号、会话、活跃记录、同步数据和重置码；旧 KV 残留删除失败会进入 Cron 重试队列，响应含 `cleanupPending`） | 会话 + 密码 |
 | POST | `/api/auth/forgot` | 找回密码第 1 步：向注册邮箱发 8 位数字重置码（15 分钟有效；未注册邮箱也返回 ok 防枚举；每邮箱 1 分钟 1 次） | 公开 |
 | POST | `/api/auth/reset-password` | 找回密码第 2 步 `{email, code, newPassword, recovery?}`（邮箱 15 分钟最多 8 次、IP 最多 20 次；超限作废验证码；成功后原子消费，重置后全部设备退出） | 公开 |
 | POST | `/api/auth/admin-reset-code` | 管理端兜底：生成重置码（明文返回，线下转交用户）`{email}` | Bearer ADMIN_TOKEN |
@@ -64,7 +64,7 @@ node $W secret put SMTP_PASS   # QQ 邮箱 SMTP 授权码（QQ 邮箱设置 → 
 - **忘记密码 = 云端数据需原恢复码**：重置密码会清空保险箱（除非请求携带新密码加密的原恢复码），登录后若本机无恢复码需手动「云端恢复」或联系管理员。
 - 会话 token 在库中只存 SHA-256 哈希；密码 PBKDF2(SHA-256, 10k 轮, 16B salt)（Workers 免费计划 CPU 限制，150k 会超时）。
 - SMTP 邮件主题使用 RFC 2047 Base64，正文使用 UTF-8 Base64；SMTP 连接在成功和异常路径都会释放。
-- 注销账号后的 KV 清理任务使用 cleanup_jobs 表和 Cron 指数退避重试；部署前必须应用 migrations/0005_cleanup_jobs.sql。
+- 注销账号后的旧 KV 残留清理任务使用 `cleanup_jobs` 表和 Cron 指数退避重试；同步数据主存已迁移到 D1 `sync_data`，不再使用 KV `sync:user:{id}` 作为主存储。
 
 ## 安全边界（2026-08-22 加固后）
 
@@ -94,7 +94,7 @@ node $W secret put SMTP_PASS   # QQ 邮箱 SMTP 授权码（QQ 邮箱设置 → 
 
 ```powershell
 $W = 'C:\Users\23674\.ai-manager\runtimes\node\24.19.0\node_modules\wrangler\bin\wrangler.js'
-node $W d1 migrations apply waiyuan-study-db --remote  # 先应用新增 migration（0005，执行一次）
+node $W d1 migrations apply waiyuan-study-db --remote  # 应用 migrations/ 下全部待执行迁移（当前至 0011）
 node $W deploy          # 再部署 Worker
 node $W dev --port 8787 # 本地调试（miniflare 模拟 KV）
 node $W kv namespace create NAME   # 新建 KV

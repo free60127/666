@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: D1 远程迁移（幂等，保证线上 schema 与迁移目录一致）
         if: inputs.smoke_only != 'true'
         working-directory: workers

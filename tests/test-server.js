@@ -42,4 +42,19 @@ const server = http.createServer((req, res) => {
   }
 });
 
+let closing = false;
+function shutdown() {
+  if (closing) return;
+  closing = true;
+  const forceExit = setTimeout(() => process.exit(1), 5000);
+  forceExit.unref();
+  server.close(() => {
+    clearTimeout(forceExit);
+    process.exit(0);
+  });
+  if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
+}
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);
+
 server.listen(PORT, '127.0.0.1', () => console.log(`test server: http://127.0.0.1:${PORT}`));

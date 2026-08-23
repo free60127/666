@@ -5,6 +5,9 @@
   const data = (window.CONTENT_BOOKS || {}).books || [];
   const pageTitle = (document.getElementById('app')?.dataset.pageTitle) || '教材系列';
   const app = document.getElementById('app');
+  // 返回上级页：页面可用 data-hub-text / data-hub-href 覆盖（基英/泛读默认回英语系；综英回通用课程）
+  const hubText = app?.dataset.hubText || '返回英语系';
+  const hubHref = app?.dataset.hubHref || '../../index.html';
   const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   // 题干白名单渲染：源数据（旧 HTML 教材）含 <mark>/<em>/<strong> 高亮标记，
   // 先全量转义再仅还原这三个白名单标签，其余标签一律按纯文本显示。
@@ -47,7 +50,7 @@
   }
 
   function renderHome() {
-    app.innerHTML = `<button class="back hub-back" data-action="hub">‹ 返回英语系</button><header class="brand"><div class="mark">R</div><div><strong>${escape(pageTitle)}</strong><small>CONTENT LIBRARY / 2026</small></div></header>
+    app.innerHTML = `<button class="back hub-back" data-action="hub">‹ ${escape(hubText)}</button><header class="brand"><div class="mark">R</div><div><strong>${escape(pageTitle)}</strong><small>CONTENT LIBRARY / 2026</small></div></header>
       <section class="hero"><small>READING LIBRARY</small><h1>选择你的<span>教材系列。</span></h1><p>题目按单元组织，支持查词、收藏与答题进度记录。</p></section>
       <section class="bank-list">${data.map(book => `<button class="bank-card" data-action="book" data-book="${book.key}"><div><b>${escape(book.name)}</b><em>进入</em></div><h2>${escape(book.name)}</h2><p>${totalQ(book)} 题 · ${book.units.length} 个单元</p><small>展开单元即可刷题，选择题自动判题</small></button>`).join('')}</section>`;
   }
@@ -205,7 +208,7 @@
     const target = event.target.closest('[data-action]');
     if (!target) return;
     const action = target.dataset.action;
-    if (action === 'hub') location.href = '../../index.html';
+    if (action === 'hub') location.href = hubHref;
     else if (action === 'home') renderHome();
     else if (action === 'book') renderBook(target.dataset.book);
     else if (action === 'export') exportBook();
@@ -251,3 +254,4 @@
     }
   });
 })();
+

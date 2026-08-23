@@ -17,6 +17,8 @@ import android.view.View;
 import android.webkit.WebView;
 import android.widget.Toast;
 
+import java.util.Locale;
+
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -93,12 +95,12 @@ public class MainActivity extends BridgeActivity {
             }
             try {
                 DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                request.setMimeType(mimetype == null || mimetype.isEmpty() ? "application/octet-stream" : mimetype);
                 String cookie = CookieManager.getInstance().getCookie(url);
                 if (cookie != null && !cookie.isEmpty()) request.addRequestHeader("Cookie", cookie);
                 if (userAgent != null) request.addRequestHeader("User-Agent", userAgent);
                 request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                 String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
+                request.setMimeType(mimeTypeForFile(fileName, mimetype));
                 request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
                 DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
                 dm.enqueue(request);
@@ -131,7 +133,7 @@ public class MainActivity extends BridgeActivity {
                 if (Build.VERSION.SDK_INT >= 29) {
                     ContentValues values = new ContentValues();
                     values.put(MediaStore.Downloads.DISPLAY_NAME, safe);
-                    values.put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream");
+                    values.put(MediaStore.Downloads.MIME_TYPE, mimeTypeForFile(safe, null));
                     values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
                     Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
                     if (uri == null) throw new Exception("MediaStore insert failed");
@@ -147,5 +149,15 @@ public class MainActivity extends BridgeActivity {
                 return false;
             }
         }
+    }
+
+    private String mimeTypeForFile(String fileName, String fallback) {
+        String lower = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".apk")) return "application/vnd.android.package-archive";
+        if (lower.endsWith(".pdf")) return "application/pdf";
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".json")) return "application/json";
+        return fallback == null || fallback.isEmpty() ? "application/octet-stream" : fallback;
     }
 }
