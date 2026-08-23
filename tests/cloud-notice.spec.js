@@ -201,3 +201,25 @@ test('云同步：大版本号（>2^31）不截断，baseRev 原样上传（审�
   expect(sync.lastUpload.baseRev).toBe(BIG_REV);
   expect(sync.lastUpload.baseRev).not.toBe(BIG_REV | 0);   // 截断后会是负数，必不等
 });
+
+test('云同步：~1.5MB 大数据备份不崩溃（分块 base64，审查 2026-08-23）', async ({ page }) => {
+  const sync = makeSyncMock(page);
+  // 构造 ~1.5MB 学习数据（旧实现 String.fromCharCode(...bytes) 会在远小于此的体积就 RangeError 爆栈）
+  await page.addInitScript(() => {
+    // 大数据放在 extra 键（politics-h5-state-v1）里：createBackup 只收集 EXTRA_KEYS，webQuiz 会被 read() 规范化丢弃自定义字段
+    const big = { version: 1, notes: [] };
+    for (let i = 0; i < 8000; i++) big.notes.push('这是一条比较长的学习笔记内容，用于构造大数据量备份场景，编号 ' + i + ' ：' + 'x'.repeat(60));
+    localStorage.setItem('politics-h5-state-v1', JSON.stringify(big));
+  });
+  await page.goto('/' + encodeURI('学习中心/index.html'));
+  await page.click('[data-action="cloud-backup"]');
+  await expect(page.locator('#cloud-panel')).toBeVisible();
+  await page.click('[data-action="cloud-backup"]');
+  await expect(page.locator('#data-status')).toContainText('云端备份完成', { timeout: 30000 });
+  const upload = sync.lastUpload;
+  expect(upload).toBeTruthy();
+  expect(upload.deviceId).toMatch(/^[0-9a-f]{64}$/);
+  expect(upload.payload.v).toBe(1);
+  // 密文体积与数据量相当（分块编码成功且完整加密）
+  expect(upload.payload.c.length).toBeGreaterThan(1000000);
+});

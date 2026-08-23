@@ -29,6 +29,8 @@ const corsFor = request => {
   };
 };
 
+// 导出供 Node 单测（scripts/test-sync-guard.mjs），wrangler 仅消费 default 导出
+export { handleSyncDownload };
 export default {
   async fetch(request, env, ctx) {
     const response = await route(request, env, ctx);
@@ -420,8 +422,11 @@ async function handleRank(request, env) {
   }
   // 2026-08-22 迁 D1：GROUP BY 聚合替代 KV list 全量扫描（week = 最近 7 个自然日）
   const since = period === 'week' ? dates[6] : dates[0];
+  // 2026-08-23 审查：N+1 查询（≤50 次逐条查 users）→ LEFT JOIN 一次取回
   const rows = await env.DB.prepare(
-    'SELECT act_key, SUM(minutes) AS minutes, SUM(learned) AS learned FROM activity WHERE date >= ?1 GROUP BY act_key ORDER BY minutes DESC, learned DESC LIMIT 50'
+    'SELECT a.act_key, SUM(a.minutes) AS minutes, SUM(a.learned) AS learned, u.nickname, u.email ' +
+    'FROM activity a LEFT JOIN users u ON u.id = substr(a.act_key, 6) ' +
+    'WHERE a.date >= ?1 GROUP BY a.act_key, u.nickname, u.email ORDER BY minutes DESC, learned DESC LIMIT 50'
   ).bind(since).all();
   const items = [];
   for (const row of rows.results || []) {
@@ -429,11 +434,7 @@ async function handleRank(request, env) {
     let name = '';
     if (key.startsWith('user:')) {
       const uid = key.slice(5);
-      if (env.DB) {
-        const u = await env.DB.prepare('SELECT nickname, email FROM users WHERE id = ?').bind(uid).first();
-        if (u) name = u.nickname || u.email;
-      }
-      if (!name) name = '用户' + uid.slice(0, 6);
+      name = row.nickname || row.email || ('用户' + uid.slice(0, 6));
     } else {
       name = '匿名-' + key.slice(5).slice(0, 6);
     }
@@ -450,30 +451,31 @@ async function handleRank(request, env) {
 
 async function handleStats(env) {
   const today = todayCn();
-  const num = async key => {
-    const row = await env.DB.prepare('SELECT value FROM stats WHERE key = ?1').bind(key).first();
-    return (row && row.value) || 0;
-  };
+  // 2026-08-23 审查：原实现 ~36 次顺序点查（daily 14×2 + totals/today 3）→ 一次全表拉取 JS 端分组
+  const allRows = await env.DB.prepare('SELECT key, value FROM stats').all();
+  const map = new Map();
+  for (const r of (allRows && allRows.results) || []) map.set(r.key, r.value);
+  const num = key => map.get(key) || 0;
   const daily = [];
   for (let i = 13; i >= 0; i--) {
     const d = new Date(Date.now() + 8 * 3600 * 1000 - i * 86400 * 1000).toISOString().slice(0, 10);
-    daily.push({ date: d, pv: await num('stats:pv:day:' + d), uv: await num('stats:uv:day:' + d) });
+    daily.push({ date: d, pv: num('stats:pv:day:' + d), uv: num('stats:uv:day:' + d) });
   }
   const pages = [];
-  const pageRows = await env.DB.prepare("SELECT key, value FROM stats WHERE key LIKE 'stats:page:%' ORDER BY value DESC LIMIT 100").all();
-  for (const row of pageRows.results || []) {
+  for (const [key, value] of map) {
+    if (!key.startsWith('stats:page:')) continue;
     let decoded;
-    try { decoded = decodeURIComponent(row.key.slice('stats:page:'.length)); } catch (_) { continue; }  // 审查：非法编码键不拖垮整个统计接口
+    try { decoded = decodeURIComponent(key.slice('stats:page:'.length)); } catch (_) { continue; }  // 审查：非法编码键不拖垮整个统计接口
     try { decoded = decodeURIComponent(decoded); } catch (_) {}  // 兼容早期双编码存量键
     const exist = pages.find(p => p.path === decoded);
-    if (exist) exist.pv += row.value;  // 同路径聚合（%2F 存量键与 / 合并）
-    else pages.push({ path: decoded, pv: row.value });
+    if (exist) exist.pv += value;  // 同路径聚合（%2F 存量键与 / 合并）
+    else pages.push({ path: decoded, pv: value });
   }
   pages.sort((a, b) => b.pv - a.pv);
   return json({
     ok: true,
-    totals: { pv: await num('stats:pv:total') },
-    today: { pv: await num('stats:pv:day:' + today), uv: await num('stats:uv:day:' + today) },
+    totals: { pv: num('stats:pv:total') },
+    today: { pv: num('stats:pv:day:' + today), uv: num('stats:uv:day:' + today) },
     daily,
     topPages: pages.slice(0, 20),
   });
@@ -734,7 +736,8 @@ async function handleSyncDownload(request, env) {
   if (!key) return json({ error: 'deviceId required (64 hex chars)' }, 400);
   if (!identity.key && !DEVICE_ID_RE.test(key)) return json({ error: 'deviceId must be 64 hex chars' }, 400);
   const rlDl = await syncRateLimit(env, key, 'download');
-  if (!rlDl.ok && !rlDl.failed) return json({ error: 'too many requests, try again later' }, 429);
+  if (rlDl.failed) return json({ error: '服务繁忙，请稍后再试' }, 503);
+  if (!rlDl.ok) return json({ error: 'too many requests, try again later' }, 429);
   let row;
   try {
     row = await env.DB.prepare('SELECT payload, rev, updated_at FROM sync_data WHERE user_id = ?').bind(key).first();
@@ -854,7 +857,12 @@ async function cleanupDb(env) {
       db.prepare("UPDATE errand_tasks SET status = 'cancelled', cancelled_at = ?1, cancel_reason = '任务已过期，自动取消', updated_at = ?1 WHERE status = 'open' AND deadline IS NOT NULL AND deadline < ?1").bind(now),
       db.prepare("UPDATE errand_tasks SET confirmed_at = ?1, auto_confirmed_at = ?1, confirmed_by = 'system', updated_at = ?1 WHERE status = 'done' AND confirmed_at IS NULL AND completed_at IS NOT NULL AND completed_at < ?2").bind(now, now - 48 * 3600 * 1000),
     ]);
-  } catch (_) { /* 清理失败静默 */ }
+  } catch (e) {
+    console.error('cleanupDb error:', (e && e.message) || e);
+    try {
+      await db.prepare('INSERT INTO stats (key, value) VALUES (?1, 1) ON CONFLICT(key) DO UPDATE SET value = stats.value + 1').bind('stats:cleanup:fail').run();
+    } catch (_) { /* 计数失败也静默，避免清理任务自身再抛 */ }
+  }
   await processCleanupJobs(env, now);
 }
 

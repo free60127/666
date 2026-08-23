@@ -26,7 +26,13 @@
     return c.getRandomValues(new Uint8Array(n));
   };
 
-  const b64 = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  // 分块 base64url：String.fromCharCode(...bytes) 对 1~2MB 数据会 RangeError 爆栈（审查 2026-08-23），按 0x8000 分块
+  const b64 = bytes => {
+    let bin = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
   const unb64 = text => Uint8Array.from(atob(String(text).replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0));
 
   /** 生成恢复码：32 字节随机 -> base64url（43 字符，约 256 bit 熵） */

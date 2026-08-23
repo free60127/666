@@ -543,7 +543,7 @@ async function listAdminLogs(db, request, env) {
 /* ---------- 入口 ---------- */
 export async function handleErrand(request, env, path) {
   const db = env.DB;
-  if (!db) return json({ error: 'db unavailable' }, 500);
+  if (!db) return json({ error: 'db unavailable' }, 503);
   // 写请求全局体积预检（申诉详情按 createDispute 内 text() 精确校验）
   if (['POST', 'PATCH', 'PUT'].includes(request.method)) {
     const cl = Number(request.headers.get('content-length') || 0);
@@ -574,5 +574,6 @@ export async function handleErrand(request, env, path) {
   if (adm && request.method === 'DELETE') return adminDeleteTask(db, request, env, Number(adm[1]));
   const adm2 = path.match(/^\/api\/errand\/admin\/disputes\/(\d+)$/);
   if (adm2 && request.method === 'PATCH') return resolveDispute(db, request, env, Number(adm2[1]));
+  if (ev || m || adm || adm2) return json({ error: 'method not allowed' }, 405);
   return json({ error: 'not found' }, 404);
 }
