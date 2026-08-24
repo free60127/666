@@ -154,7 +154,15 @@
   let cloudPanelReady;
   const callCloudPanel = (method, ...args) => {
     if (cloudPanelApi) return cloudPanelApi[method](...args);
-    return (cloudPanelReady || Promise.resolve(null)).then(panel => panel && panel[method](...args));
+    return (cloudPanelReady || Promise.resolve(null)).then(panel => {
+      if (!panel) {
+        if (method === 'doCloudBackup' || method === 'doCloudRestore' || method === 'doCloudClear') {
+          setStatus('云端模块加载失败，请刷新页面重试。', 'error');
+        }
+        return null;
+      }
+      return panel[method](...args);
+    });
   };
   const showCloudPanel = show => callCloudPanel('showCloudPanel', show);
   const refreshCloudCodeBox = () => callCloudPanel('refreshCloudCodeBox');
@@ -164,7 +172,7 @@
   const doCloudClear = () => callCloudPanel('doCloudClear');
   const auth = () => window.WaiyuanAuth;
 
-  const sourceName = item => clean(item.page).replace(/s*[·|-]s*外院知识分享站.*$/i, '') || '网页题库';
+  const sourceName = item => clean(item.page).replace(/\s*[·|-]\s*外院知识分享站.*$/i, '') || '网页题库';
   const sourceUrl = item => {
     const path = String(item.path || '');
     return path.startsWith('/') && !path.startsWith('//') ? path : '../index.html';
@@ -302,22 +310,27 @@ ${days.some(d => d.count) ? `<section class="week-card"><h2 class="section-title
 
   const _sv = (document.currentScript && document.currentScript.src || '').match(/[?&]v=([^#&]+)/);
   const _smv = _sv ? _sv[1] : '';
-  cloudPanelReady = import('./cloud-panel.js' + (_smv ? '?v=' + encodeURIComponent(_smv) : '')).then(({ createCloudPanel }) => {
-    cloudPanelApi = createCloudPanel({
-      cloud,
-      setStatus,
-      validateBackup,
-      download,
-      createBackup,
-      render,
-      date,
-      dateStamp,
-      key: KEY,
-      vocabularyKey: VOCABULARY_KEY,
-      extraKeys: EXTRA_KEYS,
+  cloudPanelReady = import('./cloud-panel.js' + (_smv ? '?v=' + encodeURIComponent(_smv) : ''))
+    .then(({ createCloudPanel }) => {
+      cloudPanelApi = createCloudPanel({
+        cloud,
+        setStatus,
+        validateBackup,
+        download,
+        createBackup,
+        render,
+        date,
+        dateStamp,
+        key: KEY,
+        vocabularyKey: VOCABULARY_KEY,
+        extraKeys: EXTRA_KEYS,
+      });
+      return cloudPanelApi;
+    })
+    .catch(error => {
+      console.error('cloud panel load error:', error);
+      return null;
     });
-    return cloudPanelApi;
-  });
 
   document.addEventListener('click', event => {
     const tab = event.target.closest('[data-view]');

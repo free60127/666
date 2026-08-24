@@ -267,8 +267,14 @@ class MemoryD1 {
       const [dispute_id, data, created_at] = args;
       const id = this.nextEvidenceId++;
       let rec = { id, dispute_id, data, created_at };
-      // R2 分支 SQL：VALUES (?, NULL, ?, ?, ?, ?, ?) → bind 6 参 (dispute_id, url, size, sha256, mime, created_at)
-      if (s.includes(', NULL,') && args.length >= 6) rec = { id, dispute_id: args[0], data: null, url: args[1], size: args[2], sha256: args[3], mime: args[4], created_at: args[5] };
+      // R2 分支 SQL：data 保持 NOT NULL，用空字符串表示内容在 R2；
+      // bind 7 参为 (dispute_id, data, url, size, sha256, mime, created_at)。
+      // 兼容旧测试替身曾使用的 NULL 形式，避免测试实现绑定到已淘汰的 SQL 文本。
+      if (s.includes('INSERT INTO errand_evidence') && s.includes('url') && args.length >= 7) {
+        rec = { id, dispute_id: args[0], data: args[1], url: args[2], size: args[3], sha256: args[4], mime: args[5], created_at: args[6] };
+      } else if (s.includes(', NULL,') && args.length >= 6) {
+        rec = { id, dispute_id: args[0], data: null, url: args[1], size: args[2], sha256: args[3], mime: args[4], created_at: args[5] };
+      }
       this.evidence.set(id, rec);
       return { meta: { changes: 1 } };
     }

@@ -1,5 +1,5 @@
-import { sessionUser } from './auth.js';
-import { json } from './http.js';
+import { json, readJsonBody, MAX_JSON_BODY } from './http.js';
+import { getSessionUser } from './session-guard.js';
 
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 
@@ -10,9 +10,13 @@ const mapReviewPublic = (r) => r ? ({ id: r.id, taskId: r.task_id,
   rating: r.rating, comment: r.comment, createdAt: r.created_at, reviewerName: r.reviewer_name }) : null;
 
 export async function createReview(db, request) {
-  const user = await sessionUser(db, request);
+  const session = await getSessionUser(db, request, 'errand review create');
+  if (session.response) return session.response;
+  const user = session.user;
   if (!user) return json({ error: 'unauthorized' }, 401);
-  const body = await request.json().catch(() => null);
+  let body;
+  try { body = await readJsonBody(request, MAX_JSON_BODY); }
+  catch (_) { return json({ error: '请求体过大' }, 413); }
   if (!body) return json({ error: 'invalid json' }, 400);
   const taskId = Math.floor(num(body.taskId));
   if (!Number.isInteger(taskId) || taskId <= 0) return json({ error: 'invalid taskId' }, 400);
@@ -41,7 +45,7 @@ export async function createReview(db, request) {
       return json({ error: '已评价过该任务' }, 400);
     }
     console.error('errand review error:', error);
-    return json({ error: 'internal error' }, 500);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
   }
 }
 
@@ -54,6 +58,6 @@ export async function listReviews(db, request) {
     return json({ reviews: (rows && rows.results ? rows.results : []).map(mapReviewPublic) });
   } catch (error) {
     console.error('errand reviews list error:', error);
-    return json({ error: 'internal error' }, 500);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
   }
 }

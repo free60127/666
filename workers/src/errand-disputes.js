@@ -1,30 +1,9 @@
-import { sessionUser } from './auth.js';
-import { json, isAdmin } from './http.js';
+import { json, isAdmin, readJsonBody, MAX_JSON_BODY } from './http.js';
 import { corsFor } from './config.js';
 import { deleteR2Objects, evidenceKeysForTask } from './evidence-store.js';
 import { rateWindow } from './rate-limit.js';
-
-const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
-const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
-
-
-const TASK_SELECT =
-  'SELECT t.id, t.publisher_id, t.title, t.description, t.reward, t.pickup, t.dropoff, t.contact, ' +
-  't.deadline, t.status, t.taker_id, t.created_at, t.updated_at, t.completed_at, t.confirmed_at, t.confirmed_by, t.auto_confirmed_at, t.cancelled_at, t.cancel_reason, ' +
-  'u.nickname AS publisher_name, u2.nickname AS taker_name ' +
-  'FROM errand_tasks t ' +
-  'LEFT JOIN users u ON u.id = t.publisher_id ' +
-  'LEFT JOIN users u2 ON u2.id = t.taker_id ';
-
-const mapTask = (r) => r ? ({
-  id: r.id, publisherId: r.publisher_id, title: r.title, description: r.description,
-  reward: r.reward, pickup: r.pickup, dropoff: r.dropoff, contact: r.contact,
-  deadline: r.deadline, status: r.status, takerId: r.taker_id,
-  createdAt: r.created_at, updatedAt: r.updated_at, completedAt: r.completed_at,
-  confirmedAt: r.confirmed_at, confirmedBy: r.confirmed_by, autoConfirmedAt: r.auto_confirmed_at,
-  cancelledAt: r.cancelled_at, cancelReason: r.cancel_reason,
-  publisherName: r.publisher_name, takerName: r.taker_name,
-}) : null;
+import { getSessionUser } from './session-guard.js';
+import { clamp, num, TASK_SELECT, mapTask } from './errand-query.js';
 
 const DISPUTE_SELECT =
   'SELECT d.id, d.task_id, d.user_id, d.role, d.reason, d.detail, d.status, d.admin_note, d.created_at, d.updated_at, u.nickname AS user_name ' +
@@ -36,7 +15,9 @@ const mapDisputePublic = (r) => r ? ({ id: r.id, taskId: r.task_id, role: r.role
   detail: r.detail, status: r.status, adminNote: r.admin_note, createdAt: r.created_at, updatedAt: r.updated_at, userName: r.user_name }) : null;
 
 export async function createDispute(db, request, env) {
-  const user = await sessionUser(db, request);
+  const session = await getSessionUser(db, request, 'errand dispute create');
+  if (session.response) return session.response;
+  const user = session.user;
   if (!user) return json({ error: 'unauthorized' }, 401);
   // 请求体大小限制：证据 3×300000 + 正文，约 1MB 上限（按 UTF-8 字节计，中文 1 字=3 字节，不能用 raw.length）
   const raw = await request.text();
@@ -101,7 +82,9 @@ export async function createDispute(db, request, env) {
           const url = 'evidence/' + disputeId + '/' + i + '-' + sha + '.bin';
           await env.EVIDENCE_BUCKET.put(url, bin, { httpMetadata: { contentType: mime } });
           uploadedR2.push(url);
-          evStmts.push(db.prepare('INSERT INTO errand_evidence (dispute_id, data, url, size, sha256, mime, created_at) VALUES (?, NULL, ?, ?, ?, ?, ?)').bind(disputeId, url, bin.length, sha, mime, now));
+          // 旧迁移将 data 定义为 NOT NULL；R2 模式用空字符串表示「内容在 R2」，
+          // 避免启用 R2 后因 NULL 约束导致整条申诉回滚。
+          evStmts.push(db.prepare('INSERT INTO errand_evidence (dispute_id, data, url, size, sha256, mime, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(disputeId, '', url, bin.length, sha, mime, now));
         }
         try {
           await db.batch(evStmts);
@@ -135,7 +118,9 @@ export async function listDisputes(db, request, env) {
   const url = new URL(request.url);
   const taskId = Math.floor(num(url.searchParams.get('taskId')));
   const adminView = isAdmin(request, env);
-  const user = await sessionUser(db, request).catch(() => null);
+  const session = await getSessionUser(db, request, 'errand dispute list');
+  if (session.response) return session.response;
+  const user = session.user;
   if (Number.isInteger(taskId) && taskId > 0) {
     const task = await db.prepare('SELECT publisher_id, taker_id FROM errand_tasks WHERE id = ?').bind(taskId).first();
     if (!task) return json({ error: '任务不存在' }, 404);
@@ -194,7 +179,10 @@ export async function adminDeleteTask(db, request, env, id) {
 
 export async function resolveDispute(db, request, env, id) {
   if (!isAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
-  const body = await request.json().catch(() => ({}));
+  let body;
+  try { body = await readJsonBody(request, MAX_JSON_BODY); }
+  catch (_) { return json({ error: '请求体过大' }, 413); }
+  if (!body || typeof body !== 'object') body = {};
   if (!['resolved', 'rejected'].includes(body.status)) return json({ error: 'invalid status' }, 400);
   const note = String(body.note || '').trim().slice(0, 300);
   const now = Date.now();
@@ -217,7 +205,9 @@ export async function resolveDispute(db, request, env, id) {
 /** 统一授权：管理端或任务双方（发布者/接单者）才可读取该申诉的证据 */
 async function authorizeEvidence(db, request, env, disputeId) {
   const adminView = isAdmin(request, env);
-  const user = await sessionUser(db, request).catch(() => null);
+  const session = await getSessionUser(db, request, 'errand evidence auth');
+  if (session.response) return { status: 503, error: '服务繁忙，请稍后再试' };
+  const user = session.user;
   if (!adminView && !user) return { status: 401, error: 'unauthorized' };
   let d;
   try { d = await db.prepare('SELECT task_id FROM errand_disputes WHERE id = ?').bind(disputeId).first(); }

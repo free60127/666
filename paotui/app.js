@@ -194,6 +194,7 @@
   /* ---------- 详情模块 ---------- */
   async function openDetail(id) {
     const detail = await detailReady;
+    if (!detail) { toast('详情模块加载失败，请刷新页面重试', true); return; }
     return detail.openDetail(id);
   }
 
@@ -344,18 +345,23 @@
 
   const _sv = (document.currentScript && document.currentScript.src || '').match(/[?&]v=([^#&]+)/);
   const _smv = _sv ? _sv[1] : '';
-  detailReady = import('./detail.js' + (_smv ? '?v=' + encodeURIComponent(_smv) : '')).then(({ createDetail }) => {
-    const detail = createDetail({
-      $, STATUS, esc, fmtTime, toast, openModal, closeModal, api, apiBlob,
-      registerObjectUrl, revokeAllObjectUrls, revokeContainerUrls,
-      getMe: () => me,
-      openAuthModal,
-      loadList,
-      setShareTask: task => { currentShareTask = task; },
+  detailReady = import('./detail.js' + (_smv ? '?v=' + encodeURIComponent(_smv) : ''))
+    .then(({ createDetail }) => {
+      const detail = createDetail({
+        $, STATUS, esc, fmtTime, toast, openModal, closeModal, api, apiBlob,
+        registerObjectUrl, revokeAllObjectUrls, revokeContainerUrls,
+        getMe: () => me,
+        openAuthModal,
+        loadList,
+        setShareTask: task => { currentShareTask = task; },
+      });
+      detail.bindActions();
+      return detail;
+    })
+    .catch(error => {
+      console.error('errand detail module load error:', error);
+      return null;
     });
-    detail.bindActions();
-    return detail;
-  });
 
   /* ---------- 事件绑定 ---------- */
   document.querySelectorAll('#tabs .tab').forEach(b => b.addEventListener('click', () => {

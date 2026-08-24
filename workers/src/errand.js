@@ -5,35 +5,12 @@
    → confirmed_at（发布者确认，线下结算）；任意未完成态可 cancelled。
    接单并发：UPDATE ... WHERE status='open' 原子抢占（D1 事务）。
    ============================================================ */
-import { sessionUser } from './auth.js';
-import { json } from './http.js';
+import { json, readJsonBody, MAX_JSON_BODY } from './http.js';
 import { createReview, listReviews } from './errand-reviews.js';
 import { rateWindow } from './rate-limit.js';
 import { createDispute, listDisputes, listEvidence, serveEvidenceBinary, adminTasks, adminDeleteTask, resolveDispute, listAdminLogs } from './errand-disputes.js';
-
-
-const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
-const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
-
-
-/* ---------- 任务查询（JOIN 昵称） ---------- */
-const TASK_SELECT =
-  'SELECT t.id, t.publisher_id, t.title, t.description, t.reward, t.pickup, t.dropoff, t.contact, ' +
-  't.deadline, t.status, t.taker_id, t.created_at, t.updated_at, t.completed_at, t.confirmed_at, t.confirmed_by, t.auto_confirmed_at, t.cancelled_at, t.cancel_reason, ' +
-  'u.nickname AS publisher_name, u2.nickname AS taker_name ' +
-  'FROM errand_tasks t ' +
-  'LEFT JOIN users u ON u.id = t.publisher_id ' +
-  'LEFT JOIN users u2 ON u2.id = t.taker_id ';
-
-const mapTask = (r) => r ? ({
-  id: r.id, publisherId: r.publisher_id, title: r.title, description: r.description,
-  reward: r.reward, pickup: r.pickup, dropoff: r.dropoff, contact: r.contact,
-  deadline: r.deadline, status: r.status, takerId: r.taker_id,
-  createdAt: r.created_at, updatedAt: r.updated_at, completedAt: r.completed_at,
-  confirmedAt: r.confirmed_at, confirmedBy: r.confirmed_by, autoConfirmedAt: r.auto_confirmed_at,
-  cancelledAt: r.cancelled_at, cancelReason: r.cancel_reason,
-  publisherName: r.publisher_name, takerName: r.taker_name,
-}) : null;
+import { getSessionUser } from './session-guard.js';
+import { clamp, num, TASK_SELECT, mapTask } from './errand-query.js';
 
 /* 联系方式脱敏：仅发布者本人、以及已接单状态下的接单者可见；其余一律空字符串 */
 function canSeeContact(user, row) {
@@ -49,9 +26,13 @@ function sanitizeContact(task, user, row) {
 
 /* ---------- 发布任务 ---------- */
 async function createTask(db, request) {
-  const user = await sessionUser(db, request);
+  const session = await getSessionUser(db, request, 'errand create');
+  if (session.response) return session.response;
+  const user = session.user;
   if (!user) return json({ error: 'unauthorized' }, 401);
-  const body = await request.json().catch(() => null);
+  let body;
+  try { body = await readJsonBody(request, MAX_JSON_BODY); }
+  catch (_) { return json({ error: '请求体过大' }, 413); }
   if (!body) return json({ error: 'invalid json' }, 400);
   const title = String(body.title || '').trim();
   if (!title || title.length > 60) return json({ error: '标题必填，最长 60 字' }, 400);
@@ -81,12 +62,12 @@ async function createTask(db, request) {
       'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).bind(user.id, title, description, rewardRaw, pickup, dropoff, contact, deadline, now, now).run();
     const id = result && result.meta && result.meta.last_row_id ? result.meta.last_row_id : null;
-    if (!id) return json({ error: 'internal error' }, 500);
+    if (!id) return json({ error: '服务繁忙，请稍后再试' }, 503);
     const row = await db.prepare(TASK_SELECT + 'WHERE t.id = ?').bind(id).first();
     return json({ ok: true, task: mapTask(row) }, 201);
   } catch (error) {
     console.error('errand create error:', error);
-    return json({ error: 'internal error' }, 500);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
   }
 }
 
@@ -108,13 +89,15 @@ async function listTasks(db, request) {
     return json({ items, total: Number(countRow && countRow.c) || 0, page, pageSize });
   } catch (error) {
     console.error('errand list error:', error);
-    return json({ error: 'internal error' }, 500);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
   }
 }
 
 /* ---------- 我的任务（发布的/接的） ---------- */
 async function myTasks(db, request) {
-  const user = await sessionUser(db, request);
+  const session = await getSessionUser(db, request, 'errand mine');
+  if (session.response) return session.response;
+  const user = session.user;
   if (!user) return json({ error: 'unauthorized' }, 401);
   const url = new URL(request.url);
   const role = url.searchParams.get('role') || 'posted';
@@ -131,7 +114,7 @@ async function myTasks(db, request) {
     return json({ items, total: Number(countRow && countRow.c) || 0, page, pageSize, role });
   } catch (error) {
     console.error('errand mine error:', error);
-    return json({ error: 'internal error' }, 500);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
   }
 }
 
@@ -146,14 +129,18 @@ async function taskDetail(db, request, id) {
     return json({ error: '服务繁忙，请稍后再试' }, 503);
   }
   if (!row) return json({ error: '任务不存在' }, 404);
-  const user = await sessionUser(db, request).catch(() => null);
+  const session = await getSessionUser(db, request, 'errand detail');
+  if (session.response) return session.response;
+  const user = session.user;
   const task = sanitizeContact(mapTask(row), user, row);
   return json({ task });
 }
 
 /* ---------- 接单（原子抢占） ---------- */
 async function takeTask(db, request, id) {
-  const user = await sessionUser(db, request);
+  const session = await getSessionUser(db, request, 'errand take');
+  if (session.response) return session.response;
+  const user = session.user;
   if (!user) return json({ error: 'unauthorized' }, 401);
   const now = Date.now();
   const rate = await rateWindow(db, 'errand:take:' + user.id, 60 * 1000, 10);
@@ -187,7 +174,9 @@ async function takeTask(db, request, id) {
 
 /* ---------- 接单者标记完成 ---------- */
 async function completeTask(db, request, id) {
-  const user = await sessionUser(db, request);
+  const session = await getSessionUser(db, request, 'errand complete');
+  if (session.response) return session.response;
+  const user = session.user;
   if (!user) return json({ error: 'unauthorized' }, 401);
   const now = Date.now();
   let result;
@@ -214,7 +203,9 @@ async function completeTask(db, request, id) {
 
 /* ---------- 发布者确认完成（线下结算闭环） ---------- */
 async function confirmTask(db, request, id) {
-  const user = await sessionUser(db, request);
+  const session = await getSessionUser(db, request, 'errand confirm');
+  if (session.response) return session.response;
+  const user = session.user;
   if (!user) return json({ error: 'unauthorized' }, 401);
   const now = Date.now();
   let result;
@@ -241,9 +232,14 @@ async function confirmTask(db, request, id) {
 
 /* ---------- 取消（发布者 open/doing；接单者 doing） ---------- */
 async function cancelTask(db, request, id) {
-  const user = await sessionUser(db, request);
+  const session = await getSessionUser(db, request, 'errand cancel');
+  if (session.response) return session.response;
+  const user = session.user;
   if (!user) return json({ error: 'unauthorized' }, 401);
-  const body = await request.json().catch(() => ({}));
+  let body;
+  try { body = await readJsonBody(request, MAX_JSON_BODY); }
+  catch (_) { return json({ error: '请求体过大' }, 413); }
+  if (!body || typeof body !== 'object') body = {};
   const reason = String(body.reason || '').trim().slice(0, 100);
   const now = Date.now();
   try {

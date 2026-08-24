@@ -31,6 +31,48 @@
   };
   let authMode = 'login';
   let insuranceBroken = false;  // 账号恢复码保险箱解密失败（防覆盖云端数据）
+  let insuranceIssue = '';      // 保险箱绑定/解密异常（同样防止账号云端备份失去恢复路径）
+  const INSURANCE_STATE_KEY = 'waiyuan-recovery-insurance-state-v1';
+
+  const currentUserId = () => {
+    const session = auth() && auth().getSession ? auth().getSession() : null;
+    return session && session.user && session.user.id ? String(session.user.id) : '';
+  };
+  const clearInsuranceState = () => {
+    insuranceBroken = false;
+    insuranceIssue = '';
+    try { localStorage.removeItem(INSURANCE_STATE_KEY); } catch (_) {}
+  };
+  const saveInsuranceState = (broken, issue) => {
+    insuranceBroken = !!broken;
+    insuranceIssue = broken ? String(issue || '异常') : '';
+    if (!insuranceBroken) {
+      try { localStorage.removeItem(INSURANCE_STATE_KEY); } catch (_) {}
+      return;
+    }
+    const userId = currentUserId();
+    if (!userId) return;
+    try {
+      localStorage.setItem(INSURANCE_STATE_KEY, JSON.stringify({
+        userId,
+        issue: insuranceIssue,
+        updatedAt: new Date().toISOString(),
+      }));
+    } catch (_) {}
+  };
+  const restoreInsuranceState = () => {
+    insuranceBroken = false;
+    insuranceIssue = '';
+    const userId = currentUserId();
+    if (!userId) return;
+    try {
+      const raw = JSON.parse(localStorage.getItem(INSURANCE_STATE_KEY) || 'null');
+      if (raw && String(raw.userId) === userId && raw.issue) {
+        insuranceBroken = true;
+        insuranceIssue = String(raw.issue);
+      }
+    } catch (_) {}
+  };
 
   const setHint = (msg, isError) => { if (cfg.hint) cfg.hint(msg, isError); };
   /** show 语义：show=true 显示面板，false 隐藏（学习中心原版语义） */
@@ -96,6 +138,7 @@
     try {
       let migratedNote = '';
       if (authMode === 'register') {
+        clearInsuranceState();
         let code = cloud() && cloud().loadCode ? cloud().loadCode() : '';
         if (!code && cloud() && cloud().createCode) {
           code = cloud().createCode();
@@ -114,6 +157,7 @@
         auth().saveSession(result);
         if (cloud() && cloud().setAuth) cloud().setAuth(result.token, result.user.id);
         let unlocked = false, broken = false;
+        let issue = '';
         let localCode = cloud() && cloud().loadCode ? cloud().loadCode() : '';
         if (result.recovery) {
           try {
@@ -125,6 +169,7 @@
             migratedNote = await tryMigrate(code);
           } catch (_) {
             broken = true;  // 密码已通过服务端验证，解不开 = 保险箱数据异常，与「未绑定」严格区分
+            issue = '解密失败';
           }
         } else {
           // 账号从未绑定保险箱：用登录密码把本机恢复码（没有则新生成）绑定到账号
@@ -137,12 +182,15 @@
               const box = await auth().lockRecovery(password, localCode);
               await auth().setRecovery(result.token, box);
               notifyCloudCodeRefresh();
-            } catch (_) { /* 绑定失败不阻断登录；备份时若账号云端无数据仍可继续 */ }
+            } catch (_) {
+              broken = true;
+              issue = '绑定失败';
+            }
           }
         }
-        insuranceBroken = broken;
+        saveInsuranceState(broken, issue);
         if (broken) {
-          setHint('登录成功，但账号恢复码保险箱异常（解密失败）。为防覆盖云端数据已暂停自动备份：请先点「导出学习数据」保存本机数据，并联系管理员检查账号。', true);
+          setHint('登录成功，但账号恢复码保险箱异常（' + issue + '）。为防云端数据失去恢复路径，已暂停自动备份：请先点「导出学习数据」保存本机数据，再重试绑定或联系管理员。', true);
         } else {
           setHint('登录成功。' + (unlocked ? '云端恢复码已解锁，可点「云端恢复」取回学习数据。' : '该账号尚未绑定恢复码，可用原恢复码手动恢复或做一次云端备份。') + migratedNote);
         }
@@ -258,6 +306,7 @@
         if (cloud().clearAuth) cloud().clearAuth();
         if (cloud().clearCode) cloud().clearCode();
       }
+      clearInsuranceState();
       refreshAuthBar();
       setHint(result && result.cleanupPending
         ? '账号已注销，云端备份删除任务已排队重试。本机学习数据保留，但本机恢复码已清除。'
@@ -275,6 +324,7 @@
     try { if (session && auth()) await auth().logout(session.token); } catch (_) {}
     if (auth()) auth().clearSession();
     if (cloud() && cloud().clearAuth) cloud().clearAuth();
+    clearInsuranceState();
     refreshAuthBar();
     setHint('已退出登录。');
   };
@@ -323,6 +373,7 @@
     if (options && (options.panelMode === 'attribute' || options.panelMode === 'class')) cfg.panelMode = options.panelMode;
     if (options && typeof options.onCloudCodeRefresh === 'function') cfg.onCloudCodeRefresh = options.onCloudCodeRefresh;
     if (options && typeof options.migrateNote === 'string' && options.migrateNote) cfg.migrateNote = options.migrateNote;
+    restoreInsuranceState();
     refreshAuthBar();
   };
 
