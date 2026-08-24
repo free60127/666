@@ -41,4 +41,5 @@ scripts/_tmp-apk/
 scripts/_tmp-iconwork/
 scripts/icon-work/node_modules/
 
-scripts/_codex-review.log
+scripts/_codex-review*.log
+tests/_pw-exit.log

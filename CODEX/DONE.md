@@ -1,3 +1,12 @@
+# 两轮评估总收尾（2026-08-24，DSH 侧）
+
+- Codex review / codex exec（两个独立会话）均失败：`ERROR rmcp::transport::worker ... Transport channel closed`（chatgpt.com/backend-api/ps/mcp）+ `failed to refresh available models: missing field display_name`——评估通道故障，未产出结论。
+- DSH 代行第一轮评估与修复：全站静态体检（发布代码无 TODO/debugger/console.log；worker 14 模块 node --check 过）；test-auth 58/58、test-errand 128/128、test-router 全过、test-feedback 全过、test-sync-guard 9/9。
+- 修复项：.gitignore 补 `scripts/_codex-review*.log` + `tests/_pw-exit.log`（防 review 日志误提交，上轮曾 4.5MB 误提交 amend）；删除 scripts/_codex-review2.log（1.7MB）。
+- 第二轮（DSH 评估、Codex 改）：清单见 CODEX/ROUND-REPORT.md；Codex 通道故障未执行。
+
+---
+
 # Round 1 完成报告（DSH）
 
 日期：2026-08-23  分支：main  基线：aaf578a（本地工作区）
