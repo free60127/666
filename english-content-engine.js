@@ -192,11 +192,38 @@
     }
     return questions;
   }
+  // 词库缺失预检：单元含 wordBanks/instruction 但生成结果 0 个 bank 时，说明
+  // 题库对象来自旧缓存/旧页签（旧引擎 buildExportQuestions 不带 bank 字段），
+  // 应显性提示刷新，避免静默导出无词库 PDF。
+  function assertBankPresent(book, units, questions) {
+    const bookHasBanks = units.some(u => (u.wordBanks && u.wordBanks.length) || u.instruction);
+    if (!bookHasBanks) return true;
+    if (questions.some(q => q.bank)) return true;
+    console.warn('[waiyuan-export] 词库提示缺失：题库数据疑似来自旧缓存，请刷新页面后重试。');
+    alert('词库提示未加载（题库数据可能是旧缓存或旧版本页面）。\n请刷新本页面后重新导出，即可看到单元词库说明。');
+    return false;
+  }
   function exportBook() {
     const book = getBook(bookKey);
     if (!book) return;
     const questions = buildExportQuestions(book.units);
+    assertBankPresent(book, book.units, questions);
     window.A4QuestionPrint?.open({ title: book.name, subtitle: `${questions.length} 题`, questions });
+  }
+  // 只导出当前展开的单元：范围可按需选择，避免整本书 PDF 过大
+  function exportOpened() {
+    const book = getBook(bookKey);
+    if (!book) return;
+    const details = [...app.querySelectorAll('details.unit[open]')];
+    if (!details.length) {
+      alert('请先展开需要导出的单元（点击单元标题展开），再点击「导出已展开单元 PDF」。');
+      return;
+    }
+    const units = details.map(d => unitOf(d.dataset.unit)).filter(Boolean);
+    if (!units.length) return;
+    const questions = buildExportQuestions(units);
+    assertBankPresent(book, units, questions);
+    window.A4QuestionPrint?.open({ title: `${book.name} · 已展开 ${units.length} 个单元`, subtitle: `${questions.length} 题`, questions });
   }
   // 只导出当前展开的单元：范围可按需选择，避免整本书 PDF 过大
   function exportOpened() {
