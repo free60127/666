@@ -65,10 +65,15 @@ function mockErrandApi(page, store) {
       if (!me()) return fail(401, 'unauthorized');
       const b = route.request().postDataJSON();
       const id = tasks.length ? Math.max(...tasks.map(t => t.id)) + 1 : 1;
+      const imgs = (b.images || []).slice(0, 3).map(d => {
+        const rec = { id: store.taskImages.length + 1, data: d, mime: 'image/png', size: 100 };
+        store.taskImages.push(rec);
+        return { id: rec.id, mime: rec.mime, size: rec.size, stored: false, createdAt: Date.now() };
+      });
       const task = {
         id, publisherId: me().id, title: b.title, description: b.description || '',
         reward: b.reward, pickup: b.pickup || '', dropoff: b.dropoff || '', contact: b.contact || '',
-        deadline: b.deadline || null, status: 'open', takerId: null,
+        deadline: b.deadline || null, category: b.category || 'other', images: imgs, status: 'open', takerId: null,
         createdAt: Date.now(), updatedAt: Date.now(), completedAt: null, confirmedAt: null,
         cancelledAt: null, cancelReason: '', publisherName: me().nickname, takerName: null,
       };
@@ -189,6 +194,13 @@ function mockErrandApi(page, store) {
       const b64 = String(ev.data).split(',')[1] || String(ev.data);
       return route.fulfill({ status: 200, headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=3600' }, body: Buffer.from(b64, 'base64') });
     }
+    let im = path.match(/^\/api\/errand\/task-images\/(\d+)$/);
+    if (im && method === 'GET') {
+      const rec = store.taskImages.find(x => x.id === Number(im[1]));
+      if (!rec) return fail(404, '图片不存在');
+      const b64 = String(rec.data).split(',')[1] || '';
+      return route.fulfill({ status: 200, headers: { 'Content-Type': rec.mime || 'image/png' }, body: Buffer.from(b64, 'base64') });
+    }
     if (path === '/api/errand/admin/logs' && method === 'GET') {
       if (auth() !== 'admin-token') return fail(401, 'unauthorized');
       const items = store.logs.slice().reverse();
@@ -200,7 +212,7 @@ function mockErrandApi(page, store) {
       if (!t) return fail(404, '任务不存在');
       const u = me();
       const canSee = u && (u.id === t.publisherId || (u.id === t.takerId && (t.status === 'doing' || t.status === 'done')));
-      return ok({ task: { ...t, contact: canSee ? t.contact : '' } });
+      return ok({ task: { ...t, contact: canSee ? t.contact : '', images: t.images || [] } });
     }
     m = path.match(/^\/api\/errand\/tasks\/(\d+)\/(take|complete|confirm|cancel)$/);
     if (m && method === 'POST') {
@@ -232,7 +244,7 @@ function mockErrandApi(page, store) {
 }
 
 function newStore() {
-  return { users: [], sessions: {}, tasks: [], reviews: [], disputes: [], evidence: [], logs: [] };
+  return { users: [], sessions: {}, tasks: [], reviews: [], disputes: [], evidence: [], logs: [], taskImages: [] };
 }
 
 // 通过 UI 注册并登录；若 mock store 里已有该邮箱（密码匹配），自动改用登录，避免注册 409
@@ -271,7 +283,7 @@ test('列表渲染 + 未登录发布被拦截引导登录', async ({ page }) => 
   await expect(page.locator('.task-card')).toHaveCount(1);
   await expect(page.locator('.task-card')).toContainText('帮取快递');
   await expect(page.locator('.task-card')).toContainText('¥5');
-  await expect(page.locator('.task-card .badge')).toHaveText('待接单');
+  await expect(page.locator('.task-card .badge').first()).toHaveText('待接单');
   await expect(page.locator('#auth-open-btn')).toBeVisible();
 
   // 未登录点发布 → 弹登录
@@ -296,6 +308,7 @@ test('注册登录后发布任务成功并出现在列表', async ({ page }) => 
   await page.fill('#p-pickup', '二食堂');
   await page.fill('#p-dropoff', '图书馆');
   await page.fill('#p-contact', '13800138000');
+  await page.locator('.cat-chip[data-cat=other]').click();
   await page.locator('#pub-submit').click();
 
   await expect(page.locator('#toast')).toContainText('发布成功');
@@ -379,7 +392,7 @@ test('过期任务：列表显示已过期徽标，详情不可接单', async ({
   mockAuthApi(page, store);
   mockErrandApi(page, store);
   await page.goto(BASE);
-  await expect(page.locator('.task-card .badge')).toHaveText('已过期');
+  await expect(page.locator('.task-card .badge').first()).toHaveText('已过期');
   await page.locator('.task-card').first().click();
   await expect(page.locator('#detail-modal')).toContainText('已过期，无法接单');
   await expect(page.locator('[data-act=take]')).toHaveCount(0);
@@ -707,6 +720,7 @@ test('发布表单：必填字段校验提示（联系方式缺失拦截）', as
   await page.fill('#p-reward', '2');
   await page.fill('#p-pickup', '菜鸟驿站');
   await page.fill('#p-dropoff', '宿舍');
+  await page.locator('.cat-chip[data-cat=pickup-parcel]').click();
   await page.locator('#pub-submit').click();
   await expect(page.locator('#pub-hint')).toContainText('联系方式');
   await page.fill('#p-contact', '13800138000');
@@ -748,6 +762,40 @@ test('申诉：进行中（doing）任务也有申诉入口（2026-08-23 审查�
   await page.locator('[data-act=dispute]').click();
   await expect(page.locator('#dispute-modal')).toBeVisible();
 });
+test('发布分类必选 + 上传图片 + 详情分类徽标与图片渲染', async ({ page }) => {
+  const store = newStore();
+  store.users.push({ id: 'u0', email: 'pub2@test.com', password: 'secret123', nickname: '发布者' });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE);
+  await uiRegisterAndLogin(page, store, 'pub2@test.com', '发布者', 'secret123');
+  await page.locator('#fab-publish').click();
+  await expect(page.locator('#publish-modal')).toBeVisible();
+  // ① 未选分类直接发布 → 提示
+  await page.fill('#p-title', '卖一辆二手自行车');
+  await page.fill('#p-reward', '66');
+  await page.fill('#p-pickup', '宿舍楼');
+  await page.fill('#p-dropoff', '校门口');
+  await page.fill('#p-contact', '13800000000');
+  await page.locator('#pub-submit').click();
+  await expect(page.locator('#pub-hint')).toHaveText('请选择订单分类');
+  // ② 选分类 + 上传图片
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.locator('.cat-chip[data-cat=sell-item]').click();
+  await page.locator('#pub-files').setInputFiles({ name: 'bike.png', mimeType: 'image/png', buffer: png });
+  await expect(page.locator('#pub-preview .dp-thumb')).toHaveCount(1);
+  await expect(page.locator('#pub-img-count')).toHaveText('1 / 3');
+  await page.locator('#pub-submit').click();
+  await expect(page.locator('#publish-modal')).toBeHidden();
+  await expect(page.locator('#toast')).toContainText('发布成功');
+  // ③ 打开详情：分类徽标 + 图片渲染
+  await page.locator('.task-card').first().click();
+  await expect(page.locator('#detail-modal')).toBeVisible();
+  await expect(page.locator('#detail-body .cat-badge')).toContainText('出闲置');
+  await expect(page.locator('#detail-body .task-img')).toHaveCount(1);
+  await expect(page.locator('#detail-body .task-img')).toHaveAttribute('src', /task-images\/1/);
+});
+
 test('添加到主屏幕：iOS 专用（iOS UA 显示徽标与引导文案）', async ({ browser }) => {
   const ctx = await browser.newContext({ userAgent: IOS_UA });
   const page2 = await ctx.newPage();

@@ -19,6 +19,8 @@ class MemoryD1 {
     this.reviews = new Map(); this.nextReviewId = 1;
     this.disputes = new Map(); this.nextDisputeId = 1;
     this.evidence = new Map(); this.nextEvidenceId = 1;
+    this.taskImages = new Map(); this.nextTaskImageId = 1;
+    this.failTaskImageInsert = false; // 模拟任务图片 D1 写入故障（回滚整单）
     this.adminLogs = new Map(); this.nextAdminLogId = 1;
     this.failRates = false;   // 模拟限流存储故障
     this.enforceUniqueDispute = false; // 模拟唯一部分索引
@@ -152,6 +154,10 @@ class MemoryD1 {
       const e = this.evidence.get(Number(args[0]));
       return e ? { id: e.id, dispute_id: e.dispute_id, data: e.data, url: e.url, mime: e.mime } : null;
     }
+    if (s.includes('FROM errand_task_images ti') && s.includes('WHERE ti.id = ?')) {
+      const im = this.taskImages.get(Number(args[0]));
+      return im ? { id: im.id, data: im.data, url: im.url, mime: im.mime } : null;
+    }
     return null;
   }
   _taskRow(id) {
@@ -164,6 +170,16 @@ class MemoryD1 {
   async _all(s, args) {
     // 证据 R2 键查询（evidence-store 的 JOIN 查询）——必须放在 FROM errand_tasks 分支之前，
     // 否则 evidenceKeysForUser 的 SQL 会因包含 JOIN errand_tasks t 被误判为任务查询
+    // 任务图片用户级 R2 键查询（errand-images JOIN errand_tasks）——同证据 JOIN 一样须先于任务分支
+    if (s.includes('FROM errand_task_images ti') && s.includes('JOIN errand_tasks t')) {
+      const uid = String(args[0]);
+      const urls = [];
+      for (const im of this.taskImages.values()) {
+        const t = this.tasks.get(im.task_id);
+        if (t && String(t.publisher_id) === uid && im.url) urls.push(im.url);
+      }
+      return { results: urls.map(url => ({ url })) };
+    }
     if (s.includes('FROM errand_evidence e') && s.includes('JOIN errand_disputes d')) {
       if (this.failEvidenceKeys) throw new Error('evidence keys down (fake)');
       const urls = [];
@@ -217,6 +233,12 @@ class MemoryD1 {
       const did = Number(args[0]);
       const arr = [...this.evidence.values()].filter(e => e.dispute_id === did).sort((a, b) => a.id - b.id);
       return { results: arr.map(e => ({ id: e.id, data: e.data, created_at: e.created_at, url: e.url, size: e.size, sha256: e.sha256, mime: e.mime })) };
+    }
+    if (s.includes('FROM errand_task_images') && s.includes('WHERE task_id = ?')) {
+      const tid = Number(args[0]);
+      const arr = [...this.taskImages.values()].filter(x => x.task_id === tid).sort((a, b) => a.id - b.id);
+      if (s.includes('url IS NOT NULL')) return { results: arr.map(x => ({ url: x.url })).filter(x => x.url) };
+      return { results: arr.map(x => ({ id: x.id, mime: x.mime || '', size: x.size || 0, url: x.url, created_at: x.created_at })) };
     }
     if (s.includes('FROM errand_reviews')) {
       const taskId = Number(args[0]);
@@ -299,6 +321,7 @@ class MemoryD1 {
       revIds.forEach(rid => this.reviews.delete(rid));
       const disIds = [...this.disputes.values()].filter(d => d.task_id === id).map(d => d.id);
       disIds.forEach(did => { this.disputes.delete(did); for (const eid of [...this.evidence.keys()]) if (this.evidence.get(eid).dispute_id === did) this.evidence.delete(eid); });
+      for (const imId of [...this.taskImages.keys()]) if (this.taskImages.get(imId).task_id === id) this.taskImages.delete(imId);
       return { meta: { changes: 1 } };
     }
     if (s.startsWith('INSERT INTO errand_reviews')) {
@@ -318,10 +341,24 @@ class MemoryD1 {
       return { meta: { changes: 1 } };
     }
     if (s.startsWith('INSERT INTO errand_tasks')) {
-      const [publisher_id, title, description, reward, pickup, dropoff, contact, deadline, created_at, updated_at] = args;
+      const [publisher_id, title, description, reward, pickup, dropoff, contact, deadline, category, created_at, updated_at] = args;
       const id = this.nextTaskId++;
-      this.tasks.set(id, { id, publisher_id, title, description, reward, pickup, dropoff, contact, deadline, status: 'open', taker_id: null, created_at, updated_at, completed_at: null, confirmed_at: null, confirmed_by: null, auto_confirmed_at: null, cancelled_at: null, cancel_reason: '' });
+      this.tasks.set(id, { id, publisher_id, title, description, reward, pickup, dropoff, contact, deadline, category, status: 'open', taker_id: null, created_at, updated_at, completed_at: null, confirmed_at: null, confirmed_by: null, auto_confirmed_at: null, cancelled_at: null, cancel_reason: '' });
       return { meta: { changes: 1, last_row_id: id } };
+    }
+    if (s.startsWith('INSERT INTO errand_task_images')) {
+      if (this.failTaskImageInsert) throw new Error('task image insert down (fake)');
+      const id = this.nextTaskImageId++;
+      let rec;
+      if (s.includes('url') && args.length >= 7) {
+        rec = { id, task_id: args[0], data: args[1], url: args[2], size: args[3], sha256: args[4], mime: args[5], created_at: args[6] };
+      } else if (s.includes('size') && s.includes('mime') && args.length >= 5) {
+        rec = { id, task_id: args[0], data: args[1], size: args[2], mime: args[3], created_at: args[4] };
+      } else {
+        rec = { id, task_id: args[0], data: args[1], created_at: args[2] };
+      }
+      this.taskImages.set(id, rec);
+      return { meta: { changes: 1 } };
     }
     if (s.startsWith('UPDATE errand_tasks')) {
       // 解析 SET 与 WHERE（支持 ? 占位与 '字面量'）
@@ -860,5 +897,40 @@ check('pending 存量损坏时 record 失败且保留原值', recCorrupt === fal
 kvStore.clear();
 fakeR2.store.clear();
 fakeR2.failDelete = false;
+console.log('24) 分类与任务图片（2026-08-24）');
+const badCat = await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '分类测试', reward: 1, pickup: 'A', dropoff: 'B', contact: '13800000000', category: 'bad-cat' } });
+check('非法分类 400', badCat.status === 400, String(badCat.status));
+const defaultCat = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '默认分类', reward: 1, pickup: 'A', dropoff: 'B', contact: '13800000000' } }));
+check('未提供分类默认 other', defaultCat.task && defaultCat.task.category === 'other', JSON.stringify(defaultCat.task && defaultCat.task.category));
+// D1 base64 回退（EVIDENCE_BUCKET 未启用）
+env.EVIDENCE_BUCKET = undefined;
+const png1 = 'data:image/png;base64,iVBORw0KGgo=';
+const png2 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+const tImg = await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '带图任务', reward: 2, pickup: 'A', dropoff: 'B', contact: '13800000000', category: 'sell-item', images: [png1, png2, 'data:text/html;base64,eA=='] } });
+const tImgBody = await data(tImg);
+check('带图发布 201 + 分类 sell-item', tImg.status === 201 && tImgBody.task.category === 'sell-item', String(tImg.status));
+const tImgTaskId = tImgBody.task.id;
+const tImgDet = await data(await api('/api/errand/tasks/' + tImgTaskId, { token: tokenA }));
+check('详情返回 2 张图片元数据（非法项被跳过）', tImgDet.task.images.length === 2 && tImgDet.task.images[0].mime === 'image/png' && tImgDet.task.images[0].stored === false, JSON.stringify(tImgDet.task.images));
+const imgResp = await api('/api/errand/task-images/' + tImgDet.task.images[0].id);
+let imgBytes = imgResp.status === 200 ? new Uint8Array(await imgResp.arrayBuffer()) : null;
+check('公开图片端点 200 + PNG 魔数', imgResp.status === 200 && imgBytes && imgBytes[0] === 0x89 && imgBytes[1] === 0x50 && imgBytes[2] === 0x4E && imgBytes[3] === 0x47, String(imgResp.status));
+check('图片不存在 404', (await api('/api/errand/task-images/99999')).status === 404);
+const listCat = await data(await api('/api/errand/tasks?status=all'));
+check('列表卡片含 category 字段', listCat.items.some(x => x.title === '带图任务' && x.category === 'sell-item'));
+// R2 模式：env.EVIDENCE_BUCKET = fakeR2 → 对象写 R2、D1 只存元数据
+env.EVIDENCE_BUCKET = fakeR2;
+const putsBefore = fakeR2.puts;
+const tImgR2 = await data(await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: 'R2 图任务', reward: 3, pickup: 'A', dropoff: 'B', contact: '13800000000', category: 'pickup-parcel', images: [png1] } }));
+const r2Det = await data(await api('/api/errand/tasks/' + tImgR2.task.id, { token: tokenA }));
+check('R2 模式图片 stored=true + 键前缀 task/', r2Det.task.images.length === 1 && r2Det.task.images[0].stored === true && fakeR2.puts === putsBefore + 1 && [...fakeR2.store.keys()].some(k => k.startsWith('task/')), JSON.stringify(r2Det.task.images));
+// 图片 D1 写入失败 → 回滚整单（删除任务，图片不残留）
+const taskCountBefore = db.tasks.size;
+db.failTaskImageInsert = true;
+const tFail = await api('/api/errand/tasks', { method: 'POST', token: tokenA, body: { title: '失败任务', reward: 1, pickup: 'A', dropoff: 'B', contact: '13800000000', category: 'other', images: [png1] } });
+db.failTaskImageInsert = false;
+check('图片写入失败回滚整单 503 且任务不存在', tFail.status === 503 && db.tasks.size === taskCountBefore, String(tFail.status) + ' tasks=' + db.tasks.size);
+env.EVIDENCE_BUCKET = undefined;
+
 console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
 process.exit(failed ? 1 : 0);

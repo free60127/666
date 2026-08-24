@@ -1,6 +1,7 @@
 import { json, isAdmin, readJsonBody, MAX_JSON_BODY } from './http.js';
 import { corsFor } from './config.js';
 import { deleteR2Objects, evidenceKeysForTask } from './evidence-store.js';
+import { taskImageKeysForTask } from './errand-images.js';
 import { rateWindow } from './rate-limit.js';
 import { getSessionUser } from './session-guard.js';
 import { clamp, num, TASK_SELECT, mapTask } from './errand-query.js';
@@ -161,17 +162,20 @@ async function auditLog(db, env, action, detail) {
 export async function adminDeleteTask(db, request, env, id) {
   if (!isAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
   // R2 证据对象先收集后删除（2026-08-23 审查第 6 项闭环；D1 级联删 evidence 行，R2 对象需单独清理）
-  let evKeys;
-  try { evKeys = await evidenceKeysForTask(db, id); }
-  catch (e) { // 2026-08-23 审查第 2 轮第 3 项：键查询失败 fail-closed，避免 D1 删除后 R2 对象成孤儿
+  let evKeys, imgKeys;
+  try {
+    evKeys = await evidenceKeysForTask(db, id);
+    imgKeys = await taskImageKeysForTask(db, id);
+  } catch (e) { // 2026-08-23 审查第 2 轮第 3 项：键查询失败 fail-closed，避免 D1 删除后 R2 对象成孤儿
     console.error('adminDeleteTask evidence keys error:', e);
     return json({ error: '服务繁忙，请稍后再试' }, 503);
   }
   const result = await db.prepare('DELETE FROM errand_tasks WHERE id = ?').bind(id).run().catch(e => { console.error('errand admin delete:', e); return null; });
   if (!result || !result.meta || Number(result.meta.changes) < 1) return json({ error: '任务不存在' }, 404);
-  if (evKeys.length) {
-    const r = await deleteR2Objects(env, evKeys);
-    if (r.failed) console.warn('adminDeleteTask R2 cleanup incomplete: failed=' + r.failed + '/' + evKeys.length);
+  const allKeys = (evKeys || []).concat(imgKeys || []);
+  if (allKeys.length) {
+    const r = await deleteR2Objects(env, allKeys);
+    if (r.failed) console.warn('adminDeleteTask R2 cleanup incomplete: failed=' + r.failed + '/' + allKeys.length);
   }
   await auditLog(db, env, 'errand.task.delete', 'task ' + id);
   return json({ ok: true });

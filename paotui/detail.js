@@ -1,5 +1,7 @@
 export function createDetail({ $, STATUS, esc, fmtTime, toast, openModal, closeModal, api, apiBlob,
-  registerObjectUrl, revokeAllObjectUrls, revokeContainerUrls, getMe, openAuthModal, loadList, setShareTask }) {
+  registerObjectUrl, revokeAllObjectUrls, revokeContainerUrls, getMe, openAuthModal, loadList, setShareTask, apiBase }) {
+  const API_BASE = apiBase || 'https://api.free60127.top';
+  const CAT_LABELS = { 'pickup-food': '取外卖', 'pickup-parcel': '取快递', 'sell-item': '出闲置', 'request-info': '求资料', other: '其他' };
   let detailSeq = 0;
   let currentReviewTask = null;
   let currentDisputeTask = null;
@@ -53,8 +55,15 @@ export function createDetail({ $, STATUS, esc, fmtTime, toast, openModal, closeM
     if ((t.status === 'doing' || t.status === 'done') && (isPublisher || isTaker)) {
       actions += '<button class="btn ghost" data-act="dispute">⚠️ 申诉</button>';
     }
+    const catLabel = CAT_LABELS[t.category] || '其他';
+    const catIcon = { 'pickup-food': '🍜', 'pickup-parcel': '📦', 'sell-item': '🛍️', 'request-info': '📚', other: '✨' }[t.category] || '✨';
+    const gallery = (t.images && t.images.length)
+      ? '<div class="task-gallery">' + t.images.map(im =>
+          '<img class="task-img" src="' + esc(API_BASE + '/api/errand/task-images/' + im.id) + '" alt="任务图片" loading="lazy">'
+        ).join('') + '</div>'
+      : '';
     bodyEl.innerHTML =
-      '<div class="detail-head"><span class="badge ' + st[1] + '">' + st[0] + '</span><span class="reward big">¥' + esc(t.reward) + '</span></div>' +
+      '<div class="detail-head"><span class="badge ' + st[1] + '">' + st[0] + '</span><span class="badge cat-badge">' + catIcon + ' ' + esc(catLabel) + '</span><span class="reward big">¥' + esc(t.reward) + '</span></div>' +
       '<h3 class="detail-title">' + esc(t.title) + '</h3>' +
       (t.description ? '<p class="detail-desc">' + esc(t.description).replace(/\n/g, '<br>') + '</p>' : '') +
       '<div class="detail-rows">' +
@@ -67,6 +76,7 @@ export function createDetail({ $, STATUS, esc, fmtTime, toast, openModal, closeM
       row('🕐 发布时间', fmtTime(t.createdAt)) +
       (t.completedAt ? row('✅ 完成时间', fmtTime(t.completedAt)) : '') +
       '</div>' +
+      gallery +
       '<div class="detail-actions">' + actions + '</div>' +
       '<div id="review-box"></div>' +
       '<div id="dispute-box"></div>' +

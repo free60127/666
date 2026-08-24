@@ -121,6 +121,15 @@ html[data-theme="dark"] .modal { background: rgba(0,0,0,.6); }
 .rv-label { margin-left: 8px; font-size: 13px; color: var(--muted); }
 .review-head { margin: 12px 0 6px; font-size: 14px; font-weight: 700; }
 
+/* ---------- 发布分类 + 任务图片（2026-08-24） ---------- */
+.cat-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.cat-chip { border: 1px solid var(--line, #dfe6df); background: var(--card, #fff); color: var(--text, #17211f);
+  border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+.cat-chip.active { background: var(--green, #28634f); border-color: var(--green, #28634f); color: #fff; font-weight: 600; }
+.cat-badge { background: rgba(40,99,79,.12); color: var(--green, #28634f); font-weight: 600; margin-left: 4px; }
+.task-gallery { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.task-img { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line, #dfe6df); }
+
 /* ---------- 申诉 ---------- */
 .dp-count { color: var(--muted, #888); font-size: 12px; margin-left: 6px; }
 .dp-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }

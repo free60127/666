@@ -6,7 +6,7 @@
   <title>外院跑腿 - 发布任务 · 校内接单</title>
   <meta name="robots" content="noindex,nofollow">
   <link rel="icon" href="../favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20260824-1003">
+  <link rel="stylesheet" href="style.css?v=20260825-0734">
   <script>(function(){try{var t=localStorage.getItem('waiyuan-web-theme-v1')||(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
   <meta property="og:title" content="外院跑腿">
   <meta property="og:description" content="校内跑腿：发布任务、在线接单，线下当面结算">
@@ -52,6 +52,19 @@
   <div id="publish-modal" class="modal hidden">
     <div class="modal-box">
       <h3>发布任务</h3>
+      <div class="field"><label>分类 *</label>
+        <div class="cat-chips" id="cat-chips">
+          <button type="button" class="cat-chip" data-cat="pickup-food">🍜 取外卖</button>
+          <button type="button" class="cat-chip" data-cat="pickup-parcel">📦 取快递</button>
+          <button type="button" class="cat-chip" data-cat="sell-item">🛍️ 出闲置</button>
+          <button type="button" class="cat-chip" data-cat="request-info">📚 求资料</button>
+          <button type="button" class="cat-chip" data-cat="other">✨ 其他</button>
+        </div>
+      </div>
+      <div class="field"><label>任务图片（选填，最多 3 张，自动压缩 ≤200KB）<span class="dp-count" id="pub-img-count">0 / 3</span></label>
+        <input id="pub-files" type="file" accept="image/*" multiple>
+        <div id="pub-preview" class="dp-preview"></div>
+      </div>
       <div class="field"><label>标题 *</label><input id="p-title" maxlength="60" placeholder="帮取快递 / 带饭…"></div>
       <div class="field"><label>详细描述</label><textarea id="p-desc" maxlength="500" rows="3" placeholder="取件码、具体要求…"></textarea></div>
       <div class="field-row">
@@ -150,9 +163,9 @@
   </div>
   <div id="toast" class="toast hidden"></div>
 
-  <script src="qrcode.js?v=20260824-1003"></script>
-  <script src="../学习中心/auth.js?v=20260824-1003"></script>
-  <script src="share-card.js?v=20260824-1003"></script>
-  <script src="app.js?v=20260824-1003"></script>
+  <script src="qrcode.js?v=20260825-0734"></script>
+  <script src="../学习中心/auth.js?v=20260825-0734"></script>
+  <script src="share-card.js?v=20260825-0734"></script>
+  <script src="app.js?v=20260825-0734"></script>
 </body>
 </html>

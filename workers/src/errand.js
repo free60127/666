@@ -10,7 +10,8 @@ import { createReview, listReviews } from './errand-reviews.js';
 import { rateWindow } from './rate-limit.js';
 import { createDispute, listDisputes, listEvidence, serveEvidenceBinary, adminTasks, adminDeleteTask, resolveDispute, listAdminLogs } from './errand-disputes.js';
 import { getSessionUser } from './session-guard.js';
-import { clamp, num, TASK_SELECT, mapTask } from './errand-query.js';
+import { clamp, num, TASK_SELECT, mapTask, CATEGORIES } from './errand-query.js';
+import { taskImagesForTask, storeTaskImages, serveTaskImage } from './errand-images.js';
 
 /* 联系方式脱敏：仅发布者本人、以及已接单状态下的接单者可见；其余一律空字符串 */
 function canSeeContact(user, row) {
@@ -25,7 +26,7 @@ function sanitizeContact(task, user, row) {
 }
 
 /* ---------- 发布任务 ---------- */
-async function createTask(db, request) {
+async function createTask(db, request, env) {
   const session = await getSessionUser(db, request, 'errand create');
   if (session.response) return session.response;
   const user = session.user;
@@ -46,6 +47,11 @@ async function createTask(db, request) {
   if (!dropoff) return json({ error: '送达地点必填' }, 400);
   const contact = String(body.contact || '').trim().slice(0, 100);
   if (!contact) return json({ error: '联系方式必填' }, 400);
+  // 2026-08-24：细分分类（取外卖/取快递/出闲置/求资料/其他）；未提供时默认 other（兼容旧客户端）
+  let category = String(body.category || '').trim();
+  if (category && !CATEGORIES.includes(category)) return json({ error: '订单分类无效' }, 400);
+  if (!category) category = 'other';
+  const images = Array.isArray(body.images) ? body.images : [];
   let deadline = null;
   if (body.deadline) {
     const d = num(body.deadline);
@@ -58,11 +64,22 @@ async function createTask(db, request) {
   if (rate.count > 30) return json({ error: '发布太频繁，请稍后再试' }, 429);
   try {
     const result = await db.prepare(
-      'INSERT INTO errand_tasks (publisher_id, title, description, reward, pickup, dropoff, contact, deadline, created_at, updated_at) ' +
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(user.id, title, description, rewardRaw, pickup, dropoff, contact, deadline, now, now).run();
+      'INSERT INTO errand_tasks (publisher_id, title, description, reward, pickup, dropoff, contact, deadline, category, created_at, updated_at) ' +
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(user.id, title, description, rewardRaw, pickup, dropoff, contact, deadline, category, now, now).run();
     const id = result && result.meta && result.meta.last_row_id ? result.meta.last_row_id : null;
     if (!id) return json({ error: '服务繁忙，请稍后再试' }, 503);
+    // 2026-08-24：任务图片写入失败 → 回滚整单（删任务级联删图片），不留孤儿
+    try {
+      const uploadedR2 = await storeTaskImages(db, env, id, images, now);
+      if (uploadedR2.length) {
+        // R2 模式已写入（任务图片与证据共用 EVIDENCE_BUCKET，前缀 task/）；失败已在 storeTaskImages 内回滚
+      }
+    } catch (e) {
+      console.error('errand create images error:', e);
+      await db.prepare('DELETE FROM errand_tasks WHERE id = ?').bind(id).run().catch(() => {});
+      return json({ error: '图片保存失败，请稍后再试' }, 503);
+    }
     const row = await db.prepare(TASK_SELECT + 'WHERE t.id = ?').bind(id).first();
     return json({ ok: true, task: mapTask(row) }, 201);
   } catch (error) {
@@ -133,6 +150,7 @@ async function taskDetail(db, request, id) {
   if (session.response) return session.response;
   const user = session.user;
   const task = sanitizeContact(mapTask(row), user, row);
+  try { task.images = await taskImagesForTask(db, id); } catch (e) { task.images = []; }
   return json({ task });
 }
 
@@ -282,7 +300,7 @@ export async function handleErrand(request, env, path) {
     const cl = Number(request.headers.get('content-length') || 0);
     if (cl > 1100000) return json({ error: '请求体过大（最大约 1MB）' }, 413);
   }
-  if (path === '/api/errand/tasks' && request.method === 'POST') return createTask(db, request);
+  if (path === '/api/errand/tasks' && request.method === 'POST') return createTask(db, request, env);
   if (path === '/api/errand/tasks' && request.method === 'GET') return listTasks(db, request);
   if (path === '/api/errand/mine' && request.method === 'GET') return myTasks(db, request);
   if (path === '/api/errand/reviews' && request.method === 'POST') return createReview(db, request);
@@ -295,6 +313,12 @@ export async function handleErrand(request, env, path) {
   if (ev && request.method === 'GET') return listEvidence(db, request, env, Number(ev[1]));
   const evx = path.match(/^\/api\/errand\/evidence\/(\d+)$/);
   if (evx && request.method === 'GET') return serveEvidenceBinary(db, request, env, Number(evx[1]));
+  const imgx = path.match(/^\/api\/errand\/task-images\/(\d+)$/);
+  if (imgx && request.method === 'GET') {
+    const resp = await serveTaskImage(db, env, Number(imgx[1]));
+    if (resp) return resp;
+    return json({ error: '图片不存在' }, 404);
+  }
   const m = path.match(/^\/api\/errand\/tasks\/(\d+)(?:\/(take|complete|confirm|cancel))?$/);
   if (m) {
     const id = Number(m[1]);
@@ -309,6 +333,6 @@ export async function handleErrand(request, env, path) {
   if (adm && request.method === 'DELETE') return adminDeleteTask(db, request, env, Number(adm[1]));
   const adm2 = path.match(/^\/api\/errand\/admin\/disputes\/(\d+)$/);
   if (adm2 && request.method === 'PATCH') return resolveDispute(db, request, env, Number(adm2[1]));
-  if (ev || evx || m || adm || adm2) return json({ error: 'method not allowed' }, 405);
+  if (ev || evx || imgx || m || adm || adm2) return json({ error: 'method not allowed' }, 405);
   return json({ error: 'not found' }, 404);
 }

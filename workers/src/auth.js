@@ -2,6 +2,7 @@ import { sendEmail, generateResetCode } from './smtp.js';
 import { json, bearerToken, safeParseJson, readJsonBody, MAX_AUTH_BODY } from './http.js';  // 统一请求体限制（2026-08-23 审查第 1 项：字节数统一实现）
 import { rateWindow } from './rate-limit.js';  // 统一限流（2026-08-23 审查第 4 项）
 import { evidenceKeysForUser, deleteR2Objects } from './evidence-store.js';  // 证据 R2 对象清理（2026-08-23 审查第 6 项闭环）
+import { taskImageKeysForUser } from './errand-images.js';  // 任务图片 R2 对象清理（2026-08-24）
 
 /* ============================================================
    账号认证模块（D1 版）：注册 / 登录 / 登出 / 会话 / 恢复码保险箱
@@ -394,10 +395,12 @@ async function deleteAccount(db, env, request) {
   // 原 'sync:user:' 前缀键导致注销后云端同步数据残留
   const kvKey = 'user:' + user.id;
   // 2026-08-23 审查第 6 项闭环：注销前收集本人相关证据的 R2 对象键，账号删除后由 D1 级联删 evidence 行，R2 对象单独清理
-  let evKeys = [];
+  let evKeys = [], imgKeys = [];
   if (env.EVIDENCE_BUCKET) {
-    try { evKeys = await evidenceKeysForUser(db, user.id); }
-    catch (e) { // 2026-08-23 审查第 2 轮第 3 项：fail-closed，注销前查不到对象键则拒绝删除账号
+    try {
+      evKeys = await evidenceKeysForUser(db, user.id);
+      imgKeys = await taskImageKeysForUser(db, user.id);
+    } catch (e) { // 2026-08-23 审查第 2 轮第 3 项：fail-closed，注销前查不到对象键则拒绝删除账号
       console.error('delete-account evidence keys error:', e);
       return json({ error: '服务繁忙，请稍后再试' }, 503);
     }
@@ -439,9 +442,10 @@ async function deleteAccount(db, env, request) {
       console.error('delete-account KV cleanup pending:', error);
     }
   }
-  if (evKeys.length) {
-    const evR = await deleteR2Objects(env, evKeys);
-    if (evR.failed) console.warn('delete-account R2 cleanup incomplete: failed=' + evR.failed + '/' + evKeys.length);
+  const allR2Keys = (evKeys || []).concat(imgKeys || []);
+  if (allR2Keys.length) {
+    const evR = await deleteR2Objects(env, allR2Keys);
+    if (evR.failed) console.warn('delete-account R2 cleanup incomplete: failed=' + evR.failed + '/' + allR2Keys.length);
   }
   return json({ ok: true, cleanupPending });
 }

@@ -7,6 +7,10 @@
   let currentShareTask = null; // 最近打开的详情任务（分享任务卡用）
   let detailReady;
   let shareType = 'platform';   // platform | task
+  let pubCategory = '';       // 发布弹窗已选分类（pickup-food/pickup-parcel/sell-item/request-info/other）
+  let pubImages = [];         // 发布弹窗已选图片 dataURL（≤3 张）
+  const CAT_LABELS = { 'pickup-food': '取外卖', 'pickup-parcel': '取快递', 'sell-item': '出闲置', 'request-info': '求资料', other: '其他' };
+  window.errandCatLabels = CAT_LABELS; // 详情模块共享
   let tab = 'open';
   let page = 1;
   let total = 0;
@@ -175,8 +179,11 @@
     const st = expired ? ['已过期', 'st-cancelled'] : (STATUS[t.status] || ['未知', '']);
     const loc = (t.pickup || t.dropoff) ? '📍 ' + esc(t.pickup) + (t.dropoff ? ' → ' + esc(t.dropoff) : '') : '';
     const who = t.status === 'done' || t.status === 'doing' ? (t.takerName ? '👤 ' + esc(t.takerName) : '') : '👤 ' + esc(t.publisherName);
+    const catIcon = { 'pickup-food': '🍜', 'pickup-parcel': '📦', 'sell-item': '🛍️', 'request-info': '📚', other: '✨' }[t.category] || '✨';
+    const catLabel = (window.errandCatLabels && window.errandCatLabels[t.category]) || CAT_LABELS[t.category] || '其他';
     return '<div class="task-card" data-id="' + t.id + '">' +
       '<div class="tc-top"><span class="badge ' + st[1] + '">' + st[0] + '</span>' +
+      '<span class="badge cat-badge">' + catIcon + ' ' + esc(catLabel) + '</span>' +
       '<span class="reward">¥' + esc(t.reward) + '</span></div>' +
       '<div class="tc-title">' + esc(t.title) + '</div>' +
       (loc ? '<div class="tc-meta">' + loc + '</div>' : '') +
@@ -199,10 +206,73 @@
   }
 
   /* ---------- 发布 ---------- */
+  function renderPubCategory() {
+    document.querySelectorAll('#cat-chips .cat-chip').forEach(b => {
+      b.classList.toggle('active', b.dataset.cat === pubCategory);
+    });
+  }
+  function renderPubThumbs() {
+    const box = $('pub-preview');
+    box.innerHTML = pubImages.map(function (d, i) {
+      return '<div class="dp-thumb"><img src="' + d + '" alt="任务图片"><button type="button" class="dp-x" data-i="' + i + '">×</button></div>';
+    }).join('');
+    box.querySelectorAll('.dp-x').forEach(function (b) {
+      b.addEventListener('click', function () {
+        pubImages.splice(Number(b.dataset.i), 1);
+        renderPubThumbs();
+      });
+    });
+    $('pub-img-count').textContent = pubImages.length + ' / 3';
+  }
+  function compressPublishImage(dataUrl, done) {
+    const img = new Image();
+    img.onload = function () {
+      try {
+        const MAX = 1200;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          const r = Math.min(MAX / w, MAX / h);
+          w = Math.round(w * r); h = Math.round(h * r);
+        }
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        let q = 0.85, out = cv.toDataURL('image/jpeg', q);
+        while (out.length > 274400 && q > 0.4) { // 200KB 上限（base64 膨胀约 1.34x）
+          q -= 0.15;
+          out = cv.toDataURL('image/jpeg', q);
+        }
+        done(out);
+      } catch (_) { toast('图片处理失败', true); }
+    };
+    img.onerror = function () { toast('图片读取失败', true); };
+    img.src = dataUrl;
+  }
+  function handlePubFiles(e) {
+    const files = Array.from(e.target.files || []);
+    for (const f of files) {
+      if (pubImages.length >= 3) { toast('最多 3 张图片', true); break; }
+      if (!/^image\//.test(f.type)) continue;
+      const reader = new FileReader();
+      reader.onload = function () {
+        compressPublishImage(String(reader.result), function (dataUrl) {
+          if (pubImages.length >= 3) return;
+          pubImages.push(dataUrl);
+          renderPubThumbs();
+        });
+      };
+      reader.readAsDataURL(f);
+    }
+  }
   function openPublish() {
     if (!me || !me.id) { toast('请先登录', true); openAuthModal('login'); return; }
+    pubCategory = '';
+    pubImages = [];
     $('p-title').value = ''; $('p-desc').value = ''; $('p-reward').value = '';
     $('p-pickup').value = ''; $('p-dropoff').value = ''; $('p-contact').value = ''; $('p-deadline').value = '';
+    $('pub-files').value = '';
+    renderPubCategory();
+    renderPubThumbs();
     $('pub-hint').textContent = '';
     openModal('publish-modal');
   }
@@ -212,6 +282,7 @@
     const pickup = $('p-pickup').value.trim();
     const dropoff = $('p-dropoff').value.trim();
     const hint = $('pub-hint');
+    if (!pubCategory) { hint.textContent = '请选择订单分类'; return; }
     if (!title) { hint.textContent = '请填写标题'; return; }
     if (!/^\d+$/.test(reward)) { hint.textContent = '赏金需为整数（元）'; return; }
     if (!pickup) { hint.textContent = '请填写取件地点'; return; }
@@ -222,6 +293,8 @@
       description: $('p-desc').value.trim(),
       pickup, dropoff,
       contact: $('p-contact').value.trim(),
+      category: pubCategory,
+      images: pubImages.slice(),
     };
     const dl = $('p-deadline').value;
     if (dl) {
@@ -354,6 +427,7 @@
         openAuthModal,
         loadList,
         setShareTask: task => { currentShareTask = task; },
+        apiBase: API,
       });
       detail.bindActions();
       return detail;
@@ -375,6 +449,14 @@
   $('fab-publish').addEventListener('click', openPublish);
   $('pub-cancel').addEventListener('click', () => closeModal('publish-modal'));
   $('pub-submit').addEventListener('click', submitPublish);
+  // 2026-08-24：分类单选 chips + 任务图片（自动压缩 ≤200KB，最多 3 张）
+  document.getElementById('cat-chips').addEventListener('click', e => {
+    const chip = e.target.closest('.cat-chip');
+    if (!chip) return;
+    pubCategory = chip.dataset.cat;
+    renderPubCategory();
+  });
+  $('pub-files').addEventListener('change', handlePubFiles);
   $('auth-open-btn').addEventListener('click', () => openAuthModal('login'));
   $('auth-email').addEventListener('click', () => { toast('当前登录：' + me.nickname); });
   $('auth-logout-btn').addEventListener('click', doLogout);
