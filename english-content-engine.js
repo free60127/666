@@ -196,7 +196,8 @@
   // 题库对象来自旧缓存/旧页签（旧引擎 buildExportQuestions 不带 bank 字段），
   // 应显性提示刷新，避免静默导出无词库 PDF。
   function assertBankPresent(book, units, questions) {
-    const bookHasBanks = units.some(u => (u.wordBanks && u.wordBanks.length) || u.instruction);
+    // 字段存在性判断：旧缓存 data.js 可能既无 wordBanks 也无 instruction
+    const bookHasBanks = units.some(u => Array.isArray(u.wordBanks) || !!u.instruction);
     if (!bookHasBanks) return true;
     if (questions.some(q => q.bank)) return true;
     console.warn('[waiyuan-export] 词库提示缺失：题库数据疑似来自旧缓存，请刷新页面后重试。');
@@ -207,7 +208,7 @@
     const book = getBook(bookKey);
     if (!book) return;
     const questions = buildExportQuestions(book.units);
-    assertBankPresent(book, book.units, questions);
+    if (!assertBankPresent(book, book.units, questions)) return;
     window.A4QuestionPrint?.open({ title: book.name, subtitle: `${questions.length} 题`, questions });
   }
   // 只导出当前展开的单元：范围可按需选择，避免整本书 PDF 过大
@@ -222,21 +223,7 @@
     const units = details.map(d => unitOf(d.dataset.unit)).filter(Boolean);
     if (!units.length) return;
     const questions = buildExportQuestions(units);
-    assertBankPresent(book, units, questions);
-    window.A4QuestionPrint?.open({ title: `${book.name} · 已展开 ${units.length} 个单元`, subtitle: `${questions.length} 题`, questions });
-  }
-  // 只导出当前展开的单元：范围可按需选择，避免整本书 PDF 过大
-  function exportOpened() {
-    const book = getBook(bookKey);
-    if (!book) return;
-    const details = [...app.querySelectorAll('details.unit[open]')];
-    if (!details.length) {
-      alert('请先展开需要导出的单元（点击单元标题展开），再点击「导出已展开单元 PDF」。');
-      return;
-    }
-    const units = details.map(d => unitOf(d.dataset.unit)).filter(Boolean);
-    if (!units.length) return;
-    const questions = buildExportQuestions(units);
+    if (!assertBankPresent(book, units, questions)) return;
     window.A4QuestionPrint?.open({ title: `${book.name} · 已展开 ${units.length} 个单元`, subtitle: `${questions.length} 题`, questions });
   }
 

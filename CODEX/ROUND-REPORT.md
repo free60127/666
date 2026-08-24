@@ -59,3 +59,10 @@ Codex 两次会话均未能产出评估：
 - node --check：worker 14 模块 + 前端改动文件全过
 - test-auth 58/58；test-errand 128/128；test-router 冒烟全过；test-feedback 全过；test-sync-guard 9/9
 - check-links 294/0（2026-08-24 上轮实测）；Playwright 99/99（上轮发布链，英文引擎词库修复后）
+
+## 第二轮执行结果（2026-08-24 更新）
+
+- Codex 已按 P1 1-3 完成拆分：`workers/src/errand-reviews.js`（59 行）、`workers/src/errand-disputes.js`（295 行）、`paotui/detail.js`（309 行）、`学习中心/cloud-panel.js`（143 行）；`errand.js` 保留任务 CRUD 与路由，`paotui/app.js`/`学习中心/app.js` 改为动态 import 调度。
+- DSH 评审验证：node --check 全过；test-errand 128/128、test-auth 58/58、test-router 全过、test-feedback 全过、test-sync-guard 9/9；Playwright 全量 code=0（数秒 ~76s），无 `_pw-exit.log` 残留；未改题库/HTML/版本号/现有测试。
+- 评审发现并修复 2 项：①动态 `import('./detail.js')`/`import('./cloud-panel.js')` 无 `?v=`，SW 会 stale-while-revalidate 旧模块与新 app.js 不匹配——已改为从 `document.currentScript.src` 提取 v 追加到模块 URL；②`errand-disputes.js` 复制了 `rateHit` 实现且未 import——已清除本地重复定义并统一复用 `workers/src/rate-limit.js` 的 `rateWindow`。
+- 待办：本轮改动尚未部署 Worker / release 前端版本号；确认后再执行。
