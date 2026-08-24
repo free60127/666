@@ -120,9 +120,11 @@
     }
 
     function addBank(text) {
-      wrapText(text, 47).forEach(line => {
-        if (!page) startPage();
-        if (page.y - 14 < 54) startPage();
+      const bankLines = wrapText(text, 47);
+      if (!page) startPage();
+      // 保留 bank 与其后首题同页：预留提示行 + 约一题的空间，避免提示孤悬页尾（Codex review P2）
+      if (page.y - (bankLines.length * 13 + 44) < 54) startPage();
+      bankLines.forEach(line => {
         page.lines.push({kind: 'bank', text: line, size: 9.5, y: page.y});
         page.y -= 13;
       });
