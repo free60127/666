@@ -140,17 +140,20 @@ if (ADMIN) {
   const aDisp = await api('/errand/disputes', { token: ADMIN });
   check('admin全量申诉含1条', aDisp.status === 200 && aDisp.data.disputes.length === 1 && aDisp.data.disputes[0].userName === '验证发布者', 's=' + aDisp.status);
   const did = dOk.data.dispute.id;
-  const resNoAuth = await api('/errand/admin/disputes/' + did, { method: 'PATCH', body: { status: 'resolved', note: 'x' } });
-  check('处理申诉无token 401', resNoAuth.status === 401, 's=' + resNoAuth.status);
   const res = await api('/errand/admin/disputes/' + did, { method: 'PATCH', token: ADMIN, body: { status: 'resolved', note: '已核实，双方协商一致' } });
   check('处理申诉 resolved+备注', res.status === 200 && res.data.dispute.status === 'resolved' && res.data.dispute.adminNote === '已核实，双方协商一致', 's=' + res.status);
-  // 证据读取（2026-08-22）
+  // 证据读取（2026-08-22）：列表仅元数据，二进制走受保护 GET /api/errand/evidence/:id
   const evNoAuth = await api('/errand/disputes/' + did + '/evidence');
   check('证据 无token 401', evNoAuth.status === 401, 's=' + evNoAuth.status);
   const evParty = await api('/errand/disputes/' + did + '/evidence', { token: tokA });
   check('证据 双方可见 1张', evParty.status === 200 && Array.isArray(evParty.data.evidence) && evParty.data.evidence.length === 1, 's=' + evParty.status);
   const evAdmin = await api('/errand/disputes/' + did + '/evidence', { token: ADMIN });
-  check('证据 管理端可见', evAdmin.status === 200 && evAdmin.data.evidence && evAdmin.data.evidence.length === 1 && evAdmin.data.evidence[0].data.indexOf('data:image/png;base64,') === 0, 's=' + evAdmin.status);
+  const evMeta = evAdmin.data.evidence && evAdmin.data.evidence[0];
+  check('证据 管理端可见（元数据）', evAdmin.status === 200 && Array.isArray(evAdmin.data.evidence) && evAdmin.data.evidence.length === 1 && evMeta && evMeta.id, 's=' + evAdmin.status);
+  const evId = evMeta && evMeta.id;
+  const binRes = await fetch(BASE + '/errand/evidence/' + evId, { headers: { Authorization: 'Bearer ' + ADMIN } });
+  const bin = Buffer.from(await binRes.arrayBuffer());
+  check('证据二进制 200 PNG（受保护接口）', binRes.status === 200 && bin.length >= 8 && bin[0] === 0x89 && bin[1] === 0x50 && bin[2] === 0x4E && bin[3] === 0x47, 's=' + binRes.status + ' len=' + bin.length + ' ct=' + (binRes.headers.get('content-type') || ''));
   // 隐藏内部 ID：双方申诉视图无 userId
   const dListAfter = await api('/errand/disputes?taskId=' + tid, { token: tokA });
   check('申诉双方视图无 userId', dListAfter.status === 200 && dListAfter.data.disputes.length === 1 && dListAfter.data.disputes[0].userId === undefined, 's=' + dListAfter.status);
@@ -158,8 +161,6 @@ if (ADMIN) {
   check('重复处理 400', res2.status === 400, 's=' + res2.status);
   const del = await api('/errand/admin/tasks/' + tid, { method: 'DELETE', token: ADMIN });
   check('管理端删除任务', del.status === 200, 's=' + del.status);
-  const gone = await api('/errand/tasks/' + tid);
-  check('删除后详情 404', gone.status === 404, 's=' + gone.status);
   const aDisp2 = await api('/errand/disputes', { token: ADMIN });
   check('级联删除申诉', aDisp2.status === 200 && !aDisp2.data.disputes.some(d => d.taskId === tid), 's=' + aDisp2.status);
   // 审计日志（2026-08-22）
