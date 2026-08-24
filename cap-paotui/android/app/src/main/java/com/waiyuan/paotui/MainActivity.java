@@ -29,7 +29,7 @@ import com.getcapacitor.BridgeActivity;
 import java.io.OutputStream;
 
 /**
- * 外院跑腿 · Capacitor 入口
+ * 外院互助 · Capacitor 入口
  * 2026-08-23 下载支持：
  *  1) DownloadListener：接管 <a download> 的 http(s) 下载（如 APK），
  *     用系统 DownloadManager 下载到公共「下载」目录并弹通知栏；

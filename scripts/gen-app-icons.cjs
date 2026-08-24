@@ -143,6 +143,7 @@ async function genForeground(src, outFile, size) {
     for (const size of [192, 512]) {
       await genLegacy(app.src, path.join(app.out, 'icon-' + size + '.png'), size);
     }
+    await genForeground(app.src, path.join(app.out, 'icon-512-maskable.png'), 512);
   }
   console.log('site icons done');
   // 验证 legacy 四角 alpha=255 且为白

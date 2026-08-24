@@ -1,4 +1,4 @@
-/* 外院跑腿 - app.js（依赖 ../学习中心/auth.js 的 WaiyuanAuth） */
+/* 外院互助 - app.js（依赖 ../学习中心/auth.js 的 WaiyuanAuth） */
 (function () {
   const auth = window.WaiyuanAuth;
   const shareCard = window.WaiyuanErrandShareCard;
@@ -402,7 +402,7 @@
   function saveShareCard() {
     const img = $('share-preview').querySelector('img');
     if (!img) return;
-    const name = shareType === 'task' ? '外院跑腿任务卡.png' : '外院跑腿平台卡.png';
+    const name = shareType === 'task' ? '外院互助任务卡.png' : '外院互助平台卡.png';
     const nd = window.WaiyuanNativeDownload;
     if (nd && nd.isNative && nd.isNative() && nd.saveDataUrl(name, img.src)) {
       toast('已保存到手机「下载」目录');

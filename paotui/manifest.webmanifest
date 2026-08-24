@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "外院跑腿",
-  "short_name": "跑腿",
-  "description": "校内跑腿：发布任务、在线接单，线下当面结算",
+  "name": "外院互助",
+  "short_name": "互助",
+  "description": "校内互助：发布任务、在线接单，线下当面结算",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",

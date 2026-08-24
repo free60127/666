@@ -1,4 +1,4 @@
-/* 外院跑腿分享卡片：只负责 Canvas 绘制与二维码生成，不依赖订单页面状态。 */
+/* 外院互助分享卡片：只负责 Canvas 绘制与二维码生成，不依赖订单页面状态。 */
 (function () {
   function setQrUtf8() {
     const qr = window.qrcode;
@@ -73,7 +73,7 @@
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 40px ' + font;
-    ctx.fillText('🛵 外院跑腿', 48, 92);
+    ctx.fillText('🛵 外院互助', 48, 92);
     ctx.fillStyle = 'rgba(255,255,255,.78)';
     ctx.font = '20px ' + font;
     ctx.fillText('外院知识分享站 · 校内互助', 52, 130);
@@ -93,7 +93,7 @@
       ctx.fillText('任务详情', 48, 216);
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 42px ' + font;
-      const lines = wrapText(ctx, task.title || '跑腿任务', 48, 280, W - 96, 56, 3);
+      const lines = wrapText(ctx, task.title || '互助任务', 48, 280, W - 96, 56, 3);
       const titleBottom = 280 + lines * 56;
       ctx.fillStyle = '#f0a45c';
       ctx.font = 'bold 64px ' + font;
@@ -116,7 +116,7 @@
     } else {
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 48px ' + font;
-      ctx.fillText('校内跑腿互助', 48, 240);
+      ctx.fillText('校内互助', 48, 240);
       ctx.fillStyle = 'rgba(255,255,255,.85)';
       ctx.font = '26px ' + font;
       ctx.fillText('发布任务 · 在线接单 · 线下当面结算', 48, 292);
@@ -151,7 +151,7 @@
       ctx.fillStyle = 'rgba(255,255,255,.85)';
       ctx.font = '22px ' + font;
       ctx.textAlign = 'center';
-      ctx.fillText(hasTask ? '扫码去接单 · 手慢无' : '长按识别二维码 → 进入跑腿平台', W / 2, qy + qrSize + 44);
+      ctx.fillText(hasTask ? '扫码去接单 · 手慢无' : '长按识别二维码 → 进入外院互助', W / 2, qy + qrSize + 44);
     } catch (_) {
       // 二维码生成失败不阻塞卡片，其余内容仍可保存。
     }
@@ -165,7 +165,7 @@
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.72)';
     ctx.font = '18px ' + font;
-    ctx.fillText('外院知识分享站 · 跑腿互助', W / 2, H - 66);
+    ctx.fillText('外院知识分享站 · 外院互助', W / 2, H - 66);
     ctx.fillStyle = 'rgba(255,255,255,.5)';
     ctx.font = '16px ' + font;
     ctx.fillText('free60127.top/paotui', W / 2, H - 36);

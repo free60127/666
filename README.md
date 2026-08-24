@@ -21,7 +21,7 @@
 - **跑腿**：doing 状态补申诉入口（原逻辑写在 done 分支内永远不显示）；详情/评价/申诉加载加请求序号守卫（快速切详情不串数据）；申诉证据过滤后整体 D1 batch 原子提交；takeTask/cancelTask/listEvidence/resolveDispute 区分 DB 故障（503）与业务错误（404/400/403）。
 - **测试**：playwright.config reuseExistingServer 改为 `!process.env.CI`（本地复用、CI 自管生命周期，测试结束进程不残留）；新增 doing 申诉按钮用例；新增 `scripts/verify-apk-live.mjs`（稳定 302 → 版本化 200 + 类型/大小/魔数/ETag/304 全链路 smoke test）。
 ## 安卓版 App（APK）
-- 两个 **Capacitor（WebView）壳** APK：**外院知识分享站**（加载 https://free60127.top/）与 **外院跑腿**（加载 https://free60127.top/paotui/）；内容是线上网页，站点更新即自动同步，无需重装。Capacitor 内置 confirm/文件上传/a[download] 等能力（跑腿确认弹窗、反馈/申诉图片上传、分享卡保存图片均可直接使用）。
+- 两个 **Capacitor（WebView）壳** APK：**外院知识分享站**（加载 https://free60127.top/）与 **外院互助**（加载 https://free60127.top/paotui/）；内容是线上网页，站点更新即自动同步，无需重装。Capacitor 内置 confirm/文件上传/a[download] 等能力（跑腿确认弹窗、反馈/申诉图片上传、分享卡保存图片均可直接使用）。
 - 下载：`https://free60127.top/apk/waiyuan-share.apk`、`https://free60127.top/apk/waiyuan-paotui.apk`（Worker 从 KV 直出，国内无需 VPN；GitHub Release `apk-v<版本>` 为备份源）。
 - 构建：GitHub Actions `twa-build.yml`（手动触发 workflow_dispatch，`app=both/share/paotui`）→ `scripts/cap-sign.cjs` 注入签名/版本（keystore 从 secret 还原到 `keys/`）→ `./gradlew assembleRelease`（工程 `cap-share/`、`cap-paotui/` 已提交仓库）→ CF API 直传 KV + 上传 Release。签名 keystore 存 GitHub secrets（APK_KEYSTORE_B64/APK_KEYSTORE_PASS/APK_KEY_PASS/APK_KEY_ALIAS=waiyuan，PKCS12，指纹 FE:DE:94:7D:56:16:0E:99:90:FF:A3:00:5F:AB:42:82:5B:0F:A2:18:BC:E8:E6:55:15:5C:83:BA:B1:8E:3D:85）；数字资产关联 `.well-known/assetlinks.json`（com.waiyuan.share + com.waiyuan.paotui）已上线。
 - 图标：branding/share-icon.png 与 paotui-icon.png（1254×1254）生成全套 mipmap + adaptive icon（背景 #fdfaf3）。

@@ -49,5 +49,5 @@ test('跑腿页：install-apk 链接指向 paotui APK Release 下载', async ({ 
   const link = page.locator('a.install-apk');
   await expect(link).toBeVisible();
   await expect(link).toHaveAttribute('href', 'https://free60127.top/apk/waiyuan-paotui.apk');
-  await expect(link).toHaveAttribute('download', '外院跑腿.apk');
+  await expect(link).toHaveAttribute('download', '外院互助.apk');
 });

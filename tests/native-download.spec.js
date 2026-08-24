@@ -53,7 +53,7 @@ test('跑腿：App 内分享卡保存走原生桥（NativeSave.saveBase64）', a
   await expect(page.locator('#toast')).toContainText('已保存到手机「下载」目录');
   const saves = await page.evaluate(() => window.__nativeSaves);
   expect(saves.length).toBe(1);
-  expect(saves[0].name).toBe('外院跑腿平台卡.png');
+  expect(saves[0].name).toBe('外院互助平台卡.png');
   expect(saves[0].data.startsWith('iVBOR')).toBe(true); // PNG base64 魔数
   expect(saves[0].data.length).toBeGreaterThan(100);
 });
@@ -80,7 +80,7 @@ test('跑腿：App 内任务卡保存同样走原生桥', async ({ page }) => {
   await page.click('#share-save');
   const saves = await page.evaluate(() => window.__nativeSaves);
   expect(saves.length).toBe(1);
-  expect(saves[0].name).toBe('外院跑腿任务卡.png');
+  expect(saves[0].name).toBe('外院互助任务卡.png');
   expect(saves[0].data.startsWith('iVBOR')).toBe(true);
 });
 
