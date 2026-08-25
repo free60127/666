@@ -563,6 +563,60 @@ test('证据查看：详情页申诉区查看证据 + 管理面板查看证据',
   await expect(page.locator('#dp-list img.ev-img')).toBeVisible();
 });
 
+test('图片点击放大：任务图片与证据图片打开 lightbox（2026-08-25）', async ({ page }) => {
+  const store = newStore();
+  store.users.push({ id: 'u0', email: 'pub@test.com', password: 'secret123', nickname: '发布者' });
+  store.users.push({ id: 'u1', email: 'taker@test.com', password: 'secret123', nickname: '跑腿小王' });
+  const now = Date.now();
+  store.tasks.push({
+    id: 1, publisherId: 'u0', title: '送文件', reward: 8, pickup: 'A', dropoff: 'B', contact: '13800000000', deadline: null,
+    status: 'done', takerId: 'u1', createdAt: now, updatedAt: now,
+    completedAt: now, confirmedAt: null, cancelledAt: null, cancelReason: '', publisherName: '发布者', takerName: '跑腿小王',
+    images: [{ id: 1, mime: 'image/png', stored: 'd1' }],
+  });
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  store.taskImages.push({ id: 1, data: PNG, mime: 'image/png', size: 68 });
+  store.disputes.push({
+    id: 1, taskId: 1, userId: 'u1', role: 'taker', reason: '对方不确认', detail: '已送达但拖延', status: 'open', adminNote: '', createdAt: now, updatedAt: now,
+  });
+  store.evidence.push({ id: 1, disputeId: 1, data: PNG, createdAt: now });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE);
+  await uiRegisterAndLogin(page, store, 'pub@test.com', '发布者', 'secret123');
+  await page.locator('#tabs .tab[data-tab=done]').click();
+  await page.locator('.task-card').first().click();
+  // 任务图片点击放大
+  await expect(page.locator('#detail-body .task-img')).toBeVisible();
+  await page.locator('#detail-body .task-img').click();
+  await expect(page.locator('#wy-lightbox')).toBeVisible();
+  await expect(page.locator('#wy-lightbox .wy-lb-img')).toHaveAttribute('src', /task-images\/1/);
+  await page.locator('#wy-lightbox .wy-lb-close').click();
+  await expect(page.locator('#wy-lightbox')).toBeHidden();
+  // 证据图片点击放大（Esc 关闭）
+  await page.locator('button[data-dp-evidence]').click();
+  await expect(page.locator('img.dp-ev-img')).toBeVisible();
+  await page.locator('img.dp-ev-img').click();
+  await expect(page.locator('#wy-lightbox')).toBeVisible();
+  await expect(page.locator('#wy-lightbox .wy-lb-img')).toHaveAttribute('src', /^blob:/);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#wy-lightbox')).toBeHidden();
+  // 管理面板证据点击放大
+  await page.addInitScript(() => {
+    localStorage.setItem('waiyuan-admin-api-v1', 'http://127.0.0.1:8788');
+    sessionStorage.setItem('waiyuan-admin-token-v1', 'admin-token');
+  });
+  await page.goto('http://127.0.0.1:8788/admin.html');
+  await page.locator('.tabs button[data-tab=errand]').click();
+  await page.locator('#load-disputes').click();
+  await page.locator('#dp-list .fb button:has-text("查看证据")').click();
+  await expect(page.locator('#dp-list img.ev-img')).toBeVisible();
+  await page.locator('#dp-list img.ev-img').click();
+  await expect(page.locator('#wy-lightbox')).toBeVisible();
+  await page.locator('#wy-lightbox .wy-lb-close').click();
+  await expect(page.locator('#wy-lightbox')).toBeHidden();
+});
+
 test('证据 objectURL：重开重新拉取时 revoke 旧 URL，隐藏不撤销（2026-08-23 审查第 2 轮第 4 项）', async ({ page }) => {
   const store = newStore();
   store.users.push({ id: 'u0', email: 'pub@test.com', password: 'secret123', nickname: '发布者' });

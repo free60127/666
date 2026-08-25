@@ -425,7 +425,7 @@
                 const rb2 = await fetch(base() + '/api/errand/evidence/' + v.id, { headers: { Authorization: auth() } });
                 if (!rb2.ok) { const sp = document.createElement('span'); sp.className = 'hint'; sp.textContent = '证据 ' + v.id + ' 加载失败：' + rb2.status; box2.append(sp); continue; }
                 const blob = await rb2.blob();
-                const img = document.createElement('img'); img.className = 'ev-img'; const objUrl = URL.createObjectURL(blob); registerObjectUrl(objUrl); img.dataset.objUrl = objUrl; img.src = objUrl; img.alt = '证据'; img.loading = 'lazy'; box2.append(img);
+                const img = document.createElement('img'); img.className = 'ev-img'; const objUrl = URL.createObjectURL(blob); registerObjectUrl(objUrl); img.dataset.objUrl = objUrl; img.src = objUrl; img.alt = '证据'; img.loading = 'lazy'; img.addEventListener('click', function () { if (window.WaiyuanLightbox) window.WaiyuanLightbox.open(img.src); }); box2.append(img);
               } catch (e2) { const sp = document.createElement('span'); sp.className = 'hint'; sp.textContent = '证据 ' + v.id + ' 请求失败：' + e2.message; box2.append(sp); }
             }
           } else { box2.textContent = '加载失败：' + (j.error || r.status); box2.dataset.failed = '1'; }

@@ -84,6 +84,9 @@ export function createDetail({ $, STATUS, esc, fmtTime, toast, openModal, closeM
     bodyEl.querySelectorAll('button[data-act]').forEach(btn => {
       btn.addEventListener('click', () => handleDetailAction(btn.dataset.act, t));
     });
+    bodyEl.querySelectorAll('.task-gallery .task-img').forEach(function (im) {
+      im.addEventListener('click', function (ev) { ev.stopPropagation(); if (window.WaiyuanLightbox) window.WaiyuanLightbox.open(im.src); });
+    });
     loadReviews(t.id, seq);
     loadDisputes(t.id, seq);
   }
@@ -200,6 +203,9 @@ export function createDetail({ $, STATUS, esc, fmtTime, toast, openModal, closeM
     box.innerHTML = disputeImages.map(function (d, i) {
       return '<div class="dp-thumb"><img src="' + d + '" alt="证据"><button type="button" class="dp-x" data-i="' + i + '">×</button></div>';
     }).join('');
+    box.querySelectorAll('.dp-thumb img').forEach(function (im) {
+      im.addEventListener('click', function () { if (window.WaiyuanLightbox) window.WaiyuanLightbox.open(im.src); });
+    });
     box.querySelectorAll('.dp-x').forEach(function (b) {
       b.addEventListener('click', function () {
         disputeImages.splice(Number(b.dataset.i), 1);
@@ -271,7 +277,7 @@ export function createDetail({ $, STATUS, esc, fmtTime, toast, openModal, closeM
             else for (const v of evs) {
               try {
                 const blob = await apiBlob('/api/errand/evidence/' + v.id);
-                const img = document.createElement('img'); img.className = 'dp-ev-img'; const objUrl = URL.createObjectURL(blob); registerObjectUrl(objUrl); img.dataset.objUrl = objUrl; img.src = objUrl; img.alt = '证据'; img.loading = 'lazy'; wrap.append(img);
+                const img = document.createElement('img'); img.className = 'dp-ev-img'; const objUrl = URL.createObjectURL(blob); registerObjectUrl(objUrl); img.dataset.objUrl = objUrl; img.src = objUrl; img.alt = '证据'; img.loading = 'lazy'; img.addEventListener('click', function () { if (window.WaiyuanLightbox) window.WaiyuanLightbox.open(img.src); }); wrap.append(img);
               } catch (er2) {
                 const sp = document.createElement('span'); sp.className = 'muted'; sp.textContent = '证据 ' + v.id + ' 加载失败。'; wrap.append(sp);
               }
