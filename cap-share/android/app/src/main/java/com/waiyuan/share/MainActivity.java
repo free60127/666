@@ -304,7 +304,7 @@ public class MainActivity extends BridgeActivity {
         lastHandledImagePressSequence = imagePressSequence;
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("图片操作")
-                .setItems(new String[]{"保存图片", "用微信扫一扫"}, (dialog, which) -> {
+                .setItems(new String[]{"保存图片", "用微信扫一扫"}, (d, which) -> {
                     if (which == 0) saveImage(imageUrl);
                     else openWechatScan();
                 })
