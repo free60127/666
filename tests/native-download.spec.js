@@ -53,8 +53,8 @@ test('跑腿：App 内分享卡保存走原生桥（NativeSave.saveBase64）', a
   await expect(page.locator('#toast')).toContainText('已保存到手机「下载」目录');
   const saves = await page.evaluate(() => window.__nativeSaves);
   expect(saves.length).toBe(1);
-  expect(saves[0].name).toBe('外院互助平台卡.png');
-  expect(saves[0].data.startsWith('iVBOR')).toBe(true); // PNG base64 魔数
+  expect(saves[0].name).toBe('外院互助平台卡.jpg');
+  expect(saves[0].data.startsWith('/9j/')).toBe(true); // JPEG base64 魔数
   expect(saves[0].data.length).toBeGreaterThan(100);
 });
 
@@ -80,8 +80,8 @@ test('跑腿：App 内任务卡保存同样走原生桥', async ({ page }) => {
   await page.click('#share-save');
   const saves = await page.evaluate(() => window.__nativeSaves);
   expect(saves.length).toBe(1);
-  expect(saves[0].name).toBe('外院互助任务卡.png');
-  expect(saves[0].data.startsWith('iVBOR')).toBe(true);
+  expect(saves[0].name).toBe('外院互助任务卡.jpg');
+  expect(saves[0].data.startsWith('/9j/')).toBe(true);
 });
 
 test('跑腿：原生保存失败时回退提示（不谎报成功）', async ({ page }) => {
@@ -90,7 +90,7 @@ test('跑腿：原生保存失败时回退提示（不谎报成功）', async ({
   await page.click('#share-card-btn');
   await expect(page.locator('#share-preview img')).toBeVisible();
   await page.click('#share-save');
-  await expect(page.locator('#toast')).toContainText('已保存到相册 / 下载目录');
+  await expect(page.locator('#toast')).toContainText('保存失败，请截图或长按图片保存');
   const saves = await page.evaluate(() => window.__nativeSaves);
   expect(saves.length).toBe(1); // 桥被调用过，但返回 false
 });
@@ -100,7 +100,7 @@ test('跑腿：非原生浏览器保持原保存提示', async ({ page }) => {
   await page.click('#share-card-btn');
   await expect(page.locator('#share-preview img')).toBeVisible();
   await page.click('#share-save');
-  await expect(page.locator('#toast')).toContainText('已保存到相册 / 下载目录');
+  await expect(page.locator('#toast')).toContainText('已开始保存图片（未生效可长按图片保存）');
 });
 
 test('题库导入：App 内 import.json 走原生桥且命令照常生成', async ({ page }) => {

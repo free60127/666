@@ -126,6 +126,161 @@
     }
   };
 
+  /* ---------- 二维码通用操作（2026-08-25） ----------
+     给任意页面 <img data-qr> 的二维码图统一绑定「右键 / 长按」：
+     弹出底部操作面板（保存图片 / 用微信扫一扫 / 关闭）。
+     - App 内保存走 NativeSave 桥（MainActivity @JavascriptInterface），
+       外部浏览器回退 <a download>。
+     - 「用微信扫一扫」走 NativeOpen 桥（仅 App 内可靠），外部环境提示复制/保存。 */
+  window.WaiyuanQrActions = (function () {
+    let panel = null;
+    let imgRef = null;
+    let styleInjected = false;
+
+    function injectStyle() {
+      if (styleInjected) return;
+      styleInjected = true;
+      const css = [
+        '#wy-qr-sheet{position:fixed;left:0;right:0;bottom:0;z-index:10001;background:var(--card,#fdfaf3);border-top:1px solid var(--line,#e5ded2);border-radius:16px 16px 0 0;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0));box-shadow:0 -4px 20px rgba(0,0,0,.12);display:flex;flex-direction:column;gap:10px;max-width:520px;margin:0 auto}',
+        '#wy-qr-sheet[hidden]{display:none!important}',
+        '#wy-qr-sheet .wy-qr-title{font-weight:700;font-size:15px;color:var(--ink,#17211f)}',
+        '#wy-qr-sheet .wy-qr-btn{border:0;background:var(--cream,#f6f1e6);color:var(--ink,#17211f);padding:11px 12px;border-radius:10px;font-size:15px;text-align:center;cursor:pointer;width:100%}',
+        '#wy-qr-sheet .wy-qr-btn:active{opacity:.85}',
+        '#wy-qr-sheet .wy-qr-close{background:transparent;color:var(--muted,#6b7a73)}',
+        'html[data-theme=dark] #wy-qr-sheet{background:#1e2426;border-color:#333c3f}',
+        'html[data-theme=dark] #wy-qr-sheet .wy-qr-btn{background:#2a3437;color:#e8ece9}',
+        'html[data-theme=dark] #wy-qr-sheet .wy-qr-title{color:#e8ece9}',
+        'html[data-theme=dark] #wy-qr-sheet .wy-qr-close{color:#9aa9a4}'
+      ].join('');
+      const style = document.createElement('style');
+      style.textContent = css;
+      (document.head || document.documentElement).appendChild(style);
+    }
+
+    function ensurePanel() {
+      if (panel) return panel;
+      injectStyle();
+      panel = document.createElement('div');
+      panel.id = 'wy-qr-sheet';
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-modal', 'true');
+      panel.hidden = true;
+      panel.innerHTML = [
+        '<div class="wy-qr-title">🔍 二维码操作</div>',
+        '<button type="button" class="wy-qr-btn" data-wy-qr="save">💾 保存图片</button>',
+        '<button type="button" class="wy-qr-btn" data-wy-qr="wechat">📱 用微信扫一扫</button>',
+        '<button type="button" class="wy-qr-btn wy-qr-close" data-wy-qr="close">关闭</button>'
+      ].join('');
+      panel.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('[data-wy-qr]');
+        if (!btn) return;
+        const act = btn.dataset.wyQr;
+        if (act === 'close') { panel.hidden = true; return; }
+        if (act === 'save') saveImage(); else if (act === 'wechat') wechatScan();
+      });
+      document.body.appendChild(panel);
+      return panel;
+    }
+
+    function toast(msg, isError) {
+      let t = document.getElementById('wy-qr-toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = 'wy-qr-toast';
+        t.style.cssText = 'position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:10002;background:rgba(23,33,31,.9);color:#fff;padding:9px 14px;border-radius:10px;font-size:14px;max-width:80%;text-align:center;pointer-events:none';
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.style.background = isError ? 'rgba(179,38,30,.92)' : 'rgba(23,33,31,.9)';
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => { t.hidden = true; }, 3200);
+      t.hidden = false;
+    }
+
+    function saveImage() {
+      if (!imgRef || !imgRef.src) return;
+      const src = imgRef.src;
+      const name = (imgRef.alt || '二维码').replace(/[\\/:*?"<>|]/g, '_') + '.png';
+      const nd = window.WaiyuanNativeDownload;
+      const save = (blob) => {
+        if (blob && nd && nd.isNative && nd.isNative() && nd.saveBlob) {
+          nd.saveBlob(name, blob).then(ok => {
+            toast(ok ? '已保存到手机「下载」目录' : '保存失败，可长按图片或截图保存', !ok);
+          }).catch(() => toast('保存失败，可长按图片或截图保存', true));
+          return;
+        }
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = name;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 2000);
+          toast('已开始保存图片（未生效可长按图片保存）');
+          return;
+        }
+        toast('图片暂不支持保存，请截图保存', true);
+      };
+      if (src.indexOf('data:') === 0) {
+        if (nd && nd.isNative && nd.isNative() && nd.saveDataUrl) {
+          const saved = nd.saveDataUrl(name, src) === true;
+          toast(saved ? '已保存到手机「下载」目录' : '保存失败，可长按图片或截图保存', !saved);
+          return;
+        }
+        // 浏览器：a[download] 支持 dataURL
+        const a = document.createElement('a');
+        a.href = src; a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        toast('已开始保存图片（未生效可长按图片保存）');
+        return;
+      }
+      fetch(src).then(r => { if (!r.ok) throw new Error('fetch ' + r.status); return r.blob(); }).then(save).catch(() => toast('图片加载失败，请截图保存', true));
+    }
+
+    function wechatScan() {
+      const bridge = window.WaiyuanNativeBridge;
+      if (bridge && bridge.isNative && bridge.isNative() && bridge.openExternal) {
+        if (bridge.openExternal('weixin://scanqrcode')) {
+          toast('已尝试打开微信扫一扫；若无反应请保存图片后到微信识别');
+          return;
+        }
+        toast('当前环境无法直接唤起微信扫一扫，请保存图片后到微信识别', true);
+        return;
+      }
+      toast('请保存图片后到微信「扫一扫」→「相册」识别', true);
+    }
+
+    function show(img) {
+      imgRef = img;
+      ensurePanel();
+      panel.hidden = false;
+    }
+
+    function hide() {
+      if (panel) panel.hidden = true;
+    }
+
+    function bind(img) {
+      if (!img || img.__wyQrBound) return;
+      img.__wyQrBound = true;
+      let timer = null;
+      const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+      img.addEventListener('contextmenu', (ev) => { ev.preventDefault(); show(img); });
+      img.addEventListener('touchstart', () => { cancel(); timer = setTimeout(() => show(img), 600); }, { passive: true });
+      ['touchmove', 'touchend', 'touchcancel'].forEach(evt => img.addEventListener(evt, cancel, { passive: true }));
+    }
+
+    function autoBind() {
+      document.querySelectorAll('img[data-qr]').forEach(bind);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', autoBind);
+    } else {
+      autoBind();
+    }
+    return { bind: bind, show: show, hide: hide, autoBind: autoBind };
+  })();
+
   /* ---------- Service Worker (PWA 离线缓存) ---------- */
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     const tag = document.querySelector('script[data-common-injected]');

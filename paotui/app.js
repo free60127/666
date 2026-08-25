@@ -451,20 +451,41 @@
     openModal('share-modal');
     renderSharePreview();
   }
-  function saveShareCard() {
+  // 2026-08-25：保存前压缩到 ≤640 宽（jpeg .82），
+  // 避免大 base64 经 Android addJavascriptInterface 传参失败（超 ~1MB 会静默失败）
+  function compressImageDataUrl(src, maxW, q) {
+    return new Promise(resolve => {
+      const im = new Image();
+      im.onload = () => {
+        try {
+          let w = im.naturalWidth || 1, h = im.naturalHeight || 1;
+          if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(im, 0, 0, w, h);
+          resolve(cv.toDataURL('image/jpeg', q));
+        } catch (e) { resolve(src); }
+      };
+      im.onerror = () => resolve(src);
+      im.src = src;
+    });
+  }
+  async function saveShareCard() {
     const img = $('share-preview').querySelector('img');
     if (!img) return;
-    const name = shareType === 'task' ? '外院互助任务卡.png' : '外院互助平台卡.png';
+    const name = shareType === 'task' ? '外院互助任务卡.jpg' : '外院互助平台卡.jpg';
+    const dataUrl = await compressImageDataUrl(img.src, 640, 0.82);
     const nd = window.WaiyuanNativeDownload;
-    if (nd && nd.isNative && nd.isNative() && nd.saveDataUrl(name, img.src)) {
-      toast('已保存到手机「下载」目录');
+    if (nd && nd.isNative && nd.isNative() && nd.saveDataUrl) {
+      const ok = nd.saveDataUrl(name, dataUrl) === true;
+      toast(ok ? '已保存到手机「下载」目录' : '保存失败，请截图或长按图片保存', !ok);
       return;
     }
     const a = document.createElement('a');
-    a.href = img.src;
+    a.href = dataUrl;
     a.download = name;
     document.body.append(a); a.click(); a.remove();
-    toast('已保存到相册 / 下载目录（未生效可长按图片保存）');
+    toast('已开始保存图片（未生效可长按图片保存）');
   }
 
 

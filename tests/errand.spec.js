@@ -759,7 +759,7 @@ test('分享卡片：底部入口生成平台卡与任务卡，可保存图片',
   const dl = page.waitForEvent('download');
   await page.locator('#share-save').click();
   const d = await dl;
-  expect(d.suggestedFilename()).toContain('任务卡.png');
+  expect(d.suggestedFilename()).toContain('任务卡.jpg');
 });
 
 test('分享卡片：未打开详情点任务卡有提示；长按二维码弹出操作层', async ({ page }) => {
