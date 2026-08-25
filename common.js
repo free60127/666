@@ -265,6 +265,15 @@
       let timer = null;
       const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
       img.addEventListener('contextmenu', (ev) => { ev.preventDefault(); show(img); });
+      // 具备原生图片长按能力的知识共享 APK 由 MainActivity 接管，
+      // 避免同一次长按同时弹出网页面板和原生保存菜单；普通浏览器仍走下方 JS 逻辑。
+      let nativeImageLongPress = false;
+      try {
+        nativeImageLongPress = !!(window.NativeSave
+          && typeof window.NativeSave.supportsImageLongPress === 'function'
+          && window.NativeSave.supportsImageLongPress());
+      } catch (_) {}
+      if (nativeImageLongPress) return;
       // 2026-08-25：Android WebView 长按图片默认弹系统菜单（约 500ms 接管），
       // 会抢占我们的 JS 长按计时器 → 必须非 passive + preventDefault 拦截系统长按菜单
       img.addEventListener('touchstart', (ev) => { ev.preventDefault(); cancel(); timer = setTimeout(() => show(img), 600); }, { passive: false });
