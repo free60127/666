@@ -284,14 +284,35 @@
   })();
 
   /* ---------- Service Worker (PWA 离线缓存) ---------- */
+  // App 内（Capacitor WebView）不注册 Service Worker：SW 的缓存策略
+  // 会让 App 端长期命中旧缓存文件（长按二维码/图片更新一直不生效），
+  // 而 App 每次冷启动都会重新拉取线上页面，不需要 PWA 离线缓存。
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
-    const tag = document.querySelector('script[data-common-injected]');
-    const src = tag && tag.src;
-    if (src) {
-      const swUrl = new URL('sw.js', src);
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register(swUrl).catch(err => { console.warn('Service Worker 注册失败（不影响页面使用）：', err); });
-      });
+    const isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    if (isNativeApp) {
+      console.info('[PWA] App 内不注册 Service Worker，内容走网络最新版');
+      // 清除 App 内历史遗留的 Service Worker 与缓存（旧版曾注册，导致长期命中旧文件）
+      try {
+        if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+          navigator.serviceWorker.getRegistrations().then(function (list) {
+            list.forEach(function (rg) { try { rg.unregister(); } catch (e) {} });
+          });
+        }
+        if (window.caches && caches.keys) {
+          caches.keys().then(function (keys) {
+            return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+          });
+        }
+      } catch (e) { /* 清理失败不影响使用 */ }
+    } else {
+      const tag = document.querySelector('script[data-common-injected]');
+      const src = tag && tag.src;
+      if (src) {
+        const swUrl = new URL('sw.js', src);
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register(swUrl).catch(err => { console.warn('Service Worker 注册失败（不影响页面使用）：', err); });
+        });
+      }
     }
   }
 })();
