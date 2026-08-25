@@ -376,7 +376,6 @@
 
   function renderShareTabs() {
     document.querySelectorAll('#share-tabs .tab').forEach(b => {
-      b.disabled = b.dataset.stype === 'task' && !currentShareTask;
       b.classList.toggle('active', b.dataset.stype === shareType);
     });
   }
@@ -390,7 +389,60 @@
       img.alt = '分享卡片';
       box.innerHTML = '';
       box.append(img);
+      bindQrSheetTriggers(img);
     } catch (e) { box.innerHTML = '<div class="empty">生成失败：' + esc(e.message) + '</div>'; }
+  }
+  let qrSheetData = 'https://free60127.top/paotui/';
+  function currentQrData() {
+    try {
+      if (shareCard && shareCard.qrDataOf) return shareCard.qrDataOf(shareType, currentShareTask);
+    } catch (e) { /* 回退内部拼接 */ }
+    return (shareType === 'task' && currentShareTask && currentShareTask.id)
+      ? 'https://free60127.top/paotui/?task=' + currentShareTask.id
+      : 'https://free60127.top/paotui/';
+  }
+  function showQrSheet() {
+    qrSheetData = currentQrData();
+    const el = $('qr-sheet');
+    if (el) el.classList.remove('hidden');
+  }
+  function hideQrSheet() {
+    const el = $('qr-sheet');
+    if (el) el.classList.add('hidden');
+  }
+  function fallbackCopyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0'; ta.style.zIndex = '-1';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+  }
+  function copyQrLink() {
+    const text = qrSheetData;
+    const done = function () { toast('链接已复制，粘贴给同学即可打开'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopyText(text); done(); });
+    } else { fallbackCopyText(text); done(); }
+    hideQrSheet();
+  }
+  function openWechatScanner() {
+    hideQrSheet();
+    const ok = window.WaiyuanNativeBridge && window.WaiyuanNativeBridge.openExternal
+      ? window.WaiyuanNativeBridge.openExternal('weixin://scanqrcode')
+      : false;
+    if (ok) toast('已尝试打开微信扫一扫；若无反应请复制链接');
+    else toast('当前环境无法直接唤起微信扫一扫，请复制链接后到微信打开', true);
+  }
+  function bindQrSheetTriggers(img) {
+    img.addEventListener('contextmenu', function (ev) { ev.preventDefault(); showQrSheet(); });
+    let qrTimer = null;
+    img.addEventListener('touchstart', function () {
+      if (qrTimer) clearTimeout(qrTimer);
+      qrTimer = setTimeout(showQrSheet, 600);
+    }, { passive: true });
+    const cancel = function () { if (qrTimer) { clearTimeout(qrTimer); qrTimer = null; } };
+    ['touchmove', 'touchend', 'touchcancel'].forEach(function (evt) { img.addEventListener(evt, cancel, { passive: true }); });
   }
   function openShareModal() {
     if (!window.qrcode || !shareCard) { toast('分享卡组件加载失败，请刷新重试', true); return; }
@@ -474,11 +526,19 @@
   document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); }));
   // 分享卡片
   $('share-card-btn').addEventListener('click', openShareModal);
-  $('share-cancel').addEventListener('click', () => closeModal('share-modal'));
+  $('share-cancel').addEventListener('click', () => { hideQrSheet(); closeModal('share-modal'); });
   $('share-save').addEventListener('click', saveShareCard);
+  if ($('qr-copy')) $('qr-copy').addEventListener('click', copyQrLink);
+  if ($('qr-wechat')) $('qr-wechat').addEventListener('click', openWechatScanner);
+  if ($('qr-save')) $('qr-save').addEventListener('click', () => { hideQrSheet(); saveShareCard(); });
+  if ($('qr-close')) $('qr-close').addEventListener('click', hideQrSheet);
   document.querySelectorAll('#share-tabs .tab').forEach(b => b.addEventListener('click', () => {
-    if (b.disabled) { toast('请先打开一个任务详情再生成任务卡', true); return; }
+    if (b.dataset.stype === 'task' && !currentShareTask) {
+      toast('请先打开一个任务详情，再生成任务卡', true);
+      return;
+    }
     shareType = b.dataset.stype;
+    hideQrSheet();
     renderShareTabs(); renderSharePreview();
   }));
 

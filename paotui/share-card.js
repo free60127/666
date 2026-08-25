@@ -42,6 +42,11 @@
     });
   }
 
+  function qrDataOf(type, task) {
+    if (type === 'task' && task && task.id) return 'https://free60127.top/paotui/?task=' + task.id;
+    return 'https://free60127.top/paotui/';
+  }
+
   async function draw(type, task, formatTime) {
     const W = 720;
     const H = 960;
@@ -85,9 +90,9 @@
     ctx.stroke();
 
     let qrSize = 220;
-    let qrData = 'https://free60127.top/paotui/';
+    let qrData = qrDataOf(type, task);
     if (hasTask) {
-      qrData = 'https://free60127.top/paotui/?task=' + task.id;
+      qrData = qrDataOf(type, task);
       ctx.fillStyle = 'rgba(255,255,255,.75)';
       ctx.font = '22px ' + font;
       ctx.fillText('任务详情', 48, 216);
@@ -172,5 +177,5 @@
     return cv;
   }
 
-  window.WaiyuanErrandShareCard = { setQrUtf8, draw };
+  window.WaiyuanErrandShareCard = { setQrUtf8, draw, qrDataOf };
 })();

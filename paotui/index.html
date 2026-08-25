@@ -6,7 +6,7 @@
   <title>外院互助 - 发布任务 · 校内接单</title>
   <meta name="robots" content="noindex,nofollow">
   <link rel="icon" href="../favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20260825-0827">
+  <link rel="stylesheet" href="style.css?v=20260825-0841">
   <script>(function(){try{var t=localStorage.getItem('waiyuan-web-theme-v1')||(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
   <meta property="og:title" content="外院互助">
   <meta property="og:description" content="校内互助：发布任务、在线接单，线下当面结算">
@@ -140,6 +140,13 @@
         <button id="share-save" class="btn primary">💾 保存图片</button>
       </div>
       <div class="hint">长按图片可保存 / 转发给同学；任务卡需要先打开过某个任务详情</div>
+      <div id="qr-sheet" class="qr-sheet hidden">
+        <div class="qr-sheet-title">🔍 二维码操作</div>
+        <button type="button" class="btn ghost" id="qr-copy">📋 复制链接</button>
+        <button type="button" class="btn ghost" id="qr-wechat">📱 用微信扫一扫</button>
+        <button type="button" class="btn ghost" id="qr-save">💾 保存二维码</button>
+        <button type="button" class="btn ghost" id="qr-close">关闭</button>
+      </div>
     </div>
   </div>
 
@@ -163,10 +170,10 @@
   </div>
   <div id="toast" class="toast hidden"></div>
 
-  <script src="qrcode.js?v=20260825-0827"></script>
-  <script src="../学习中心/auth.js?v=20260825-0827"></script>
-  <script src="../lightbox.js?v=20260825-0827"></script>
-  <script src="share-card.js?v=20260825-0827"></script>
-  <script src="app.js?v=20260825-0827"></script>
+  <script src="qrcode.js?v=20260825-0841"></script>
+  <script src="../学习中心/auth.js?v=20260825-0841"></script>
+  <script src="../lightbox.js?v=20260825-0841"></script>
+  <script src="share-card.js?v=20260825-0841"></script>
+  <script src="app.js?v=20260825-0841"></script>
 </body>
 </html>

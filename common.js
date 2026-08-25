@@ -105,6 +105,27 @@
     },
   };
 
+  /* 2026-08-25：NativeOpen 桥——App 内长按二维码唤起系统「打开链接」/微信扫一扫；
+     外部浏览器无此桥时退化为 window.open（可能被拦截）。 */
+  window.WaiyuanNativeBridge = {
+    isNative: function () {
+      return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    },
+    openExternal: function (url) {
+      try {
+        if (window.NativeOpen && window.NativeOpen.openExternal) {
+          return window.NativeOpen.openExternal(String(url)) === true;
+        }
+      } catch (e) { /* 桥异常时走浏览器兜底 */ }
+      try {
+        const w = window.open(String(url), '_blank');
+        return !!w;
+      } catch (e) {
+        return false;
+      }
+    }
+  };
+
   /* ---------- Service Worker (PWA 离线缓存) ---------- */
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     const tag = document.querySelector('script[data-common-injected]');

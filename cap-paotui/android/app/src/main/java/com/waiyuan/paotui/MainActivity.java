@@ -89,6 +89,7 @@ public class MainActivity extends BridgeActivity {
             }
         });
         webView.addJavascriptInterface(new NativeSaveBridge(), "NativeSave");
+        webView.addJavascriptInterface(new NativeOpenBridge(), "NativeOpen");
         webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
             if (url == null || url.startsWith("blob:") || url.startsWith("data:")) {
                 return; // blob/data 由前端 NativeSave 通道处理
@@ -146,6 +147,22 @@ public class MainActivity extends BridgeActivity {
                 return true;
             } catch (Exception e) {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "保存失败：" + e.getMessage(), Toast.LENGTH_SHORT).show());
+                return false;
+            }
+        }
+    }
+
+    /** 前端 window.NativeOpen.openExternal(url)：用系统方式打开外部链接（如唤起微信扫一扫） */
+    private class NativeOpenBridge {
+        @JavascriptInterface
+        public boolean openExternal(String url) {
+            try {
+                if (url == null || url.trim().isEmpty()) return false;
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                return true;
+            } catch (Exception e) {
                 return false;
             }
         }

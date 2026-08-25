@@ -85,6 +85,14 @@ main { max-width: 720px; margin: 0 auto; padding: 12px; padding-bottom: 90px; }
 .toast { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); background: rgba(30,42,38,.92); color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 14px; z-index: 99; max-width: 86vw; text-align: center; }
 .toast.err { background: rgba(190,60,50,.95); }
 
+/* ---------- 分享卡二维码操作层（2026-08-25） ---------- */
+.qr-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: var(--card, #fff); color: var(--text, #17211f);
+  border-radius: 14px 14px 0 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 -6px 24px rgba(0,0,0,.2); }
+.qr-sheet[hidden] { display: none !important; }
+.qr-sheet-title { font-weight: 700; text-align: center; font-size: 15px; }
+html[data-theme="dark"] .qr-sheet { background: #1e2426; color: #dde4e0; }
+
 /* 暗色模式（与主站同键 waiyuan-web-theme-v1，同域自动同步） */
 html[data-theme="dark"] {
   --green: #3f9c7a;

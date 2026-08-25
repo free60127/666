@@ -762,6 +762,30 @@ test('分享卡片：底部入口生成平台卡与任务卡，可保存图片',
   expect(d.suggestedFilename()).toContain('任务卡.png');
 });
 
+test('分享卡片：未打开详情点任务卡有提示；长按二维码弹出操作层', async ({ page }) => {
+  const store = newStore();
+  store.tasks.push({
+    id: 1, publisherId: 'u0', title: '帮取快递', reward: 5, pickup: '菜鸟驿站', dropoff: '女生宿舍 3 栋', contact: '13800000000', deadline: Date.now() + 3600000,
+    status: 'open', takerId: null, createdAt: Date.now(), updatedAt: Date.now(),
+    completedAt: null, confirmedAt: null, cancelledAt: null, cancelReason: '', publisherName: '发布者', takerName: null,
+  });
+  mockAuthApi(page, store);
+  mockErrandApi(page, store);
+  await page.goto(BASE);
+  await page.locator('#share-card-btn').click();
+  await expect(page.locator('#share-modal')).toBeVisible();
+  await expect(page.locator('#share-preview img')).toBeVisible();
+  // 未打开任务详情时点任务卡：给出提示，不切换预览（platform 仍保持）
+  await page.locator('#share-tabs .tab[data-stype=task]').click();
+  await expect(page.locator('#toast')).toContainText('请先打开一个任务详情');
+  // 长按（contextmenu）二维码 → 弹出操作层，可关闭且不影响分享面板
+  await page.locator('#share-preview img').dispatchEvent('contextmenu');
+  await expect(page.locator('#qr-sheet')).toBeVisible();
+  await page.locator('#qr-close').click();
+  await expect(page.locator('#qr-sheet')).toBeHidden();
+  await expect(page.locator('#share-preview img')).toBeVisible();
+});
+
 
 test('发布表单：必填字段校验提示（联系方式缺失拦截）', async ({ page }) => {
   const store = newStore();
