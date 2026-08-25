@@ -165,9 +165,20 @@ public class MainActivity extends BridgeActivity {
     private void showImageSaveDialog(String imageUrl) {
         new AlertDialog.Builder(this)
                 .setTitle("图片操作")
-                .setItems(new String[]{"保存图片"}, (dialog, which) -> saveImage(imageUrl))
+                .setItems(new String[]{"保存图片", "用微信扫一扫"}, (dialog, which) -> {
+                    if (which == 0) saveImage(imageUrl);
+                    else openWechatScan();
+                })
                 .setNegativeButton("取消", null)
                 .show();
+    }
+
+    private void openWechatScan() {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("weixin://scanqrcode")));
+        } catch (Exception e) {
+            Toast.makeText(this, "当前设备可能未安装微信", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void saveImage(String imageUrl) {
