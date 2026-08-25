@@ -7,13 +7,13 @@
      ② 题库/词书/词典等数据文件：缓存 key 用「无版本号 URL」——
         页面带 ?v= 请求命中缓存即回，同时后台刷新；离线时预缓存的
         思政/计算机题库、访问过的词书/词典均可使用；
-     ③ 其他带 ?v= 静态资源 cache-first（发布即换新 URL，永不过期），
-        命中时后台刷新并清理同一文件的旧版本条目（防无限累积）；
+     ③ 其他带 ?v= 静态资源 network-first（发布即换新 URL，网络优先拿最新），
+        成功后同步写版本化条目与无版本兜底条目；离线回退缓存；
      ④ 无版本号资源（theme.css/common.js/manifest/favicon 等）
         stale-while-revalidate：先回缓存立即响应，同时后台拉新。
    版本号：更新本文件 CACHE 常量即可整体换新缓存。
    ============================================================ */
-const CACHE = 'waiyuan-v6';
+const CACHE = 'waiyuan-v7';
 
 // 导航离线且未缓存时返回的提示页（明确告知「该模块尚未下载」，不再静默回退首页壳）
 function offlinePage() {
@@ -142,32 +142,28 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // 带版本号资源：缓存优先 + 后台刷新 + 清理旧版本。
-  // 预缓存条目按「无版本 URL」存放（发布换版本号后不失效），
-  // 因此先按完整请求匹配，miss 时再回退到无版本条目。
+  // 带版本号资源：网络优先（发布=新 URL，必须尽快拿到最新文件），
+  // 成功后同步更新版本化条目与无版本兜底条目；离线时才回退缓存。
+  // 旧实现 cache-first miss 回退到无版本预缓存，会让 APK/SW 用户
+  // 持续拿到旧版本脚本（例如长按二维码修复一直不生效）。
   if (url.searchParams.has('v')) {
     const cleanUrl = url.origin + url.pathname;
     event.respondWith(
-      caches.match(req).then(hit => hit || caches.match(cleanUrl)).then(hit => {
-        if (hit) {
-          fetch(req)
-            .then(res => {
-              if (res.ok) {
-                const copy = res.clone();
-                caches.open(CACHE).then(cache => putWithClean(cache, req, copy));
-              }
-            })
-            .catch(() => {});
-          return hit;
+      fetch(req).then(res => {
+        if (res.ok) {
+          const copy1 = res.clone();
+          const copy2 = res.clone();
+          caches.open(CACHE).then(cache =>
+            Promise.all([
+              putWithClean(cache, req, copy1),
+              putWithClean(cache, cleanUrl, copy2)
+            ])
+          );
         }
-        return fetch(req).then(res => {
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then(cache => putWithClean(cache, req, copy));
-          }
-          return res;
-        });
-      })
+        return res;
+      }).catch(() =>
+        caches.match(req).then(hit => hit || caches.match(cleanUrl))
+      )
     );
     return;
   }
