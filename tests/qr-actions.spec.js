@@ -16,6 +16,16 @@ test('主页赞助二维码：右键弹出操作面板，可关闭', async ({ pa
   await expect(sheet).toBeHidden();
 });
 
+test('主页赞助二维码：touchstart 长按 600ms 弹出操作面板（APK WebView 长按回归）', async ({ page }) => {
+  await page.goto('http://127.0.0.1:8788/index.html');
+  await page.locator('button[data-action="sponsor"]').click();
+  const qr = page.locator('#sponsor img[data-qr]');
+  await expect(qr).toBeVisible();
+  await qr.dispatchEvent('touchstart');
+  await expect(page.locator('#wy-qr-sheet')).toBeVisible({ timeout: 3000 });
+  await page.locator('#wy-qr-sheet [data-wy-qr="close"]').click();
+});
+
 test('电子版教材：二维码图片右键弹出操作面板', async ({ page }) => {
   await page.goto('http://127.0.0.1:8788/' + enc('电子版教材/index.html'));
   const qr = page.locator('img[data-qr]');

@@ -265,7 +265,9 @@
       let timer = null;
       const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
       img.addEventListener('contextmenu', (ev) => { ev.preventDefault(); show(img); });
-      img.addEventListener('touchstart', () => { cancel(); timer = setTimeout(() => show(img), 600); }, { passive: true });
+      // 2026-08-25：Android WebView 长按图片默认弹系统菜单（约 500ms 接管），
+      // 会抢占我们的 JS 长按计时器 → 必须非 passive + preventDefault 拦截系统长按菜单
+      img.addEventListener('touchstart', (ev) => { ev.preventDefault(); cancel(); timer = setTimeout(() => show(img), 600); }, { passive: false });
       ['touchmove', 'touchend', 'touchcancel'].forEach(evt => img.addEventListener(evt, cancel, { passive: true }));
     }
 
