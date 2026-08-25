@@ -26,6 +26,21 @@ test('主页赞助二维码：touchstart 长按 600ms 弹出操作面板（APK W
   await page.locator('#wy-qr-sheet [data-wy-qr="close"]').click();
 });
 
+test('知识共享 APK：检测到原生图片长按能力时不重复启动网页长按面板', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.NativeSave = {
+      supportsImageLongPress() { return true; },
+    };
+  });
+  await page.goto('http://127.0.0.1:8788/index.html');
+  await page.locator('button[data-action="sponsor"]').click();
+  const qr = page.locator('#sponsor img[data-qr]');
+  await expect(qr).toBeVisible();
+  await qr.dispatchEvent('touchstart');
+  await page.waitForTimeout(800);
+  await expect(page.locator('#wy-qr-sheet')).toHaveCount(0);
+});
+
 test('电子版教材：二维码图片右键弹出操作面板', async ({ page }) => {
   await page.goto('http://127.0.0.1:8788/' + enc('电子版教材/index.html'));
   const qr = page.locator('img[data-qr]');

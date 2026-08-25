@@ -9,14 +9,21 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.webkit.WebView;
 import android.widget.Toast;
+
+import org.json.JSONObject;
+import org.json.JSONTokener;
 
 import java.util.Locale;
 
@@ -41,10 +48,22 @@ import java.util.concurrent.Executors;
  */
 public class MainActivity extends BridgeActivity {
 
+    private static final long IMAGE_LONG_PRESS_MS = 360L;
     private final ExecutorService imageSaveExecutor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Runnable pendingImageLongPress;
+    private long imagePressSequence;
+    private boolean imagePressTracking;
+    private boolean imagePressTriggered;
+    private float imagePressDownX;
+    private float imagePressDownY;
+    private long lastHandledImagePressSequence = -1L;
+    private AlertDialog imageDialog;
 
     @Override
     public void onDestroy() {
+        invalidatePendingImageLongPress();
+        mainHandler.removeCallbacksAndMessages(null);
         imageSaveExecutor.shutdownNow();
         super.onDestroy();
     }
@@ -101,9 +120,11 @@ public class MainActivity extends BridgeActivity {
         });
         webView.addJavascriptInterface(new NativeSaveBridge(), "NativeSave");
         webView.addJavascriptInterface(new NativeOpenBridge(), "NativeOpen");
-        // Android WebView 默认长按图片只显示系统菜单；部分版本/页面会直接吞掉该菜单。
-        // 在原生层接管图片长按，统一提供「保存图片」并写入系统「下载」目录。
+        installImageLongPress(webView);
         webView.setOnLongClickListener(v -> {
+            // 自定义触摸判定已经弹出菜单时，吞掉 WebView 随后的默认长按回调，
+            // 避免同一次长按再次弹出菜单或系统图片菜单。
+            if (isImageLongPressRecentlyHandled()) return true;
             WebView.HitTestResult hit = webView.getHitTestResult();
             if (hit == null) return false;
             int type = hit.getType();
@@ -127,15 +148,131 @@ public class MainActivity extends BridgeActivity {
                 if (userAgent != null) request.addRequestHeader("User-Agent", userAgent);
                 request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                 String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
-                request.setMimeType(mimeTypeForFile(fileName, mimetype));
-                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+                String safeName = safeFileName(fileName);
+                request.setMimeType(mimeTypeForFile(safeName, mimetype));
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeName);
                 DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
                 dm.enqueue(request);
-                runOnUiThread(() -> Toast.makeText(this, "正在下载：" + fileName, Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> Toast.makeText(this, "正在下载：" + safeName, Toast.LENGTH_SHORT).show());
             } catch (Exception e) {
                 runOnUiThread(() -> Toast.makeText(this, "下载失败：" + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         });
+    }
+
+    /**
+     * 用更短、更稳定的触摸计时补充 WebView 默认长按判定。
+     *
+     * WebView 的 getHitTestResult() 依赖内部手势状态，部分 Android/WebView 版本在
+     * OnLongClickListener 回调时拿不到图片命中结果。这里在 ACTION_DOWN 后约 360ms
+     * 通过 elementFromPoint() 命中当前触摸位置的 img；若不是图片，则不吞掉事件，
+     * 文字选择、滚动和其它 WebView 默认长按行为仍由系统处理。
+     */
+    private void installImageLongPress(WebView webView) {
+        final int touchSlop = ViewConfiguration.get(webView.getContext()).getScaledTouchSlop();
+
+        // ACTION_DOWN 的坐标需要在 MOVE 中复用，避免把后续移动坐标误当成起点。
+        imagePressDownX = 0f;
+        imagePressDownY = 0f;
+        webView.setOnTouchListener((v, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    cancelPendingImageLongPress();
+                    imagePressSequence++;
+                    imagePressTracking = true;
+                    imagePressTriggered = false;
+                    imagePressDownX = event.getX();
+                    imagePressDownY = event.getY();
+                    final long sequence = imagePressSequence;
+                    final float downX = imagePressDownX;
+                    final float downY = imagePressDownY;
+                    pendingImageLongPress = () -> {
+                        if (!imagePressTracking || sequence != imagePressSequence) return;
+                        pendingImageLongPress = null;
+                        imagePressTriggered = true;
+                        requestImageAtTouch(webView, downX, downY, sequence);
+                    };
+                    mainHandler.postDelayed(pendingImageLongPress, IMAGE_LONG_PRESS_MS);
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if (imagePressTracking) {
+                        float dx = event.getX() - imagePressDownX;
+                        float dy = event.getY() - imagePressDownY;
+                        if ((dx * dx) + (dy * dy) > (touchSlop * touchSlop)) {
+                            // 计时已触发但 JS 命中结果尚未返回时，也必须让旧查询失效，
+                            // 防止用户移开手指后仍弹出原位置的图片菜单。
+                            invalidatePendingImageLongPress();
+                        }
+                    }
+                    break;
+                case MotionEvent.ACTION_POINTER_DOWN:
+                case MotionEvent.ACTION_CANCEL:
+                    invalidatePendingImageLongPress();
+                    break;
+                case MotionEvent.ACTION_UP:
+                    if (!imagePressTriggered) cancelPendingImageLongPress();
+                    imagePressTracking = false;
+                    break;
+                default:
+                    break;
+            }
+            return false;
+        });
+    }
+
+    private void cancelPendingImageLongPress() {
+        imagePressTracking = false;
+        if (pendingImageLongPress != null) {
+            mainHandler.removeCallbacks(pendingImageLongPress);
+            pendingImageLongPress = null;
+        }
+    }
+
+    private void invalidatePendingImageLongPress() {
+        imagePressSequence++;
+        cancelPendingImageLongPress();
+    }
+
+    private void requestImageAtTouch(WebView webView, float rawX, float rawY, long sequence) {
+        if (webView == null || isFinishing() || isDestroyed()) return;
+        int contentWidth = Math.max(1, webView.getWidth() - webView.getPaddingLeft() - webView.getPaddingRight());
+        int contentHeight = Math.max(1, webView.getHeight() - webView.getPaddingTop() - webView.getPaddingBottom());
+        float x = Math.max(0f, Math.min(contentWidth, rawX - webView.getPaddingLeft()));
+        float y = Math.max(0f, Math.min(contentHeight, rawY - webView.getPaddingTop()));
+        String js = "(function(){try{"
+                + "var w=" + contentWidth + ",h=" + contentHeight + ",x=" + Float.toString(x) + ",y=" + Float.toString(y) + ";"
+                + "var vw=window.innerWidth||document.documentElement.clientWidth||1;"
+                + "var vh=window.innerHeight||document.documentElement.clientHeight||1;"
+                + "var el=document.elementFromPoint(Math.max(0,Math.min(vw-1,x/w*vw)),Math.max(0,Math.min(vh-1,y/h*vh)));"
+                + "while(el){if(String(el.tagName).toUpperCase()==='IMG'){var src=el.currentSrc||el.src||'';"
+                + "return src?JSON.stringify({src:src}):'';}el=el.parentElement;}return '';"
+                + "}catch(e){return '';}})()";
+        try {
+            webView.evaluateJavascript(js, value -> {
+                if (sequence != imagePressSequence || !imagePressTriggered) return;
+                String imageUrl = parseImageUrlFromJavascript(value);
+                if (imageUrl != null && !imageUrl.isEmpty()) showImageSaveDialog(imageUrl);
+            });
+        } catch (Exception ignored) {
+            // WebView 在销毁或页面切换瞬间可能拒绝执行 JS；系统长按回调仍作为兜底。
+        }
+    }
+
+    private String parseImageUrlFromJavascript(String value) {
+        if (value == null || value.trim().isEmpty() || "null".equals(value.trim())) return null;
+        try {
+            Object decoded = new JSONTokener(value).nextValue();
+            String json = decoded instanceof String ? (String) decoded : value;
+            if (json == null || json.trim().isEmpty()) return null;
+            return new JSONObject(json).optString("src", "").trim();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean isImageLongPressRecentlyHandled() {
+        return (imageDialog != null && imageDialog.isShowing())
+                || lastHandledImagePressSequence == imagePressSequence;
     }
 
     /** 供网页端判断：二维码长按交给原生层，避免 JS 菜单与原生菜单重复弹出。 */
@@ -163,14 +300,21 @@ public class MainActivity extends BridgeActivity {
 
     /** 图片长按菜单：保留取消入口，避免误触直接产生文件。 */
     private void showImageSaveDialog(String imageUrl) {
-        new AlertDialog.Builder(this)
+        if (imageUrl == null || imageUrl.trim().isEmpty() || isImageLongPressRecentlyHandled()) return;
+        lastHandledImagePressSequence = imagePressSequence;
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("图片操作")
                 .setItems(new String[]{"保存图片", "用微信扫一扫"}, (dialog, which) -> {
                     if (which == 0) saveImage(imageUrl);
                     else openWechatScan();
                 })
                 .setNegativeButton("取消", null)
-                .show();
+                .create();
+        imageDialog = dialog;
+        dialog.setOnDismissListener(ignored -> {
+            if (imageDialog == dialog) imageDialog = null;
+        });
+        dialog.show();
     }
 
     private void openWechatScan() {
@@ -220,7 +364,8 @@ public class MainActivity extends BridgeActivity {
         }
         String header = dataUrl.substring(5, comma);
         String mime = header.substring(0, header.indexOf(';'));
-        String ext = mime.endsWith("png") ? ".png" : (mime.endsWith("webp") ? ".webp" : ".jpg");
+        String normalizedMime = mime.toLowerCase(Locale.ROOT);
+        String ext = normalizedMime.endsWith("png") ? ".png" : (normalizedMime.endsWith("webp") ? ".webp" : ".jpg");
         String fileName = "图片-" + System.currentTimeMillis() + ext;
         String base64 = dataUrl.substring(comma + 1);
         imageSaveExecutor.execute(() -> {
@@ -255,8 +400,10 @@ public class MainActivity extends BridgeActivity {
     }
 
     private String safeFileName(String fileName) {
-        return (fileName == null || fileName.trim().isEmpty() ? "file" : fileName)
-                .replaceAll("[\\\\/:*?\"<>|]", "_");
+        String safe = (fileName == null || fileName.trim().isEmpty() ? "file" : fileName)
+                .replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_");
+        if (safe.trim().isEmpty() || ".".equals(safe) || "..".equals(safe)) return "file";
+        return safe;
     }
 
     /** 读取系统状态栏高度（含刘海屏安全高度） */
