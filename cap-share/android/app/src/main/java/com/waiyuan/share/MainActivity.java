@@ -44,7 +44,7 @@ public class MainActivity extends BridgeActivity {
     private final ExecutorService imageSaveExecutor = Executors.newSingleThreadExecutor();
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         imageSaveExecutor.shutdownNow();
         super.onDestroy();
     }
