@@ -8,7 +8,7 @@
       + 运行时脚本内联资源版本号刷新（白名单：排除 scripts/ 目录）
    3. 重建两份单文件离线版（思政/计算机，内联全部资源）
    4. 校验：check-links（引用完整）+ verify-standalone ×2
-   5. （仅 --commit）按白名单暂存并提交（打印 diff --stat 清单）
+   5. （仅 --commit）按白名单暂存并提交（只放行已跟踪文件与显式根目录清单；打印 diff --stat 清单）
    6. （仅 --commit --push）推送并核验远程 HEAD 与本地一致
    完成后等待 GitHub Pages 构建 1-3 分钟，再跑 node scripts/check-online.js
    用法：
@@ -30,6 +30,78 @@ const run = (cmd, opts = {}) => {
   return execSync(cmd, {cwd: root, stdio: 'inherit', ...opts});
 };
 const tryRun = (step, cmd) => { try { run(cmd); } catch (e) { fail(step, e); } };
+
+// ---------- 暂存白名单/拒绝清单（--commit 用；导出供回归测试） ----------
+// 白名单制暂存：只把「Git 已跟踪的项目文件 + 根目录显式列举的站点产物/配置文件」
+// 纳入本次提交，白名单之外（未跟踪或未列举）的一概不暂存。
+// 相对旧版「根目录按扩展名正则放行」的收紧：
+//   - 根目录改为显式清单 STAGE_ROOT_FILES：不再放行任意的根目录 .md/.txt/.py 文件，
+//     本地 AGENTS.md、*.txt、*.py 等产物不会被误暂存（同时补上旧正则漏掉的
+//     wrangler.jsonc、.gitignore、.nojekyll、LICENSE 等已跟踪根文件）。
+//   - 目录白名单（scripts/ 等）只放行 Git 已跟踪的文件：整个目录不再等同于放行，
+//     scripts/ 下的未跟踪本地脚本/工具文件不会进入提交。
+// 额外显式拒绝清单 STAGE_DENY_*：AGENTS.md、project-memory/、dsh-web-ui-src/、
+// logs、keys、备份（*.bak-*、*.log、*.keystore 等）——即使未来被跟踪或命中白名单，
+// 也一律不暂存。
+const STAGE_ALLOWLIST_DIRS = [
+  'source', 'scripts', 'tests', 'workers', '.github', '.well-known',
+  '思政系列', '计算机系列', '背单词', '学习中心', 'dictionary',
+  '考证', '专业课', '电子版教材', 'paotui', 'icons', 'branding',
+];
+// 根目录站点产物/配置文件（与 git ls-files 中已跟踪的根文件保持一致）。
+const STAGE_ROOT_FILES = new Set([
+  '.gitignore', '.nojekyll', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md',
+  '404.html', '题库导入.html', 'admin.html', 'poster.html', 'index.html',
+  'a4-print.js', 'admin.js', 'auth-ui.js', 'common.js',
+  'english-content-engine.js', 'home-auth.js', 'home.js', 'lightbox.js',
+  'reading-tools.js', 'site-search-data.js', 'site-search.js', 'sw.js',
+  'tomato-timer.js', 'unified-quiz-engine.js',
+  'admin.css', 'english-content.css', 'home.css', 'reading-tools.css',
+  'theme.css', 'tomato-timer.css', 'unified-quiz-engine.css',
+  'build-computer-data.py', 'build-rewrite-sentence-data.py',
+  'favicon.svg', 'feedback-qr.jpg', 'og-image.png', 'payment-qr.jpg',
+  'print-shop.jpg', 'website-qr.png', 'welcome-cat.jpg',
+  'manifest.webmanifest', 'quiz-data.schema.json', 'robots.txt',
+  'sitemap.xml', 'wrangler.jsonc',
+]);
+// 拒绝清单：目录名在任意层级命中即拒绝；文件名在任意层级命中同样拒绝。
+const STAGE_DENY_DIRS = ['project-memory', 'dsh-web-ui-src', 'logs', 'keys', 'backups'];
+const STAGE_DENY_FILES = ['AGENTS.md', '.dsh-test-write.txt'];
+const isDenied = rel => {
+  const parts = rel.split(/[\\/]+/);
+  const base = parts[parts.length - 1];
+  return parts.some(p => STAGE_DENY_DIRS.includes(p)) ||
+    STAGE_DENY_FILES.includes(base) ||
+    /\.(log|keystore|key|pem|backup)$/i.test(base) ||
+    /\.bak(?:-|$)/i.test(base);
+};
+const inAllowlistDirs = rel =>
+  STAGE_ALLOWLIST_DIRS.some(d => rel === d || rel.startsWith(d + '/') || rel.startsWith(d + '\\'));
+
+// Git 已跟踪文件集合（懒加载；-z 正确处理中文/空格路径）。
+let trackedSet = null;
+const getTrackedFiles = () => {
+  if (!trackedSet) {
+    trackedSet = new Set();
+    const out = execSync('git ls-files -z', {cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024});
+    for (const f of out.split('\0')) if (f) trackedSet.add(f);
+  }
+  return trackedSet;
+};
+
+// 暂存判定：先拒绝清单，再白名单。
+// 根目录文件：仅放行 STAGE_ROOT_FILES 显式列举的项目产物/配置文件；
+// 目录内文件：仅放行「已跟踪」文件（未跟踪的本地脚本/工具文件一概不暂存）。
+const isStageable = rel => {
+  if (isDenied(rel)) return false;
+  if (rel.includes('/') || rel.includes('\\')) return inAllowlistDirs(rel) && getTrackedFiles().has(rel);
+  return STAGE_ROOT_FILES.has(rel);
+};
+
+module.exports = { isStageable, isDenied, STAGE_ALLOWLIST_DIRS, STAGE_ROOT_FILES, STAGE_DENY_DIRS, STAGE_DENY_FILES };
+
+// 作为脚本直接运行时才执行发布流程；被 require（回归测试）时只导出上述判定。
+if (require.main !== module) return;
 
 // ---------- 参数：默认只构建 + 校验，git 操作必须显式开启 ----------
 const args = new Set(process.argv.slice(2));
@@ -101,25 +173,11 @@ try {
   tryRun('计算机单文件版校验', 'node scripts/verify-standalone.js 计算机系列/计算机刷题-单文件离线版.html');
 
   // ---------- 5. git 暂存/提交（仅 --commit） ----------
-  // 白名单制暂存：只把「项目允许目录 + 根目录站点产物文件」纳入本次提交。
-  // 白名单之外的一概不暂存（未跟踪或已跟踪修改都跳过），例如：
-  // AGENTS.md、project-memory/、dsh-web-ui-src/、*.bak-*、临时导出等，
-  // 避免 release 误提交本地的非项目文件。
-  const STAGE_ALLOWLIST_DIRS = [
-    'source', 'scripts', 'tests', 'workers', '.github', '.well-known',
-    '思政系列', '计算机系列', '背单词', '学习中心', 'dictionary',
-    '考证', '专业课', '电子版教材', 'paotui', 'icons', 'branding',
-  ];
-  // 根目录的站点产物/配置文件（index.html、home.js、sw.js、manifest.webmanifest 等）
-  const STAGE_ROOT_FILE_RE = /^[^/\\]+\.(html|css|js|json|webmanifest|txt|xml|md|svg|png|jpg|jpeg|webp|ico|py)$/;
-  const inAllowlist = rel =>
-    STAGE_ALLOWLIST_DIRS.some(d => rel === d || rel.startsWith(d + '/') || rel.startsWith(d + '\\')) ||
-    STAGE_ROOT_FILE_RE.test(rel);
-
+  // 白名单/拒绝清单已在模块区定义（isStageable，含回归测试导出）。
   const stagePaths = [];
   if (DO_COMMIT) {
     // porcelain -z：路径原文（UTF-8、不转义），条目间以 \0 分隔；
-    // 重命名/复制条目会额外输出 <新路径>\0。
+    // 未跟踪目录以「dir/」出现；重命名/复制条目会额外输出 <新路径>\0。
     const chunks = execSync('git status --porcelain -z', {cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024})
       .split('\0');
     for (let i = 0; i < chunks.length; i++) {
@@ -127,11 +185,11 @@ try {
       if (!chunk) continue;
       const status = chunk.slice(0, 2);
       const rel = chunk.slice(3);
-      if (inAllowlist(rel)) stagePaths.push(rel);
+      if (isStageable(rel)) stagePaths.push(rel);
       if (status[0] === 'R' || status[0] === 'C') {
         // 条目形如 "R  <旧路径>"，下一段是 <新路径>（git status -z 下无 XY 前缀）
         i++;
-        if (chunks[i] && inAllowlist(chunks[i])) stagePaths.push(chunks[i]);
+        if (chunks[i] && isStageable(chunks[i])) stagePaths.push(chunks[i]);
       }
     }
     stagePaths.sort();
