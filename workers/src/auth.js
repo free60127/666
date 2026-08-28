@@ -1,5 +1,5 @@
 import { sendEmail, generateResetCode } from './smtp.js';
-import { json, bearerToken, safeParseJson, readJsonBody, MAX_AUTH_BODY } from './http.js';  // 统一请求体限制（2026-08-23 审查第 1 项：字节数统一实现）
+import { json, bearerToken, safeParseJson, readJsonBody, MAX_AUTH_BODY, timingSafeEqual } from './http.js';  // 统一请求体限制（2026-08-23 审查第 1 项：字节数统一实现；timingSafeEqual 2026-08-29 安全修复）
 import { rateWindow } from './rate-limit.js';  // 统一限流（2026-08-23 审查第 4 项）
 import { evidenceKeysForUser, deleteR2Objects } from './evidence-store.js';  // 证据 R2 对象清理（2026-08-23 审查第 6 项闭环）
 import { taskImageKeysForUser } from './errand-images.js';  // 任务图片 R2 对象清理（2026-08-24）
@@ -563,7 +563,7 @@ async function resetPassword(db, request) {
 /* 管理端兜底：管理员生成一次性重置码（明文返回，线下转交用户）。Bearer = ADMIN_TOKEN */
 async function adminResetCode(db, env, request) {
   const token = bearerToken(request);
-  if (!token || token !== env.ADMIN_TOKEN) return json({ error: 'unauthorized' }, 401);
+  if (!token || !env.ADMIN_TOKEN || !timingSafeEqual(token, env.ADMIN_TOKEN)) return json({ error: 'unauthorized' }, 401);
   const rb = await readAuthJson(request);
   if (rb.tooLarge) return json({ error: '请求体过大（最大 64KB）' }, 413);
   const body = rb.body;

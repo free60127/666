@@ -74,10 +74,10 @@
      WebView 默认不处理 <a download>：http(s) 由 MainActivity 的
      DownloadListener（DownloadManager）接管；blob:/data: 内容由
      NativeSave 桥（MainActivity @JavascriptInterface）保存到手机「下载」目录。 */
+  // 2026-08-29 质量修复：原生环境判断只实现一次，三处（下载桥/打开桥/SW 分支）共用
+  const isNativeApp = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   window.WaiyuanNativeDownload = {
-    isNative() {
-      return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-    },
+    isNative: isNativeApp,
     saveBlob(name, blob) {
       if (!this.isNative() || !window.NativeSave || !blob) return Promise.resolve(false);
       return new Promise((resolve, reject) => {
@@ -106,19 +106,24 @@
   };
 
   /* 2026-08-25：NativeOpen 桥——App 内长按二维码唤起系统「打开链接」/微信扫一扫；
-     外部浏览器无此桥时退化为 window.open（可能被拦截）。 */
+     外部浏览器无此桥时退化为 window.open（可能被拦截）。
+     2026-08-29 安全加固：仅放行 http/https/weixin 协议（与原生桥白名单逐字一致，
+     必须带 //，拒绝 javascript:/data:/intent:/http:xxx 等任意形式），
+     浏览器兜底打开后清除 opener，防新窗口反向控制本页（reverse tabnabbing）。 */
+  const EXTERNAL_SCHEME_RE = /^(?:https?|weixin):\/\//i;
   window.WaiyuanNativeBridge = {
-    isNative: function () {
-      return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-    },
+    isNative: isNativeApp,
     openExternal: function (url) {
+      const target = String(url == null ? '' : url).trim();
+      if (!target || !EXTERNAL_SCHEME_RE.test(target)) return false;
       try {
         if (window.NativeOpen && window.NativeOpen.openExternal) {
-          return window.NativeOpen.openExternal(String(url)) === true;
+          return window.NativeOpen.openExternal(target) === true;
         }
       } catch (e) { /* 桥异常时走浏览器兜底 */ }
       try {
-        const w = window.open(String(url), '_blank');
+        const w = window.open(target, '_blank');
+        if (w) { try { w.opener = null; } catch (e) { /* 跨域下置空失败不影响打开 */ } }
         return !!w;
       } catch (e) {
         return false;
@@ -200,7 +205,8 @@
     function saveImage() {
       if (!imgRef || !imgRef.src) return;
       const src = imgRef.src;
-      const name = (imgRef.alt || '二维码').replace(/[\\/:*?"<>|]/g, '_') + '.png';
+      // 2026-08-29 安全加固：与原生 MainActivity.safeFileName 对齐，控制字符一并替换
+      const name = (imgRef.alt || '二维码').replace(/[\\/:*?"<>|\u0000-\u001f\u007f]/g, '_') + '.png';
       const nd = window.WaiyuanNativeDownload;
       const save = (blob) => {
         if (blob && nd && nd.isNative && nd.isNative() && nd.saveBlob) {
@@ -297,8 +303,7 @@
   // 会让 App 端长期命中旧缓存文件（长按二维码/图片更新一直不生效），
   // 而 App 每次冷启动都会重新拉取线上页面，不需要 PWA 离线缓存。
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
-    const isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-    if (isNativeApp) {
+    if (isNativeApp()) {
       console.info('[PWA] App 内不注册 Service Worker，内容走网络最新版');
       // 清除 App 内历史遗留的 Service Worker 与缓存（旧版曾注册，导致长期命中旧文件）
       try {

@@ -44,10 +44,23 @@ export function bearerToken(request) {
   return auth.replace(/^Bearer\s+/i, '');
 }
 
-/** 管理端鉴权（布尔）：token 由 env.ADMIN_TOKEN 提供 */
+/** 恒定时间字符串比较（2026-08-29 安全修复）：不做短路返回，
+ *  防通过响应耗时逐字符猜测管理令牌等密钥型比较值。 */
+export function timingSafeEqual(a, b) {
+  const sa = String(a == null ? '' : a);
+  const sb = String(b == null ? '' : b);
+  let diff = sa.length === sb.length ? 0 : 1; // 长度不同直接判不等（长度本身可被网络观测）
+  const len = Math.max(sa.length, sb.length);
+  for (let i = 0; i < len; i++) {
+    diff |= (sa.charCodeAt(i) || 0) ^ (sb.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+
+/** 管理端鉴权（布尔）：token 由 env.ADMIN_TOKEN 提供（恒定时间比较） */
 export function isAdmin(request, env) {
   const token = bearerToken(request);
-  return !!env.ADMIN_TOKEN && token === env.ADMIN_TOKEN;
+  return !!env.ADMIN_TOKEN && timingSafeEqual(token, env.ADMIN_TOKEN);
 }
 
 /** 管理端鉴权（index.js 风格：失败返回 401，成功执行 next） */
