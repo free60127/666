@@ -49,6 +49,8 @@ import java.util.concurrent.Executors;
 public class MainActivity extends BridgeActivity {
 
     private static final long IMAGE_LONG_PRESS_MS = 360L;
+    /** 单次保存的 base64 上限（约 24MB 二进制）：防止 WebView 内注入超大内容导致解码 OOM/卡死 */
+    private static final int MAX_SAVE_BASE64_LEN = 32 * 1024 * 1024;
     private final ExecutorService imageSaveExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable pendingImageLongPress;
@@ -138,9 +140,14 @@ public class MainActivity extends BridgeActivity {
             return false;
         });
         webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
-            if (url == null || url.startsWith("blob:") || url.startsWith("data:")) {
+            if (url == null) return;
+            String lowerUrl = url.toLowerCase(Locale.ROOT);
+            if (lowerUrl.startsWith("blob:") || lowerUrl.startsWith("data:")) {
                 return; // blob/data 由前端 NativeSave 通道处理
             }
+            // 安全加固：只放行 http/https，其余协议（file:/content:/intent: 等）不交给
+            // DownloadManager（会抛异常或产生不可预期的文件/Intent 行为）。
+            if (!(lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://"))) return;
             try {
                 DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                 String cookie = CookieManager.getInstance().getCookie(url);
@@ -286,9 +293,10 @@ public class MainActivity extends BridgeActivity {
         public boolean saveBase64(String fileName, String base64) {
             try {
                 if (base64 == null || base64.isEmpty()) throw new Exception("empty data");
+                if (base64.length() > MAX_SAVE_BASE64_LEN) throw new Exception("data too large");
+                String safe = safeFileName(fileName); // 统一清洗一次，写入与提示用同一名字
                 byte[] data = Base64.decode(base64, Base64.DEFAULT);
-                saveBytesToDownloads(fileName, null, data);
-                String safe = safeFileName(fileName);
+                saveBytesToDownloads(safe, null, data);
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "已保存：" + safe, Toast.LENGTH_SHORT).show());
                 return true;
             } catch (Exception e) {
@@ -368,6 +376,10 @@ public class MainActivity extends BridgeActivity {
         String ext = normalizedMime.endsWith("png") ? ".png" : (normalizedMime.endsWith("webp") ? ".webp" : ".jpg");
         String fileName = "图片-" + System.currentTimeMillis() + ext;
         String base64 = dataUrl.substring(comma + 1);
+        if (base64.length() > MAX_SAVE_BASE64_LEN) {
+            Toast.makeText(this, "图片数据过大，暂不支持保存，请截图保存", Toast.LENGTH_SHORT).show();
+            return;
+        }
         imageSaveExecutor.execute(() -> {
             try {
                 byte[] data = Base64.decode(base64, Base64.DEFAULT);
@@ -416,13 +428,27 @@ public class MainActivity extends BridgeActivity {
         return result;
     }
 
-    /** 前端 window.NativeOpen.openExternal(url)：用系统方式打开外部链接（如唤起微信扫一扫） */
+    /** 前端 window.NativeOpen.openExternal(url)：用系统方式打开外部链接（如唤起微信扫一扫）。
+     *  安全加固：仅放行 http/https/weixin 白名单协议——WebView 内的脚本（或被注入的页面）
+     *  不能借此启动任意 Intent（intent:/javascript:/file:/content:/tel: 等均拒绝）。 */
     private class NativeOpenBridge {
+        private static final String[] ALLOWED_SCHEME_PREFIXES = {"http://", "https://", "weixin://"};
+
+        private boolean isAllowed(String lowerUrl) {
+            for (String prefix : ALLOWED_SCHEME_PREFIXES) {
+                if (lowerUrl.startsWith(prefix)) return true;
+            }
+            return false;
+        }
+
         @JavascriptInterface
         public boolean openExternal(String url) {
             try {
-                if (url == null || url.trim().isEmpty()) return false;
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                if (url == null) return false;
+                String trimmed = url.trim();
+                if (trimmed.isEmpty()) return false;
+                if (!isAllowed(trimmed.toLowerCase(Locale.ROOT))) return false;
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(trimmed));
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
                 return true;

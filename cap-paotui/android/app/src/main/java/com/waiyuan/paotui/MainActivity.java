@@ -39,6 +39,9 @@ import java.io.OutputStream;
  */
 public class MainActivity extends BridgeActivity {
 
+    /** 单次保存的 base64 上限（约 24MB 二进制）：防止 WebView 内注入超大内容导致解码 OOM/卡死 */
+    private static final int MAX_SAVE_BASE64_LEN = 32 * 1024 * 1024;
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -92,9 +95,14 @@ public class MainActivity extends BridgeActivity {
         webView.addJavascriptInterface(new NativeSaveBridge(), "NativeSave");
         webView.addJavascriptInterface(new NativeOpenBridge(), "NativeOpen");
         webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
-            if (url == null || url.startsWith("blob:") || url.startsWith("data:")) {
+            if (url == null) return;
+            String lowerUrl = url.toLowerCase(Locale.ROOT);
+            if (lowerUrl.startsWith("blob:") || lowerUrl.startsWith("data:")) {
                 return; // blob/data 由前端 NativeSave 通道处理
             }
+            // 安全加固：只放行 http/https，其余协议（file:/content:/intent: 等）不交给
+            // DownloadManager（会抛异常或产生不可预期的文件/Intent 行为）。
+            if (!(lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://"))) return;
             try {
                 DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                 String cookie = CookieManager.getInstance().getCookie(url);
@@ -102,11 +110,12 @@ public class MainActivity extends BridgeActivity {
                 if (userAgent != null) request.addRequestHeader("User-Agent", userAgent);
                 request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                 String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
-                request.setMimeType(mimeTypeForFile(fileName, mimetype));
-                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+                String safeName = safeFileName(fileName);
+                request.setMimeType(mimeTypeForFile(safeName, mimetype));
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeName);
                 DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
                 dm.enqueue(request);
-                runOnUiThread(() -> Toast.makeText(this, "正在下载：" + fileName, Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> Toast.makeText(this, "正在下载：" + safeName, Toast.LENGTH_SHORT).show());
             } catch (Exception e) {
                 runOnUiThread(() -> Toast.makeText(this, "下载失败：" + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
@@ -129,8 +138,8 @@ public class MainActivity extends BridgeActivity {
         public boolean saveBase64(String fileName, String base64) {
             try {
                 if (base64 == null || base64.isEmpty()) throw new Exception("empty data");
-                String safe = (fileName == null || fileName.trim().isEmpty() ? "file" : fileName)
-                        .replaceAll("[\\\\/:*?\"<>|]", "_");
+                if (base64.length() > MAX_SAVE_BASE64_LEN) throw new Exception("data too large");
+                String safe = safeFileName(fileName);
                 byte[] data = Base64.decode(base64, Base64.DEFAULT);
                 if (Build.VERSION.SDK_INT >= 29) {
                     ContentValues values = new ContentValues();
@@ -153,13 +162,27 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    /** 前端 window.NativeOpen.openExternal(url)：用系统方式打开外部链接（如唤起微信扫一扫） */
+    /** 前端 window.NativeOpen.openExternal(url)：用系统方式打开外部链接（如唤起微信扫一扫）。
+     *  安全加固：仅放行 http/https/weixin 白名单协议——WebView 内的脚本（或被注入的页面）
+     *  不能借此启动任意 Intent（intent:/javascript:/file:/content:/tel: 等均拒绝）。 */
     private class NativeOpenBridge {
+        private static final String[] ALLOWED_SCHEME_PREFIXES = {"http://", "https://", "weixin://"};
+
+        private boolean isAllowed(String lowerUrl) {
+            for (String prefix : ALLOWED_SCHEME_PREFIXES) {
+                if (lowerUrl.startsWith(prefix)) return true;
+            }
+            return false;
+        }
+
         @JavascriptInterface
         public boolean openExternal(String url) {
             try {
-                if (url == null || url.trim().isEmpty()) return false;
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                if (url == null) return false;
+                String trimmed = url.trim();
+                if (trimmed.isEmpty()) return false;
+                if (!isAllowed(trimmed.toLowerCase(Locale.ROOT))) return false;
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(trimmed));
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
                 return true;
@@ -167,6 +190,14 @@ public class MainActivity extends BridgeActivity {
                 return false;
             }
         }
+    }
+
+    /** 下载/保存文件名清洗：去路径分隔符与控制字符，防 Content-Disposition/JS 传入文件名逃逸 */
+    private String safeFileName(String fileName) {
+        String safe = (fileName == null || fileName.trim().isEmpty() ? "file" : fileName)
+                .replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_");
+        if (safe.trim().isEmpty() || ".".equals(safe) || "..".equals(safe)) return "file";
+        return safe;
     }
 
     private String mimeTypeForFile(String fileName, String fallback) {
