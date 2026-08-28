@@ -1,5 +1,5 @@
 import { sendEmail, generateResetCode } from './smtp.js';
-import { json, bearerToken, safeParseJson, readJsonBody, MAX_AUTH_BODY, timingSafeEqual } from './http.js';  // 统一请求体限制（2026-08-23 审查第 1 项：字节数统一实现；timingSafeEqual 2026-08-29 安全修复）
+import { json, bearerToken, safeParseJson, readJsonBody, MAX_AUTH_BODY, timingSafeEqual, isAdmin } from './http.js';  // 统一请求体限制（2026-08-23 审查第 1 项：字节数统一实现；timingSafeEqual 2026-08-29 安全修复）
 import { rateWindow } from './rate-limit.js';  // 统一限流（2026-08-23 审查第 4 项）
 import { evidenceKeysForUser, deleteR2Objects } from './evidence-store.js';  // 证据 R2 对象清理（2026-08-23 审查第 6 项闭环）
 import { taskImageKeysForUser } from './errand-images.js';  // 任务图片 R2 对象清理（2026-08-24）
@@ -391,47 +391,59 @@ async function deleteAccount(db, env, request) {
   const openCount = Number(openPub && openPub.c || 0) + Number(openTak && openTak.c || 0);
   if (openCount > 0) return json({ error: '仍有 ' + openCount + ' 个进行中的跑腿任务，请先完成或取消后再注销' }, 400);
   const now = Date.now();
+  try {
+    const { cleanupPending } = await purgeUserData(db, env, user, now);
+    return json({ ok: true, cleanupPending });
+  } catch (error) {
+    // 证据键收集（fail-closed）或 D1/KV/R2 清理失败：拒绝注销并保持数据完整，下次重试
+    console.error('delete-account purge error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
+}
+
+/* ---------- 账号数据彻底清理（用户自注销与管理端删除共用，2026-08-29 统一） ---------- */
+/**
+ * 清除某账号的全部云端数据（D1 行级 + KV + R2 对象）：
+ * - D1：会话/重置码/登录失败/限流/活跃记录/云同步数据/排行缓存 + 用户行；
+ *   跑腿任务/申诉/证据/图片等行由 D1 外键 ON DELETE CASCADE 级联删除；
+ * - KV：user:<id> 同步数据（删除失败入 cleanup_jobs，由每日 cron 兜底重试）；
+ * - R2：本人申诉证据与任务图片对象（EVIDENCE_BUCKET 已启用时收集；
+ *   键收集失败 fail-closed 抛错，调用方转 503，避免 D1 已删、R2 成孤儿）。
+ * 任一环节失败：整个账号数据保持不变（db.batch 原子），调用方返回错误即可重试。
+ */
+async function purgeUserData(db, env, user, now) {
   // 2026-08-23 审查修复：同步数据键为 'user:'+user_id（D1 sync_data.user_id / 旧 KV 同键），
   // 原 'sync:user:' 前缀键导致注销后云端同步数据残留
   const kvKey = 'user:' + user.id;
-  // 2026-08-23 审查第 6 项闭环：注销前收集本人相关证据的 R2 对象键，账号删除后由 D1 级联删 evidence 行，R2 对象单独清理
+  // 2026-08-23 审查第 6 项闭环：删除前收集本人相关证据的 R2 对象键，账号删除后由 D1 级联删 evidence 行，R2 对象单独清理
   let evKeys = [], imgKeys = [];
   if (env.EVIDENCE_BUCKET) {
-    try {
-      evKeys = await evidenceKeysForUser(db, user.id);
-      imgKeys = await taskImageKeysForUser(db, user.id);
-    } catch (e) { // 2026-08-23 审查第 2 轮第 3 项：fail-closed，注销前查不到对象键则拒绝删除账号
-      console.error('delete-account evidence keys error:', e);
-      return json({ error: '服务繁忙，请稍后再试' }, 503);
-    }
+    // 2026-08-23 审查第 2 轮第 3 项：fail-closed，查不到对象键则拒绝删除账号
+    evKeys = await evidenceKeysForUser(db, user.id);
+    imgKeys = await taskImageKeysForUser(db, user.id);
   }
-  try {
-    const cleanupStatements = [
-      db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id),
-      db.prepare('DELETE FROM reset_tokens WHERE email = ?').bind(user.email),
-      db.prepare('DELETE FROM login_fails WHERE email = ?').bind(user.email),
-      db.prepare('DELETE FROM rate WHERE key IN (?, ?, ?)')
-        .bind('auth:forgot:' + user.email, 'auth:reset:email:' + user.email, 'auth:reg:email:' + user.email),
-      db.prepare('DELETE FROM activity WHERE act_key = ?').bind('user:' + user.id),
-      // 2026-08-23 云同步迁 D1：同步数据主存 D1（KV 旧残留由 cleanup_jobs 兜底删）
-      db.prepare('DELETE FROM sync_data WHERE user_id = ?').bind(kvKey), // kvKey='user:'+id 与 handleSyncUpload 一致
-      // 活跃数据删除后，聚合排行榜缓存必须失效，避免继续展示已注销账号。
-      db.prepare('DELETE FROM rank_cache'),
-    ];
-    if (env.STUDY_KV) {
-      cleanupStatements.push(
-        db.prepare(
-          'INSERT OR IGNORE INTO cleanup_jobs (user_id, kv_key, attempts, next_attempt_at, created_at, last_error) ' +
-          'VALUES (?, ?, 0, ?, ?, NULL)'
-        ).bind(user.id, kvKey, now, now),
-      );
-    }
-    cleanupStatements.push(db.prepare('DELETE FROM users WHERE id = ?').bind(user.id));
-    await db.batch(cleanupStatements);
-  } catch (error) {
-    console.error('delete-account db error:', error);
-    return json({ error: 'internal error' }, 500);
+  const cleanupStatements = [
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id),
+    db.prepare('DELETE FROM reset_tokens WHERE email = ?').bind(user.email),
+    db.prepare('DELETE FROM login_fails WHERE email = ?').bind(user.email),
+    db.prepare('DELETE FROM rate WHERE key IN (?, ?, ?)')
+      .bind('auth:forgot:' + user.email, 'auth:reset:email:' + user.email, 'auth:reg:email:' + user.email),
+    db.prepare('DELETE FROM activity WHERE act_key = ?').bind('user:' + user.id),
+    // 2026-08-23 云同步迁 D1：同步数据主存 D1（KV 旧残留由 cleanup_jobs 兜底删）
+    db.prepare('DELETE FROM sync_data WHERE user_id = ?').bind(kvKey), // kvKey='user:'+id 与 handleSyncUpload 一致
+    // 活跃数据删除后，聚合排行榜缓存必须失效，避免继续展示已注销账号。
+    db.prepare('DELETE FROM rank_cache'),
+  ];
+  if (env.STUDY_KV) {
+    cleanupStatements.push(
+      db.prepare(
+        'INSERT OR IGNORE INTO cleanup_jobs (user_id, kv_key, attempts, next_attempt_at, created_at, last_error) ' +
+        'VALUES (?, ?, 0, ?, ?, NULL)'
+      ).bind(user.id, kvKey, now, now),
+    );
   }
+  cleanupStatements.push(db.prepare('DELETE FROM users WHERE id = ?').bind(user.id));
+  await db.batch(cleanupStatements);
   let cleanupPending = Boolean(env.STUDY_KV);
   if (env.STUDY_KV) {
     try {
@@ -439,15 +451,56 @@ async function deleteAccount(db, env, request) {
       await db.prepare('DELETE FROM cleanup_jobs WHERE kv_key = ?').bind(kvKey).run();
       cleanupPending = false;
     } catch (error) {
-      console.error('delete-account KV cleanup pending:', error);
+      console.error('purge-user-data KV cleanup pending:', error);
     }
   }
   const allR2Keys = (evKeys || []).concat(imgKeys || []);
   if (allR2Keys.length) {
     const evR = await deleteR2Objects(env, allR2Keys);
-    if (evR.failed) console.warn('delete-account R2 cleanup incomplete: failed=' + evR.failed + '/' + allR2Keys.length);
+    if (evR.failed) console.warn('purge-user-data R2 cleanup incomplete: failed=' + evR.failed + '/' + allR2Keys.length);
   }
-  return json({ ok: true, cleanupPending });
+  return { cleanupPending };
+}
+
+/* 管理端兜底：按邮箱删除账号（2026-08-29 修复：与用户自注销同一套清理逻辑，
+   补齐原实现遗漏的 同步数据/活跃记录/重置码/限流/排行缓存/KV/R2 对象 清理）。
+   用于清理线上测试账号；与用户自注销一致，仍有进行中跑腿任务时拒绝删除。 */
+export async function adminDeleteAccount(request, env) {
+  if (!env.DB) return json({ error: 'database not configured' }, 500);
+  // 双重鉴权（路由层 requireAdmin + 此处防御性检查，与 errand-disputes 管理端风格一致）
+  if (!isAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+  const email = normalizeEmail({ email: new URL(request.url).searchParams.get('email') || '' });
+  if (!EMAIL_RE.test(email)) return json({ error: 'invalid email' }, 400);
+  let user;
+  try {
+    user = await env.DB.prepare('SELECT id, email, nickname FROM users WHERE email = ?').bind(email).first();
+  } catch (error) {
+    console.error('admin delete-account query error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
+  if (!user) return json({ ok: true, deleted: 0 });
+  // 与用户自注销同一拦截：仍有进行中跑腿单时禁止删除，避免级联删单造成线上纠纷
+  let openPub, openTak;
+  try {
+    openPub = await env.DB.prepare(
+      "SELECT COUNT(*) AS c FROM errand_tasks WHERE publisher_id = ? AND status IN ('open', 'doing', 'done') AND confirmed_at IS NULL"
+    ).bind(user.id).first();
+    openTak = await env.DB.prepare(
+      "SELECT COUNT(*) AS c FROM errand_tasks WHERE taker_id = ? AND status IN ('doing', 'done') AND confirmed_at IS NULL"
+    ).bind(user.id).first();
+  } catch (error) {
+    console.error('admin delete-account errand check error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
+  const openCount = Number(openPub && openPub.c || 0) + Number(openTak && openTak.c || 0);
+  if (openCount > 0) return json({ error: '仍有 ' + openCount + ' 个进行中的跑腿任务，请先完成或取消后再删除' }, 400);
+  try {
+    const { cleanupPending } = await purgeUserData(env.DB, env, user, Date.now());
+    return json({ ok: true, deleted: 1, cleanupPending });
+  } catch (error) {
+    console.error('admin delete-account purge error:', error);
+    return json({ error: '服务繁忙，请稍后再试' }, 503);
+  }
 }
 
 /* 找回密码第 1 步：向注册邮箱发 8 位数字重置码（SMTP）。用户不存在也返回 ok（防邮箱枚举） */

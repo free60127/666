@@ -12,7 +12,7 @@
  */
 
 import { corsFor, MAIN_HOST, API_HOST, WWW_HOST } from './config.js';  // 域名/源站/来源白名单统一配置（2026-08-23 审查第 2 项）
-import { handleAuth } from './auth.js';
+import { handleAuth, adminDeleteAccount } from './auth.js';
 import { handleErrand } from './errand.js';
 import { cleanupDb } from './maintenance.js';
 import { serveApk } from './apk.js';
@@ -80,7 +80,8 @@ async function route(request, env, ctx) {
       }
 
       if (path === '/api/auth/account' && request.method === 'DELETE') {
-        return requireAdmin(request, env, () => handleDeleteAccount(request, env));
+        // 2026-08-29：管理端删号改为与用户自注销同一套清理（会话/同步数据/活跃/限流/重置码/R2 对象等）
+        return requireAdmin(request, env, () => adminDeleteAccount(request, env));
       }
 
       if (path.startsWith('/api/auth')) {
@@ -133,15 +134,5 @@ async function route(request, env, ctx) {
       console.error('waiyuan-study route error:', err);  // 错误细节仅进 Worker 日志，不对外暴露
       return json({ error: 'internal error' }, 500);
     }
-}
-
-
-/** 管理操作：按邮箱删除账号（级联删会话；用于清理线上测试账号，requireAdmin） */
-async function handleDeleteAccount(request, env) {
-  if (!env.DB) return json({ error: 'database not configured' }, 500);
-  const email = String(new URL(request.url).searchParams.get('email') || '').trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return json({ error: 'invalid email' }, 400);
-  const info = await env.DB.prepare('DELETE FROM users WHERE email = ?').bind(email).run();
-  return json({ ok: true, deleted: (info && info.meta && info.meta.changes) || 0 });
 }
 

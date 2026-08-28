@@ -1,7 +1,7 @@
 /* 账号体系单元测试（无真实 D1）：内存版 D1 + Worker auth 路由 + 前端恢复码保险箱闭环
  * 运行：node scripts/test-auth.mjs
  */
-import { handleAuth } from '../workers/src/auth.js';
+import { handleAuth, adminDeleteAccount } from '../workers/src/auth.js';
 
 /* ---------- 内存版 D1（模拟 prepare/bind/first/run/batch；token 列存 SHA-256 哈希） ---------- */
 class MemoryD1 {
@@ -450,4 +450,47 @@ console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
   const r = await api('/api/auth/login', { method: 'POST', body: { email: 'a@b.com', password: 'secret123' } });
   check('损坏恢复码 -> 登录 200 且 recovery null', r.status === 200 && r.data.recovery === null, JSON.stringify(r.data));
   corrupt.recovery_encrypted = savedRec;
-}process.exit(failed ? 1 : 0);
+}
+
+/* ---------- 组 9：管理端按邮箱删号（2026-08-29：与用户自注销共用清理逻辑） ---------- */
+{
+  const adminKvDeleted = [];
+  const adminEnv = { DB: sharedDb, ADMIN_TOKEN: 'test-admin-token', STUDY_KV: { delete: async (k) => { adminKvDeleted.push(k); } } };
+  const adminReq = (email, token) => new Request('https://api.free60127.top/api/auth/account?email=' + encodeURIComponent(email), {
+    method: 'DELETE',
+    headers: token ? { Authorization: 'Bearer ' + token } : {},
+  });
+  const adminCall = async (email, token) => {
+    const res = await adminDeleteAccount(adminReq(email, token), adminEnv);
+    return { status: res.status, data: await res.json().catch(() => null) };
+  };
+
+  const noToken = await adminCall('adm@test.com', undefined);
+  check('管理端删号 无 token 401', noToken.status === 401);
+
+  const badEmail = await adminCall('not-an-email', 'test-admin-token');
+  check('管理端删号 非法邮箱 400', badEmail.status === 400);
+
+  const ghost = await adminCall('ghost@test.com', 'test-admin-token');
+  check('管理端删号 不存在邮箱 deleted:0', ghost.status === 200 && ghost.data && ghost.data.deleted === 0, JSON.stringify(ghost.data));
+
+  const reg = await api('/api/auth/register', { method: 'POST', body: { email: 'adm@test.com', password: 'secret123' } });
+  const uid = reg.data.user.id;
+  // 预置各存储：会话（注册即建）、同步数据、重置码、登录失败
+  sharedDb.syncData.set('user:' + uid, { payload: '{}', rev: 1, updated_at: Date.now() });
+  sharedDb.resetTokens.set('adm@test.com', { email: 'adm@test.com', code_hash: 'x', expires_at: Date.now() + 60000, used: 0, created_at: Date.now() });
+  sharedDb.loginFails.set('adm@test.com', { email: 'adm@test.com', count: 1, updated_at: Date.now() });
+  const beforeSessions = [...sharedDb.sessions.values()].filter(s => s.user_id === uid).length;
+  const del = await adminCall('adm@test.com', 'test-admin-token');
+  check('管理端删号 200 deleted:1', del.status === 200 && del.data && del.data.deleted === 1 && del.data.ok, JSON.stringify(del.data));
+  check('删除后 users 行移除', !sharedDb.users.has(uid));
+  check('删除后全部会话清空（原 ' + beforeSessions + ' 条）', beforeSessions >= 1 && [...sharedDb.sessions.values()].every(s => s.user_id !== uid));
+  check('删除后 sync_data 清空', !sharedDb.syncData.has('user:' + uid));
+  check('删除后 reset_tokens 清空', !sharedDb.resetTokens.has('adm@test.com'));
+  check('删除后 login_fails 清空', !sharedDb.loginFails.has('adm@test.com'));
+  check('KV 清理键 user:<id>', adminKvDeleted.length === 1 && adminKvDeleted[0] === 'user:' + uid, JSON.stringify(adminKvDeleted));
+  check('KV 清理后 cleanup_jobs 不残留', !sharedDb.cleanupJobs.has('user:' + uid));
+  const reReg = await api('/api/auth/register', { method: 'POST', body: { email: 'adm@test.com', password: 'secret456' } });
+  check('删除后同邮箱可重新注册', reReg.status === 201);
+}
+process.exit(failed ? 1 : 0);

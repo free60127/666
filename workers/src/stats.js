@@ -63,7 +63,9 @@ async function countVisit(env, request, path, ctx) {
       // 首访/无 Cookie（爬虫）：以 IP+日期哈希兜底去重（同 IP 当日只算 1 UV），并下发随机 Cookie
       const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
       vid = 'ip:' + (await sha256Hex(ip + '|' + today)).slice(0, 16);
-      setCookie = STATS_COOKIE + '=' + cookieVid + '; Path=/; Max-Age=31536000; SameSite=Lax';
+      // 2026-08-29 安全加固：访客 id 只在服务端读取统计（前端从不读 document.cookie），
+      // 加 HttpOnly 防脚本窃取；全站 HTTPS（主域/API/Pages 均强制），加 Secure。
+      setCookie = STATS_COOKIE + '=' + cookieVid + '; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly; Secure';
     }
     const count = async () => {
       // 预占位：本请求下发的 Cookie 身份当日算已见，带 Cookie 再来时不重复计 UV
