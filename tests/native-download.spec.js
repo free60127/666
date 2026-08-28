@@ -78,6 +78,9 @@ test('跑腿：App 内任务卡保存同样走原生桥', async ({ page }) => {
   await page.click('#share-tabs .tab[data-stype="task"]');
   await expect(page.locator('#share-preview img')).toBeVisible();
   await page.click('#share-save');
+  // 保存前先压缩到 ≤640 宽（2026-08-25 起 saveShareCard 为异步）：
+  // 必须等 toast 出现（保存完成）再断言桥调用，否则慢机/CI 上会读到 0 次调用（竞态）
+  await expect(page.locator('#toast')).toContainText('已保存到手机「下载」目录');
   const saves = await page.evaluate(() => window.__nativeSaves);
   expect(saves.length).toBe(1);
   expect(saves[0].name).toBe('外院互助任务卡.jpg');
